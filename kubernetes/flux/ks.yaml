@@ -20,25 +20,3 @@ spec:
     namespace: flux-system
   timeout: 5m
   wait: false
-  patches:
-    - # Add Sops decryption to child Kustomizations
-      patch: |-
-        apiVersion: kustomize.toolkit.fluxcd.io/v1
-        kind: Kustomization
-        metadata:
-          name: not-used
-        spec:
-          decryption:
-            provider: sops
-            secretRef:
-              name: sops-age
-      target:
-        group: kustomize.toolkit.fluxcd.io
-        kind: Kustomization
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: cluster-secrets
-      - kind: ConfigMap
-        name: cluster-vars
-        optional: true
