@@ -23,6 +23,6 @@ spec:
       deployment:
         replicas: 1
       readOnlyRootFileSystem: true
-      podMonitor:
-        enabled: true
-        namespace: "{{ .Release.Namespace }}"
+#      podMonitor:
+#        enabled: true
+#        namespace: "{{ .Release.Namespace }}"
