@@ -1,0 +1,26 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    # Replace the email address with your own contact email
+    email: root@bricriu.dev
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-nginx
+    solvers:
+      - dns01:
+          cloudflare:
+            email: cloudflare@bricriu.com
+            apiTokenSecretRef:
+              name: cloudflare-secret
+              key: CLOUDFLARE_API_TOKEN
+        selector:
+          dnsZones:
+            - bricriu.com
+            - bricriu.dev
+            - bricriu.xyz
+            - oreillys.io
+            - brianporeilly.com
