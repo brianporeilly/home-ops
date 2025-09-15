@@ -17,5 +17,9 @@ spec:
     remediation:
       retries: 3
   values:
-    configuration:
-      notifyUrl: ${SLACK_ALERTS_WEBHOOK}
+    extraEnvVars:
+     - name: KURED_NOTIFY_URL
+       valueFrom:
+         secretKeyRef:
+           name: kured-secrets
+           key: slack_webhook_url
