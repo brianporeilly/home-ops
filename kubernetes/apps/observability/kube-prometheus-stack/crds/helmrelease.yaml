@@ -3,12 +3,13 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: cert-manager
+  name: prometheus-crds
 spec:
   interval: 1h
+  timeout: 15m
   chartRef:
     kind: OCIRepository
-    name: cert-manager
+    name: prometheus-operator-crds
   install:
     remediation:
       retries: -1
@@ -17,11 +18,3 @@ spec:
     remediation:
       retries: 3
   values:
-    crds:
-      enabled: true
-    dns01RecursiveNameservers: https://1.1.1.1:443/dns-query,https://1.0.0.1:443/dns-query
-    dns01RecursiveNameserversOnly: true
-    prometheus:
-      enabled: true
-      servicemonitor:
-        enabled: true

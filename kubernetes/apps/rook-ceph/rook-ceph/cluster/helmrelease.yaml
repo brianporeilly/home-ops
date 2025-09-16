@@ -20,9 +20,9 @@ spec:
   values:
     toolbox:
       enabled: true
-#    monitoring:
-#      enabled: true
-#      createPrometheusRules: true
+    monitoring:
+      enabled: true
+      createPrometheusRules: true
     cephClusterSpec:
       resources: null
       cephConfig:

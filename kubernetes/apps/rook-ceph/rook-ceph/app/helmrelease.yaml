@@ -21,12 +21,12 @@ spec:
     csi:
       cephFSKernelMountOptions: ms_mode=prefer-crc
       enableLiveness: true
-#      serviceMonitor:
-#        enabled: true
+      serviceMonitor:
+        enabled: true
     image:
       repository: ghcr.io/rook/ceph
-#    monitoring:
-#      enabled: true
+    monitoring:
+      enabled: true
     resources:
       requests:
         memory: 128Mi # unchangable
