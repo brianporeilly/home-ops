@@ -12,6 +12,11 @@ spec:
   dependsOn:
     - name: certificates
       namespace: network
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/network/envoy-gateway/app
   prune: true
