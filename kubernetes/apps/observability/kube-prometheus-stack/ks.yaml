@@ -45,10 +45,14 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
-    - name: rook-ceph-cluster
-      namespace: rook-ceph
     - name: prometheus-crds
       namespace: *namespace
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+    - name: envoy-gateway
+      namespace: network
+    - name: envoy-gateway-config
+      namespace: network
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
