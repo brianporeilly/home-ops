@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubevip
+data:
+  cidr-global: 10.1.250.0/24
