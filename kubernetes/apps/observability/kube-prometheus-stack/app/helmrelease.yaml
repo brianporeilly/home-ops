@@ -22,6 +22,15 @@ spec:
       enabled: false
     cleanPrometheusOperatorObjectNames: true
     alertmanager:
+      route:
+        main:
+          enabled: true
+          hostnames:
+            - alertmanager.internal.oreillys.io
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+              sectionName: https
       alertmanagerSpec:
         storage:
           volumeClaimTemplate:
