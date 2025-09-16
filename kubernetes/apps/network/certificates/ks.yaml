@@ -15,7 +15,7 @@ spec:
     - name: cert-manager-issuers
       namespace: cert-manager
   interval: 1h
-  path: ./kubernetes/apps/network/certificates/app
+  path: ./kubernetes/apps/network/certificates/certificates
   prune: true
   retryInterval: 2m
   sourceRef:
