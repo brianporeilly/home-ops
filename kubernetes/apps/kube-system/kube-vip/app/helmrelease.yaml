@@ -28,6 +28,6 @@ spec:
       vip_interface: "lo"
       lb_port: "6443"
       vip_arp: "true"
-      vip_subnet: "16"
+      vip_subnet: "24"
       cp_enable: "false"
       svc_enable: "true"
