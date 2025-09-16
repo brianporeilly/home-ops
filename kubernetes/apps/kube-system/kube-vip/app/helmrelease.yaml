@@ -3,13 +3,13 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: kube-vip-cloud-provider
+  name: kube-vip
 spec:
   interval: 1h
   chart:
     spec:
-      chart: kube-vip-cloud-provider
-      version: 0.2.7
+      chart: kube-vip
+      version: 0.8.2
       sourceRef:
         kind: HelmRepository
         name: kube-vip
@@ -22,6 +22,12 @@ spec:
     remediation:
       retries: 3
   values:
-    cm:
-      data:
-        cidr-global: 10.1.250.0/24
+    config:
+      address: "10.1.254.100"
+    env:
+      vip_interface: "lo"
+      lb_port: "6443"
+      vip_arp: "true"
+      vip_subnet: "16"
+      cp_enable: "false"
+      svc_enable: "true"
