@@ -1,7 +1,0 @@
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kube-vip-cloud-provider
-data:
-  cidr-global: 10.1.250.0/24
