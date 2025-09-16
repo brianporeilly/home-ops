@@ -9,7 +9,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
-    - name: prometheus-kube-prometheseus-stack
+    - name: kube-prometheseus-stack
       namespace: *namespace
     - name: rook-ceph-cluster
       namespace: rook-ceph
