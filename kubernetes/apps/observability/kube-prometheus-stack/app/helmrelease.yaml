@@ -32,6 +32,11 @@ spec:
               namespace: network
               sectionName: https
       alertmanagerSpec:
+        alertmanagerConfiguration:
+          name: alertmanager
+          global:
+            resolveTimeout: 5m
+        externalUrl: https://alertmanager.internal.oreillys.io
         storage:
           volumeClaimTemplate:
             spec:
@@ -39,9 +44,16 @@ spec:
               resources:
                 requests:
                   storage: 1Gi
-    kubeProxy:
-      enabled: false
     prometheus:
+      route:
+        main:
+          enabled: true
+          hostnames:
+            - prometheus.internal.oreillys.io
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+              sectionName: https
       prometheusSpec:
         retention: 14d
         retentionSize: 50GB
@@ -86,10 +98,8 @@ spec:
                 - __meta_kubernetes_pod_node_name
               targetLabel: kubernetes_node
     grafana:
-      enabled: true
+      enabled: false
       forceDeployDashboards: true
-      deploymentStrategy:
-        type: Recreate
     additionalPrometheusRulesMap:
       dockerhub-rules:
         groups:
