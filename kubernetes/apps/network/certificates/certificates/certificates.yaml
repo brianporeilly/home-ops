@@ -1,0 +1,21 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: oreillys.io
+spec:
+  secretName: oreillys.io-tls
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  commonName: oreillys.io
+  dnsNames:
+    - oreillys.io
+    - "*.oreillys.io"
+    - "*.internal.oreillys.io"
+    - brianporeilly.com
+    - "*.brianporeilly.com"
+    - bricriu.dev
+    - "*.bricriu.dev"
+    - bricriu.xyz
+    - "*.bricriu.xyz"
