@@ -18,6 +18,8 @@ spec:
     remediation:
       retries: 3
   values:
+    crds:
+      enabled: false
     cleanPrometheusOperatorObjectNames: true
     alertmanager:
       alertmanagerSpec:
