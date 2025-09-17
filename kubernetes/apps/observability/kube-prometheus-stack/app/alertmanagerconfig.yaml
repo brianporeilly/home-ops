@@ -4,6 +4,7 @@ apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
   name: alertmanager
+  namespace: observability
 spec:
   route:
     groupBy:
@@ -47,7 +48,7 @@ spec:
   receivers:
     - name: "null"
     - name: slack
-      webhookConfigs:
-        - urlSecret:
-            name: &secret alertmanager-secret
+      slackConfigs:
+        - apiURL:
+            name: &secret alertmanager-secrets
             key: slack_webhook_url
