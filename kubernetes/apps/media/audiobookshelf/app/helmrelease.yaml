@@ -1,0 +1,106 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: audiobookshelf
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: audiobookshelf
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      audiobookshelf:
+        pod:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: { type: RuntimeDefault }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/advplyr/audiobookshelf
+              tag: 2.29.0@sha256:dd4a3079d26bfe9f0ea63de3e3eff483dfa25fef05ef850a5a9d121dca3794b2
+            env:
+              AUDIOBOOKSHELF_UID: 1000
+              AUDIOBOOKSHELF_GID: 1000
+              CONFIG_PATH: /config
+              METADATA_PATH: /metadata
+              BACKUP_PATH: /metadata/backups
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthcheck
+                    port: &port 80
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 100Mi
+              limits:
+                memory: 500Mi
+    service:
+      app:
+        primary: true
+        controller: audiobookshelf
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - books.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /config
+      metadata:
+        suffix: metadata
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /metadata
+      media:
+        suffix: media
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "100Gi"
+        globalMounts:
+          - path: /media
+      tmpfs:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
