@@ -48,6 +48,9 @@ spec:
       csi:
         readAffinity:
           enabled: true
+      dashboard:
+        enabled: true
+        ssl: false
       mgr:
         modules:
           - name: diskprediction_local
