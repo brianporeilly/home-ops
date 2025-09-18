@@ -7,3 +7,4 @@ resources:
   - ./alertmanagerconfig.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./podmonitors.yaml

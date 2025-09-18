@@ -154,6 +154,11 @@ spec:
           gnetId: 22604
           revision: 2
           datasource: Prometheus
+        zfs:
+          # renovate: depName="ZFS"
+          gnetId: 7845
+          revision: 4
+          datasource: Prometheus
     plugins:
       - grafana-clock-panel
       - grafana-piechart-panel
