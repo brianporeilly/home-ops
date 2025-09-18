@@ -23,6 +23,15 @@ spec:
     monitoring:
       enabled: true
       createPrometheusRules: true
+    route:
+      dashboard:
+        enabled: true
+        hostnames:
+          - ceph.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
     cephClusterSpec:
       resources: null
       cephConfig:
