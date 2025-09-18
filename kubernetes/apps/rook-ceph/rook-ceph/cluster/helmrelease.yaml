@@ -25,9 +25,8 @@ spec:
       createPrometheusRules: true
     route:
       dashboard:
-        enabled: true
-        hostnames:
-          - ceph.internal.oreillys.io
+        host:
+          name: ceph.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
