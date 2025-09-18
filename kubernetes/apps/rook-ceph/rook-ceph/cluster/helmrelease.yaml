@@ -27,6 +27,8 @@ spec:
       dashboard:
         host:
           name: ceph.internal.oreillys.io
+          path: "/"
+          pathType: PathPrefix
         parentRefs:
           - name: envoy-internal
             namespace: network
