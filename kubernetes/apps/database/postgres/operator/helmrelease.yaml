@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: postgres-operator
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: cloudnative-pg
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg
+  values:
+    crds:
+      create: true
+  interval: 1m0s
+  targetNamespace: postgres-system
