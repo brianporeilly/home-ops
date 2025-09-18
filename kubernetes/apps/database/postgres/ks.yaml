@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/kube-system/postgres/operator
+  path: ./kubernetes/apps/database/postgres/operator
   prune: true
   retryInterval: 2m
   sourceRef:
