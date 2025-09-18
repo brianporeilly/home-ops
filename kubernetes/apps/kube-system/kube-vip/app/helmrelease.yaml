@@ -25,7 +25,7 @@ spec:
     config:
       address: "10.1.254.100"
     env:
-      vip_interface: "lo"
+      vip_interface: "eno1"
       lb_port: "6443"
       vip_arp: "true"
       vip_subnet: "24"
