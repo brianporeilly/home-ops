@@ -37,6 +37,7 @@ spec:
           global:
             resolveTimeout: 5m
         externalUrl: https://alertmanager.internal.oreillys.io
+        replicas: 3
         storage:
           volumeClaimTemplate:
             spec:
