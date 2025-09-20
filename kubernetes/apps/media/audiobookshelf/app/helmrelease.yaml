@@ -79,9 +79,6 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        rules:
-          - timeouts:
-              request: 10m
 
     persistence:
       config:
