@@ -1,0 +1,88 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: home-assistant
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: home-assistant
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      home-assistant:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/home-assistant
+              tag: 2025.9.4@sha256:55c7db16301626265c6c8132985137ca0798303773dafa244e562353baa93a6f
+            env:
+#            envFrom:
+#              - secretRef:
+#                  name: "{{ .Release.Name }}-secret"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: {drop: ["ALL"]}
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 2Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        ports:
+          http:
+            appProtocol: kubernetes.io/ws
+            port: 8123
+    route:
+      app:
+        hostnames:
+          - home.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /config
+      config-cache:
+        suffix: cache
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /config/.venv
+      tmpfs:
+        type: emptyDir
+        advancedMounts:
+          home-assistant:
+            app:
+              - path: /config/logs
+                subPath: logs
+              - path: /config/tts
+                subPath: tts
+              - path: /tmp
+                subPath: tmp
