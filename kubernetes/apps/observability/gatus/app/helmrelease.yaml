@@ -115,12 +115,12 @@ spec:
             - identifier: gatus
     serviceAccount:
       gatus: {}
-    persistence:
-      config:
-        type: emptyDir
-      config-file:
-        type: configMap
-        name: "{{ .Release.Name }}-configmap"
-        globalMounts:
-          - path: /config/config.yaml
-            subPath: config.yaml
+#    persistence:
+#      config:
+#        type: emptyDir
+#      config-file:
+#        type: configMap
+#        name: "{{ .Release.Name }}-configmap"
+#        globalMounts:
+#          - path: /config/config.yaml
+#            subPath: config.yaml
