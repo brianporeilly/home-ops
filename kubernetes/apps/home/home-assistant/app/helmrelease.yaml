@@ -73,7 +73,7 @@ spec:
         type: configMap
         name: "{{ .Release.Name }}-configmap"
         globalMounts:
-          - path: /config/config.yaml
+          - path: /config/configuration.yaml
             subPath: config.yaml
       config-cache:
         suffix: cache
