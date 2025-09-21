@@ -6,6 +6,16 @@ connectivity:
 
 metrics: true
 
+endpoints:
+  - name: google
+    group: third-party
+    url: https://google.com
+    interval: 5m
+    client:
+      dns-resolver: tcp://1.1.1.1:53
+    conditions:
+      - "[STATUS] == 404"
+
 ui:
   title: Status | Gatus
   header: Status
