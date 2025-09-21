@@ -1,0 +1,22 @@
+---
+connectivity:
+  checker:
+    target: 1.1.1.1:53
+    interval: 1m
+
+metrics: true
+
+ui:
+  title: Status | Gatus
+  header: Status
+  #logo: https://avatars.githubusercontent.com/u/20746663
+  link: https://github.com/brianporeilly
+  buttons:
+    - name: Github
+      link: https://github.com/brianporeilly
+
+    - name: Homelab
+      link: https://github.com/brianporeilly/home-ops
+
+web:
+  port: ${GATUS_WEB_PORT}
