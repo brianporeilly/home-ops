@@ -69,6 +69,12 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      config-file:
+        type: configMap
+        name: "{{ .Release.Name }}-configmap"
+        globalMounts:
+          - path: /config/config.yaml
+            subPath: config.yaml
       config-cache:
         suffix: cache
         storageClass: "ceph-block"
