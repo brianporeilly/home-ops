@@ -35,9 +35,9 @@ spec:
               SONARR__LOG__LEVEL: info
               SONARR__SERVER__PORT: &port 8989
               SONARR__UPDATE__BRANCH: develop
-#            envFrom:
-#              - secretRef:
-#                  name: "{{ .Release.Name }}-secret"
+            envFrom:
+              - secretRef:
+                  name: "{{ .Release.Name }}-secret"
             probes:
               liveness: &probes
                 enabled: true
