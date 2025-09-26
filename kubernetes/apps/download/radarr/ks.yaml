@@ -14,6 +14,11 @@ spec:
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: *app
+      namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/download/radarr/app
   prune: true
