@@ -25,7 +25,7 @@ spec:
               repository: ghcr.io/home-operations/sabnzbd
               tag: 4.5.3
             env:
-              SABNZBD__PORT: &port 80
+              SABNZBD__PORT: &port 8080
               SABNZBD__HOST_WHITELIST_ENTRIES: >-
                 sabnzbd,
                 sabnzbd.downloads,
@@ -53,7 +53,6 @@ spec:
               readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
-                add: ["NET_BIND_SERVICE"]
             resources:
               requests:
                 cpu: 100m
@@ -62,6 +61,8 @@ spec:
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
     service:
