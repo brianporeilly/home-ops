@@ -25,13 +25,15 @@ spec:
     config:
       address: "10.20.254.100"
     env:
-      vip_interface: "lo"
-      lb_port: "6443"
-      vip_arp: "false"
-      vip_bgp: "true"
-      vip_subnet: "16"
-      cp_enable: "false"
+      cp_enable: "true"
+      cp_namespace: "kube-system"
       svc_enable: "true"
+      vip_arp: "false"
+      vip_ddns: "false"
+      vip_interface: "lo"
+      vip_subnet: "16"
+      bgp_enable: "true"
+      bgp_as: "65001"
       bgp_peeraddress: "10.20.0.1"
       bgp_peeras: "65000"
 
