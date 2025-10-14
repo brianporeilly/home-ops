@@ -24,4 +24,4 @@ spec:
   values:
     cm:
       data:
-        cidr-global: 10.1.250.0/24
+        cidr-global: 10.20.250.0/24

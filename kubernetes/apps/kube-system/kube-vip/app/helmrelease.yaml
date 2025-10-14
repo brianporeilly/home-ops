@@ -23,11 +23,11 @@ spec:
       retries: 3
   values:
     config:
-      address: "10.1.254.100"
+      address: "10.20.254.100"
     env:
       vip_interface: "eno1"
       lb_port: "6443"
-      vip_arp: "true"
+      vip_bgp: "true"
       vip_subnet: "24"
       cp_enable: "false"
       svc_enable: "true"
