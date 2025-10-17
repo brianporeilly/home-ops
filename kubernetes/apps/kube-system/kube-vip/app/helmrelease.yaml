@@ -30,7 +30,7 @@ spec:
       svc_enable: "true"
       vip_arp: "false"
       vip_ddns: "false"
-      vip_interface: "lo"
+      vip_interface: ""
       vip_subnet: "16"
       bgp_enable: "true"
       bgp_as: "65001"
