@@ -19,7 +19,7 @@ spec:
       namespace: *namespace
     - apiVersion: apiextensions.k8s.io/v1
       kind: CustomResourceDefinition
-      name: cephclusters.cephs.rook.io
+      name: cephclusters.ceph.rook.io
   interval: 1h
   path: ./kubernetes/apps/rook-ceph/rook-ceph/app
   prune: true
