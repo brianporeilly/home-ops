@@ -65,19 +65,19 @@ spec:
         ports:
           http:
             port: &port 8971
-            unsecure:
-              port: 5000
-            rtsp:
-              port: 8554
-            webrtc-tcp:
-              port: 8555
-              protocol: TCP
-            webrtc-udp:
-              port: 8555
-              protocol: UDP
-            go2rtc:
-              port: 1984
-              protocol: TCP
+          unsecure:
+            port: 5000
+          rtsp:
+            port: 8554
+          webrtc-tcp:
+            port: 8555
+            protocol: TCP
+          webrtc-udp:
+            port: 8555
+            protocol: UDP
+          go2rtc:
+            port: 1984
+            protocol: TCP
 
     route:
       app:
