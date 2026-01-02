@@ -1,0 +1,190 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app omada-controller
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: *app
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      sonarr:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: mbentley/omada-controller
+              tag: 6.0.0.25@sha256:f1ed66625cc7b19e1d393c35b583e78211685a353ff55343a07a0444276629d2
+            env:
+              MANAGE_HTTP_PORT: "8088"
+              MANAGE_HTTPS_PORT: "8043"
+              PORTAL_HTTP_PORT: "8088"
+              PORTAL_HTTPS_PORT: "8843"
+              SHOW_SERVER_LOGS: "true"
+              SHOW_MONGODB_LOGS: "true"
+            probes:
+              liveness:
+                enabled: true
+              readiness:
+                enabled: true
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              # capabilities: {drop: ["ALL"]}
+            resources:
+              requests:
+                cpu: 100m
+              limits:
+                memory: 2Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        controller: *app
+        primary: true
+        ports:
+          http:
+            port: 8043
+            targetPort: 8043
+            protocol: TCP
+            appProtocol: kubernetes.io/ws
+      controller:
+        controller: omada-controller
+        type: LoadBalancer
+        annotations:
+          lbipam.cilium.io/ips: "${OMADA_IPV4},${OMADA_IPV6}"
+        externalTrafficPolicy: Local
+        ipFamilies: [ IPv4, IPv6 ]
+        ipFamilyPolicy: PreferDualStack
+        ports:
+          # # Docs: https://www.tp-link.com/us/support/faq/3281/
+          # Management Ports
+          mgmt-8088-tcp:
+            port: 8088
+            targetPort: 8088
+            protocol: TCP
+          mgmt-8043-tcp:
+            port: 8043
+            protocol: TCP
+            targetPort: 8043
+          portal-8843-tcp:
+            port: 8843
+            protocol: TCP
+            targetPort: 8843
+          # Device Discovery, Adoption, Management, and Upgrade
+          eap-v5-discovery:
+            port: 29810
+            protocol: UDP
+            targetPort: 29810
+          eap-v4-discovery1:
+            port: 29811
+            protocol: TCP
+            targetPort: 29811
+          eap-v4-discovery2:
+            port: 29812
+            protocol: TCP
+            targetPort: 29812
+          eap-v4-upgrade:
+            port: 29813
+            protocol: TCP
+            targetPort: 29813
+          eap-v5-manage:
+            port: 29814
+            protocol: TCP
+            targetPort: 29814
+          eap-v5-device-info:
+            port: 29815
+            protocol: TCP
+            targetPort: 29815
+          eap-v5-remote-control:
+            port: 29816
+            protocol: TCP
+            targetPort: 29816
+          eap-v6-monitoring:
+            port: 29817
+            protocol: TCP
+            targetPort: 29817
+          init-check:
+            port: 27001
+            protocol: UDP
+            targetPort: 27001
+          old-init-info:
+            port: 27002
+            protocol: TCP
+            targetPort: 27002
+          old-db-access:
+            port: 27017
+            protocol: TCP
+            targetPort: 27017
+          db-access:
+            port: 27217
+            protocol: TCP
+            targetPort: 27217
+    route:
+      app:
+        hostnames:
+          - omada.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - kind: Service
+                name: omada-controller-ui
+                port: 8043
+            filters:
+              - type: RequestHeaderModifier
+                requestHeaderModifier:
+                  set:
+                    - name: Host
+                      value: "omada-controller-app:8043"
+    persistence:
+      data:
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        globalMounts:
+          - path: /opt/tplink/EAPController/data
+      work:
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /opt/tplink/EAPController/work
+      logs:
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        globalMounts:
+          - path: /opt/tplink/EAPController/logs
+      backup:
+        # type: nfs
+        # server: "nas"
+        # path: /backup/data/k8s/omada
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        globalMounts:
+          - path: /opt/tplink/EAPController/data/autobackup
