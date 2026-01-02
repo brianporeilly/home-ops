@@ -139,7 +139,7 @@ spec:
         rules:
           - backendRefs:
               - kind: Service
-                name: omada-controller-ui
+                name: omada-controller-app
                 port: 8043
             filters:
               - type: RequestHeaderModifier
