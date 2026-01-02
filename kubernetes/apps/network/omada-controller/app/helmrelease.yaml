@@ -141,12 +141,6 @@ spec:
               - kind: Service
                 name: omada-controller-app
                 port: 8043
-            filters:
-              - type: RequestHeaderModifier
-                requestHeaderModifier:
-                  set:
-                    - name: Host
-                      value: "omada-controller-app:8043"
     persistence:
       data:
         storageClass: "ceph-block"
