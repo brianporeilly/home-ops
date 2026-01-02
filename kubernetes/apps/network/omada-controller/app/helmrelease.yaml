@@ -57,7 +57,7 @@ spec:
             port: 8043
             targetPort: 8043
             protocol: TCP
-            appProtocol: kubernetes.io/ws
+            appProtocol: kubernetes.io/wss
       controller:
         controller: omada-controller
         type: LoadBalancer
