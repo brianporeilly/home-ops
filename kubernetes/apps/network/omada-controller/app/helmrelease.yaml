@@ -72,10 +72,8 @@ spec:
       controller:
         controller: omada-controller
         type: LoadBalancer
-        annotations:
-          lbipam.cilium.io/ips: "${OMADA_IPV4},${OMADA_IPV6}"
         externalTrafficPolicy: Local
-        ipFamilies: [ IPv4, IPv6 ]
+        ipFamilies: [ IPv4 ]
         ipFamilyPolicy: PreferDualStack
         ports:
           # # Docs: https://www.tp-link.com/us/support/faq/3281/
