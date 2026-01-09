@@ -138,9 +138,9 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - kind: Service
-                name: omada-controller-app
-                port: 8043
+              - group: gateway.envoyproxy.io
+                kind: Backend
+                name: omada-backend
     persistence:
       data:
         storageClass: "ceph-block"
