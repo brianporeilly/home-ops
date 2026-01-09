@@ -33,6 +33,7 @@ spec:
                 sabnzbd.downloads.svc.cluster,
                 sabnzbd.downloads.svc.cluster.local,
                 sabnzbd.internal.oreillys.io
+                nzb.internal.oreillys.io
             probes:
               liveness: &probes
                 enabled: true
@@ -74,6 +75,7 @@ spec:
       app:
         hostnames:
           - sabnzbd.internal.oreillys.io
+          - nzb.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
