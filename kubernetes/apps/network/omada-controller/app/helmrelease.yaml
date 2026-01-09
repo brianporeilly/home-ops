@@ -54,8 +54,8 @@ spec:
         primary: true
         ports:
           http:
-            port: 8088
-            targetPort: 8088
+            port: 8043
+            targetPort: 8043
             protocol: TCP
             appProtocol: kubernetes.io/wss
       controller:
@@ -140,7 +140,7 @@ spec:
           - backendRefs:
               - kind: Service
                 name: omada-controller-app
-                port: 8088
+                port: 8043
     persistence:
       data:
         storageClass: "ceph-block"
