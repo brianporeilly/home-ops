@@ -141,6 +141,12 @@ spec:
               - group: gateway.envoyproxy.io
                 kind: Backend
                 name: omada-backend
+            filters:
+              - type: RequestHeaderModifier
+                requestHeaderModifier:
+                  set:
+                    - name: Host
+                      value: "omada.internal.oreillys.io:8043"
     persistence:
       data:
         storageClass: "ceph-block"
