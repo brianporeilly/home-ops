@@ -168,13 +168,15 @@ spec:
         size: 20Gi
         globalMounts:
           - path: /opt/tplink/EAPController/data/autobackup
-      cert:
+      certficates:
         type: secret
         name: oreillys.io-tls
-        mountPath: /cert/tls.crt
-        subPath: tls.crt
-      key:
-        type: secret
-        name: oreillys.io-tls
-        mountPath: /cert/tls.key
-        subPath: tls.key
+        advancedMounts:
+          omada-controller:
+            app:
+              - path: /cert/tls.crt
+                readOnly: true
+                subPath: tls.crt
+              - path: /cert/tls.key
+                readOnly: true
+                subPath: tls.key
