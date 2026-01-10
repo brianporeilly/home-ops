@@ -53,7 +53,7 @@ spec:
         controller: *app
         primary: true
         ports:
-          http:
+          https:
             port: 8043
             targetPort: 8043
             protocol: TCP
@@ -138,9 +138,8 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - group: gateway.envoyproxy.io
-                kind: Backend
-                name: omada-backend
+              - name: omada-controller-app
+                port: 8043
     persistence:
       data:
         storageClass: "ceph-block"
@@ -169,3 +168,13 @@ spec:
         size: 20Gi
         globalMounts:
           - path: /opt/tplink/EAPController/data/autobackup
+      cert:
+        type: secret
+        name: oreillys.io-tls
+        mountPath: /cert/tls.crt
+        subPath: tls.crt
+      key:
+        type: secret
+        name: oreillys.io-tls
+        mountPath: /cert/tls.key
+        subPath: tls.key
