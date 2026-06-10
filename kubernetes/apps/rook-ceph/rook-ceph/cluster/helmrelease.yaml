@@ -51,6 +51,10 @@ spec:
       dashboard:
         enabled: true
         ssl: false
+      disruptionManagement:
+        managePodBudgets: true
+        osdMaintenanceTimeout: 30      # minutes to hold noout on a draining failure domain
+        pgHealthCheckTimeout: 0        # 0 = wait until PGs are healthy before unblocking next drain
       mgr:
         modules:
           - name: diskprediction_local
