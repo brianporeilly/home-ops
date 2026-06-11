@@ -23,6 +23,9 @@ spec:
     monitoring:
       enabled: true
       createPrometheusRules: true
+      prometheusRules:
+        CephPoolGrowthWarning:
+          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata
     route:
       dashboard:
         host:
