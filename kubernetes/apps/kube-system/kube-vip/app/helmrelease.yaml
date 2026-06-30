@@ -36,8 +36,8 @@ spec:
       bgp_as: "65001"
       bgp_peeraddress: "10.20.0.1"
       bgp_peeras: "65000"
-      bgp_holdtimer: "3"
-      bgp_keepalive: "1"
+      bgp_holdtimer: "30"
+      bgp_keepalive: "10"
 
     envValueFrom:
       bgp_routerid:
