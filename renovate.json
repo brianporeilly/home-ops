@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "flux": {
+    "fileMatch": ["kubernetes/apps/.+\\.yaml$"]
+  },
+  "helm-values": {
+    "fileMatch": ["kubernetes/apps/.+\\.yaml$"]
+  },
+  "packageRules": [
+    {
+      "description": "Group app-template chart updates",
+      "matchPackageNames": ["ghcr.io/bjw-s-labs/helm/app-template"],
+      "groupName": "app-template",
+      "automerge": false
+    },
+    {
+      "description": "Auto-merge patch updates for non-critical dependencies",
+      "matchUpdateTypes": ["patch"],
+      "matchManagers": ["flux", "helm-values"],
+      "automerge": true
+    }
+  ]
+}
