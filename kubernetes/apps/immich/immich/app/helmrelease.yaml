@@ -154,15 +154,16 @@ spec:
 
     route:
       app:
-        service:
-          name: app
-          port: 2283
         hostnames:
           - photos.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 2283
 
     persistence:
       data:
