@@ -1,0 +1,72 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flux-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: flux
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    - name: flux
+      rules:
+        - alert: FluxResourceNotReady
+          annotations:
+            summary: "Flux resource {{ $labels.name }} is not ready"
+            description: >-
+              {{ $labels.name }} (kind: {{ $labels.kind }},
+              namespace: {{ $labels.namespace }}) has been not ready for
+              more than 15 minutes.
+          expr: |
+            max by (name, namespace, kind) (
+              gotk_reconcile_condition{type="Ready", status="False"}
+            ) >= 1
+          for: 15m
+          labels:
+            severity: critical
+
+        - alert: FluxReconciliationFailure
+          annotations:
+            summary: "Flux resource {{ $labels.name }} reconciliation failing"
+            description: >-
+              {{ $labels.name }} (kind: {{ $labels.kind }},
+              namespace: {{ $labels.namespace }}) has been failing
+              reconciliation for more than 5 minutes.
+          expr: |
+            max by (name, namespace, kind) (
+              rate(gotk_reconcile_condition{type="Ready", status="False"}[5m])
+            ) > 0.01
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: FluxStuckInProgress
+          annotations:
+            summary: "Flux resource {{ $labels.name }} stuck reconciling"
+            description: >-
+              {{ $labels.name }} (kind: {{ $labels.kind }},
+              namespace: {{ $labels.namespace }}) has been reconciling
+              without completing for more than 2 hours.
+          expr: |
+            max by (name, namespace, kind) (
+              gotk_reconcile_condition{type="Reconciling", status="True"}
+            ) >= 1
+          for: 2h
+          labels:
+            severity: warning
+
+        - alert: FluxSourceStale
+          annotations:
+            summary: "Flux source {{ $labels.name }} has not been fetched"
+            description: >-
+              Source {{ $labels.name }} (kind: {{ $labels.kind }},
+              namespace: {{ $labels.namespace }}) has not been updated
+              for more than 2 times the configured interval.
+          expr: |
+            max by (name, kind, namespace) (
+              time() - gotk_reconcile_duration
+            ) > 7200
+          labels:
+            severity: warning
