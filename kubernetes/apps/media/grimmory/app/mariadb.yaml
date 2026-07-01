@@ -19,6 +19,11 @@ spec:
 
   port: 3306
 
+  startupProbe:
+    failureThreshold: 30
+    periodSeconds: 10
+    initialDelaySeconds: 20
+
   storage:
     size: 10Gi
     storageClassName: ceph-block
