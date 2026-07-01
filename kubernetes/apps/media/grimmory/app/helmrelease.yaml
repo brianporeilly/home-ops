@@ -1,0 +1,121 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grimmory
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: grimmory
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      grimmory:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/grimmory-tools/grimmory
+              tag: v3.2.2@sha256:98ad96816b7eff9cb754ef70413491b66d23d10946fab27d7217d6c45dfd7fce
+            env:
+              TZ: America/New_York
+              USER_ID: "1000"
+              GROUP_ID: "1000"
+              DATABASE_URL: jdbc:mariadb://grimmory-mariadb:3306/grimmory
+              DATABASE_USERNAME: grimmory
+              DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-mariadb
+                    key: password
+              API_DOCS_ENABLED: "false"
+              DISK_TYPE: local
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v1/healthcheck
+                    port: &port 6060
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 1Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: grimmory
+        ports:
+          http:
+            port: 6060
+
+    route:
+      app:
+        hostnames:
+          - books.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /app/data
+      books:
+        suffix: books
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        globalMounts:
+          - path: /books
+      bookdrop:
+        suffix: bookdrop
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /bookdrop

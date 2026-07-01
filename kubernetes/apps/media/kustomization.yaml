@@ -9,3 +9,4 @@ resources:
   - ./audiobookshelf/ks.yaml
   - ./jellyfin/ks.yaml
   - ./ersatztv/ks.yaml
+  - ./grimmory/ks.yaml
