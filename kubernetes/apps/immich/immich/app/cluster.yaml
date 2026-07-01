@@ -14,7 +14,7 @@ spec:
     initdb:
       database: immich
       owner: immich
-  postInitSQL:
-    - CREATE EXTENSION IF NOT EXISTS vector CASCADE
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector CASCADE
   monitoring:
     enablePodMonitor: true
