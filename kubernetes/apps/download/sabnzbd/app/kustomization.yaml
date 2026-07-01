@@ -5,13 +5,4 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
-components:
-  - ../../../../components/gatus/internal
-vars:
-  - name: APP
-    objref:
-      kind: HelmRelease
-      name: sabnzbd
-      apiVersion: helm.toolkit.fluxcd.io/v2
-    fieldref:
-      fieldpath: metadata.name
+  - ./gatus-ep.yaml
