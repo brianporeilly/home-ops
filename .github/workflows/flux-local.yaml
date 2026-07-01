@@ -21,9 +21,30 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run flux-local test
-        uses: docker://ghcr.io/allenporter/flux-local:v8.2.0
+        uses: docker://ghcr.io/allenporter/flux-local:v8.3.0
         with:
           args: test --enable-helm --all-namespaces --path /github/workspace/kubernetes/flux -v
+
+  kubeconform:
+    name: Kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download kubeconform
+        run: |
+          curl -sL "https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz" | sudo tar xz -C /usr/local/bin
+
+      - name: Build and validate all manifests
+        run: |
+          docker run --rm \
+            -e XDG_CACHE_HOME=/tmp \
+            -v ${{ github.workspace }}:/github/workspace \
+            ghcr.io/allenporter/flux-local:v8.3.0 \
+            build all --enable-helm /github/workspace/kubernetes/flux \
+            > /tmp/rendered.yaml
+          kubeconform -summary -ignore-missing-schemas /tmp/rendered.yaml
 
   diff:
     if: ${{ github.event_name == 'pull_request' }}
@@ -50,7 +71,7 @@ jobs:
           path: default
 
       - name: Run flux-local diff
-        uses: docker://ghcr.io/allenporter/flux-local:v8.2.0
+        uses: docker://ghcr.io/allenporter/flux-local:v8.3.0
         with:
           args: >-
             diff ${{ matrix.resource }}
