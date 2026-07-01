@@ -48,9 +48,6 @@ spec:
               REDIS_PORT: "6379"
               IMMICH_MACHINE_LEARNING_URL: "http://{{ .Release.Name }}-ml:3003"
               TZ: America/New_York
-            envFrom:
-              - secretRef:
-                  name: "{{ .Release.Name }}-secret"
             probes:
               liveness: &probes
                 enabled: true
