@@ -1,0 +1,21 @@
+# yayamlls workspace config
+# https://github.com/home-operations/yayamlls
+
+catalog: true
+kubernetes:
+  enabled: true
+schemas:
+  "https://json.schemastore.org/github-workflow.json":
+    - ".github/workflows/*.yml"
+  "https://json.schemastore.org/github-funding.json":
+    - ".github/FUNDING.yml"
+  "https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json":
+    - "**/docker-compose*.yml"
+fluxSubstitutions: true
+customTags:
+  - "!secret"
+  - "!age"
+renderers:
+  flate:
+    enabled: true
+    path: kubernetes
