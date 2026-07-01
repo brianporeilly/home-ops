@@ -171,8 +171,10 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "100Gi"
-        globalMounts:
-          - path: /data
+        advancedMounts:
+          server:
+            app:
+              - path: /data
       ml-cache:
         suffix: ml-cache
         storageClass: "ceph-block"
