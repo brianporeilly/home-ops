@@ -86,7 +86,7 @@ spec:
     route:
       app:
         hostnames:
-          - books.internal.oreillys.io
+          - grimmory.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
