@@ -6,6 +6,7 @@ metadata:
   name: immich-postgres
 spec:
   instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.5-standard-trixie
   storage:
     size: 10Gi
     storageClass: ceph-block
@@ -13,5 +14,7 @@ spec:
     initdb:
       database: immich
       owner: immich
+  postInitSQL:
+    - CREATE EXTENSION IF NOT EXISTS vector CASCADE
   monitoring:
     enablePodMonitor: true
