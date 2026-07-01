@@ -1,0 +1,45 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: volume-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    - name: volumes
+      rules:
+        - alert: PersistentVolumeUsageCritical
+          annotations:
+            summary: "PVC {{ $labels.persistentvolumeclaim }} usage is critical"
+            description: >-
+              PersistentVolume claim {{ $labels.persistentvolumeclaim }}
+              in namespace {{ $labels.namespace }} is at
+              {{ $value | humanizePercentage }} usage.
+          expr: |
+            max by (namespace, persistentvolumeclaim) (
+              kubelet_volume_stats_used_bytes{}
+              / kubelet_volume_stats_capacity_bytes{}
+            ) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: PersistentVolumeUsageWarning
+          annotations:
+            summary: "PVC {{ $labels.persistentvolumeclaim }} usage is elevated"
+            description: >-
+              PersistentVolume claim {{ $labels.persistentvolumeclaim }}
+              in namespace {{ $labels.namespace }} is at
+              {{ $value | humanizePercentage }} usage.
+          expr: |
+            max by (namespace, persistentvolumeclaim) (
+              kubelet_volume_stats_used_bytes{}
+              / kubelet_volume_stats_capacity_bytes{}
+            ) > 0.80
+          for: 15m
+          labels:
+            severity: warning
