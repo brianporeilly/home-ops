@@ -5,9 +5,6 @@
   "flux": {
     "fileMatch": ["kubernetes/apps/.+\\.yaml$"]
   },
-  "helm-values": {
-    "fileMatch": ["kubernetes/apps/.+\\.yaml$"]
-  },
   "packageRules": [
     {
       "description": "Group app-template chart updates",
@@ -18,7 +15,7 @@
     {
       "description": "Auto-merge patch updates for non-critical dependencies",
       "matchUpdateTypes": ["patch"],
-      "matchManagers": ["flux", "helm-values"],
+      "matchManagers": ["flux"],
       "automerge": true
     }
   ]
