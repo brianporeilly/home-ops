@@ -39,6 +39,7 @@ jobs:
       - name: Build and validate all manifests
         run: |
           docker run --rm \
+            -e XDG_CACHE_HOME=/tmp \
             -v ${{ github.workspace }}:/github/workspace \
             ghcr.io/allenporter/flux-local:v8.3.0 \
             build all --enable-helm /github/workspace/kubernetes/flux \
