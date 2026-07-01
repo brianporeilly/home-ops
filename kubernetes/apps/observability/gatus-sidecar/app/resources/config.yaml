@@ -6,25 +6,18 @@ connectivity:
 
 metrics: true
 
-endpoints:
-  - name: google
-    group: third-party
-    url: https://google.com
-    interval: 5m
-    client:
-      dns-resolver: tcp://1.1.1.1:53
-    conditions:
-      - "[STATUS] == 200"
+storage:
+  type: sqlite
+  caching: true
+  path: /config/gatus.db
 
 ui:
-  title: Status | Gatus
+  title: Status
   header: Status
-  #logo: https://avatars.githubusercontent.com/u/20746663
   link: https://github.com/brianporeilly
   buttons:
     - name: Github
       link: https://github.com/brianporeilly
-
     - name: Homelab
       link: https://github.com/brianporeilly/home-ops
 

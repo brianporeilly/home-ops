@@ -1,0 +1,137 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ app_name }}
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: {{ app_name }}
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      {{ controller_name }}:
+{% if has_reloader %}
+        annotations:
+          reloader.stakater.com/auto: "true"
+{% endif %}
+        containers:
+          app:
+            image:
+              repository: {{ image_repository }}
+              tag: {{ image_tag }}
+{% if env_vars %}
+            env:
+{% for key, value in env_vars.items() %}
+              {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
+{% if has_secret %}
+            envFrom:
+              - secretRef:
+                  name: "{{ "{{ .Release.Name }}" }}-secret"
+{% endif %}
+{% if probe_path %}
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: {{ probe_path }}
+                    port: &port {{ port }}
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+{% if startup_probe %}
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
+{% endif %}
+{% endif %}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: {{ cpu_request }}
+                memory: {{ memory_request }}
+              limits:
+                memory: {{ memory_limit }}
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: {{ controller_name }}
+        ports:
+          http:
+            port: {{ port }}
+
+    route:
+      app:
+        hostnames:
+          - {{ hostname }}
+        parentRefs:
+          - name: {{ gateway_name }}
+            namespace: network
+            sectionName: https
+{% if volumes %}
+
+    persistence:
+{% for vol in volumes %}
+      {{ vol.name }}:
+{% if vol.is_empty_dir %}
+        type: emptyDir
+{% if vol.advanced_mounts %}
+        advancedMounts:
+          {{ controller_name }}:
+            app:
+              - path: {{ vol.mount_path }}
+{% if vol.sub_path %}
+                subPath: {{ vol.sub_path }}
+{% endif %}
+{% else %}
+        globalMounts:
+          - path: {{ vol.mount_path }}
+{% endif %}
+{% else %}
+        suffix: {{ vol.name }}
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "{{ vol.size }}"
+{% if vol.advanced_mounts %}
+        advancedMounts:
+          {{ controller_name }}:
+            app:
+              - path: {{ vol.mount_path }}
+{% if vol.sub_path %}
+                subPath: {{ vol.sub_path }}
+{% endif %}
+{% else %}
+        globalMounts:
+          - path: {{ vol.mount_path }}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
