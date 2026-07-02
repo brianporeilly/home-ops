@@ -7,5 +7,7 @@ components:
   - ../../components/common
 resources:
   - ./home-assistant/ks.yaml
+  # octoprint: needs nodeSelector + USB device path set before enabling
+  # - ./octoprint/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
