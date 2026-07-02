@@ -7,6 +7,7 @@ components:
   - ../../components/common
 resources:
   - ./home-assistant/ks.yaml
-  - ./vaultwarden/ks.yaml
+  # vaultwarden: disabled until secret.yaml is sops-encrypted with ADMIN_TOKEN
+  # - ./vaultwarden/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
