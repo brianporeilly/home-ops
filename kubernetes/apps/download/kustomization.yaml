@@ -12,3 +12,5 @@ resources:
   - ./radarr/ks.yaml
   - ./prowlarr/ks.yaml
   - ./recyclarr/ks.yaml
+  # lidarr: music management
+  # - ./lidarr/ks.yaml
