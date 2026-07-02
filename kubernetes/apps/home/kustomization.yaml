@@ -10,3 +10,5 @@ resources:
   - ./esphome/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
+# searxng: private search engine
+# - ./searxng/ks.yaml
