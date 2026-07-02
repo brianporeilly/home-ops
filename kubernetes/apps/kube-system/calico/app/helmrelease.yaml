@@ -23,13 +23,14 @@ spec:
       retries: 3
   values:
     # CRDs are created by the operator itself at startup, not by Helm.
-    # Setting this false prevents field-manager conflicts on every reconcile.
     manageCRDs: false
+    # Installation/APIServer/Goldmane/Whisker CRs managed as raw YAML
+    # by Flux so the chart doesn't fight with separate kustomize resources.
     installation:
-      enabled: true
+      enabled: false
     apiServer:
-      enabled: true
+      enabled: false
     goldmane:
-      enabled: true
+      enabled: false
     whisker:
-      enabled: true
+      enabled: false
