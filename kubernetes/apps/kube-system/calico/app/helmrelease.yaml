@@ -22,6 +22,9 @@ spec:
     remediation:
       retries: 3
   values:
+    # CRDs are created by the operator itself at startup, not by Helm.
+    # Setting this false prevents field-manager conflicts on every reconcile.
+    manageCRDs: false
     installation:
       enabled: true
     apiServer:
