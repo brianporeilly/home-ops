@@ -14,7 +14,7 @@
     },
     {
       "description": "Auto-merge patch updates for non-critical dependencies",
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": ["patch", "pin"],
       "matchManagers": ["flux"],
       "automerge": true
     }
