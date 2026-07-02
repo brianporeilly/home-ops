@@ -1,0 +1,102 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: minecraft
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: minecraft
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      minecraft:
+        containers:
+          app:
+            image:
+              repository: itzg/minecraft-server
+              tag: latest@sha256:face2fb529e75cbcae691000d813f6ef2d1fd1306721179debace6715601dad6
+            env:
+              EULA: "TRUE"
+              TYPE: PAPER
+              MEMORY: "2G"
+              DIFFICULTY: normal
+              MODE: survival
+              ONLINE_MODE: "false"
+              ALLOW_NETHER: "true"
+              ANNOUNCE_PLAYER_ACHIEVEMENTS: "true"
+              ENABLE_RCON: "true"
+              RCON_PASSWORD: minecraft
+              SPAWN_PROTECTION: "0"
+              VIEW_DISTANCE: "10"
+              LEVEL_TYPE: default
+              PVP: "true"
+            probes:
+              liveness: &probes
+                enabled: true
+                spec:
+                  tcpSocket:
+                    port: &port 25565
+                  initialDelaySeconds: 30
+                  periodSeconds: 15
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  tcpSocket:
+                    port: 25565
+                  failureThreshold: 60
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: minecraft
+        ports:
+          minecraft:
+            port: 25565
+            protocol: TCP
+          rcon:
+            port: 25575
+            protocol: TCP
+
+    persistence:
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
