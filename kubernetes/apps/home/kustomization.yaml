@@ -7,5 +7,7 @@ components:
   - ../../components/common
 resources:
   - ./home-assistant/ks.yaml
+  # paperless-ngx: disabled until secret.yaml is sops-encrypted with PAPERLESS_SECRET_KEY
+  # - ./paperless-ngx/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml

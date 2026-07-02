@@ -1,0 +1,168 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: paperless-ngx
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: paperless-ngx
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      paperless-ngx:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/paperless-ngx/paperless-ngx
+              tag: 2.20.15@sha256:835974fc3368fc6714aa38542db7a1f0f542d03244e39b981e519aefc100f355
+            env:
+              PAPERLESS_DBHOST: paperless-postgres-rw
+              PAPERLESS_DBPORT: "5432"
+              PAPERLESS_DBNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: paperless-postgres-app
+                    key: dbname
+              PAPERLESS_DBUSER:
+                valueFrom:
+                  secretKeyRef:
+                    name: paperless-postgres-app
+                    key: username
+              PAPERLESS_DBPASS:
+                valueFrom:
+                  secretKeyRef:
+                    name: paperless-postgres-app
+                    key: password
+              PAPERLESS_REDIS: "redis://{{ .Release.Name }}-valkey:6379"
+              PAPERLESS_URL: https://paperless.internal.oreillys.io
+              PAPERLESS_TIME_ZONE: UTC
+            envFrom:
+              - secretRef:
+                  name: "{{ .Release.Name }}-secret"
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/
+                    port: &port 8000
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 500Mi
+              limits:
+                memory: 2Gi
+
+      valkey:
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+        containers:
+          app:
+            image:
+              repository: docker.io/valkey/valkey
+              tag: 9.1-alpine@sha256:11dfc5d3ce9c570a516760935053687aea8e938be51b17cf112f71ab573e6f7b
+            args:
+              - valkey-server
+              - --appendonly
+              - "yes"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 50Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: paperless-ngx
+        ports:
+          http:
+            port: 8000
+      valkey:
+        controller: valkey
+        ports:
+          tcp:
+            port: 6379
+
+    route:
+      app:
+        hostnames:
+          - paperless.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /usr/src/paperless/data
+      media:
+        suffix: media
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /usr/src/paperless/media
+      valkey-data:
+        type: emptyDir
+        advancedMounts:
+          valkey:
+            app:
+              - path: /data
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /tmp
