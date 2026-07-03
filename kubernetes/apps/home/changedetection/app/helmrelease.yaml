@@ -29,11 +29,10 @@ spec:
             probes:
               liveness: &probes
                 enabled: true
-                custom: true
+                type: TCP
                 spec:
-                  httpGet:
-                    path: /health
-                    port: &port 5000
+                  tcpSocket:
+                    port: 5000
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
