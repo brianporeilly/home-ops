@@ -13,3 +13,5 @@ resources:
   - ./reloader/ks.yaml
   - ./snapshot-controller/ks.yaml
   #- ./csi-driver-nfs/ks.yaml
+  # calico: wire up after bootstrap script is updated (see add-calico-flux branch)
+  # - ./calico/ks.yaml
