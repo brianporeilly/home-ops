@@ -11,3 +11,4 @@ resources:
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
   - ./changedetection/ks.yaml
+  - ./searxng/ks.yaml
