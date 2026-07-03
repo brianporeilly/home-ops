@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: jellyfin
+  name: searxng
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: jellyfin
+    name: searxng
   install:
     remediation:
       retries: -1
@@ -18,16 +18,16 @@ spec:
       retries: 3
   values:
     controllers:
-      jellyfin:
+      searxng:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+              repository: ghcr.io/searxng/searxng
+              tag: 2026.7.1-c5d8d05f0@sha256:475186c014fa31dc90949b2609ba9d70205caa10e78a20641c04930cf6928b5c
             env:
-              JELLYFIN_CACHE_DIR: /config/cache
+              SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
             probes:
               liveness: &probes
                 enabled: true
@@ -35,17 +35,12 @@ spec:
                 spec:
                   httpGet:
                     path: /health
-                    port: &port 8096
+                    port: &port 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
                   failureThreshold: 3
               readiness: *probes
-              startup:
-                enabled: true
-                spec:
-                  failureThreshold: 30
-                  periodSeconds: 10
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -53,8 +48,9 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                memory: 100Mi
               limits:
-                memory: 4Gi
+                memory: 512Mi
 
     defaultPodOptions:
       securityContext:
@@ -67,15 +63,15 @@ spec:
     service:
       app:
         primary: true
-        controller: jellyfin
+        controller: searxng
         ports:
           http:
-            port: *port
+            port: 8080
 
     route:
       app:
         hostnames:
-          - media.internal.oreillys.io
+          - searxng.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
@@ -88,29 +84,10 @@ spec:
         accessMode: ReadWriteOnce
         size: "1Gi"
         globalMounts:
-          - path: /config
-      metadata:
-        suffix: metadata
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "5Gi"
-        globalMounts:
-          - path: /config/metadata
-      media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
-        globalMounts:
-          - path: /media
+          - path: /etc/searxng
       tmpfs:
         type: emptyDir
         advancedMounts:
-          jellyfin:
+          searxng:
             app:
-              - path: /config/cache
-                subPath: cache
-              - path: /config/log
-                subPath: log
               - path: /tmp
-                subPath: tmp

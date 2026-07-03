@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tigera-operator
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: tigera-operator
+      version: v3.31.6
+      sourceRef:
+        kind: HelmRepository
+        name: tigera
+      interval: 15m
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # CRDs are created by the operator itself at startup, not by Helm.
+    manageCRDs: false
+    # Installation/APIServer/Goldmane/Whisker CRs managed as raw YAML
+    # by Flux so the chart doesn't fight with separate kustomize resources.
+    installation:
+      enabled: false
+    apiServer:
+      enabled: false
+    goldmane:
+      enabled: false
+    whisker:
+      enabled: false
