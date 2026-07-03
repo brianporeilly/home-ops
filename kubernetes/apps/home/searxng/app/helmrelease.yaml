@@ -28,15 +28,14 @@ spec:
               tag: 2026.7.1-c5d8d05f0@sha256:475186c014fa31dc90949b2609ba9d70205caa10e78a20641c04930cf6928b5c
             env:
               SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
-              SEARXNG_DISABLE_LIMITER: "1"
+              SEARXNG_SERVER__LIMITER: "false"
             probes:
               liveness: &probes
                 enabled: true
-                custom: true
+                type: TCP
                 spec:
-                  httpGet:
-                    path: /health
-                    port: &port 8080
+                  tcpSocket:
+                    port: 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
