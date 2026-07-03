@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: jellyfin
+  name: changedetection
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: jellyfin
+    name: changedetection
   install:
     remediation:
       retries: -1
@@ -18,16 +18,14 @@ spec:
       retries: 3
   values:
     controllers:
-      jellyfin:
+      changedetection:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
-            env:
-              JELLYFIN_CACHE_DIR: /config/cache
+              repository: ghcr.io/dgtlmoon/changedetection.io
+              tag: 0.55.7@sha256:ea7429f478394d96c8d8b545e4aa93eb17c7ac3ccb06e0ae9f49d15b428f0b84
             probes:
               liveness: &probes
                 enabled: true
@@ -35,17 +33,12 @@ spec:
                 spec:
                   httpGet:
                     path: /health
-                    port: &port 8096
+                    port: &port 5000
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
                   failureThreshold: 3
               readiness: *probes
-              startup:
-                enabled: true
-                spec:
-                  failureThreshold: 30
-                  periodSeconds: 10
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -53,8 +46,9 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                memory: 100Mi
               limits:
-                memory: 4Gi
+                memory: 512Mi
 
     defaultPodOptions:
       securityContext:
@@ -67,50 +61,31 @@ spec:
     service:
       app:
         primary: true
-        controller: jellyfin
+        controller: changedetection
         ports:
           http:
-            port: *port
+            port: 5000
 
     route:
       app:
         hostnames:
-          - media.internal.oreillys.io
+          - changedetection.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
 
     persistence:
-      config:
-        suffix: config
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "3Gi"
-        globalMounts:
-          - path: /config
-      metadata:
-        suffix: metadata
+      data:
+        suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
         globalMounts:
-          - path: /config/metadata
-      media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
-        globalMounts:
-          - path: /media
+          - path: /datastore
       tmpfs:
         type: emptyDir
         advancedMounts:
-          jellyfin:
+          changedetection:
             app:
-              - path: /config/cache
-                subPath: cache
-              - path: /config/log
-                subPath: log
               - path: /tmp
-                subPath: tmp
