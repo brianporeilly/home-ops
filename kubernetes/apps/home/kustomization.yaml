@@ -10,5 +10,4 @@ resources:
   - ./esphome/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
-# changedetection: website change monitoring
-# - ./changedetection/ks.yaml
+  - ./changedetection/ks.yaml
