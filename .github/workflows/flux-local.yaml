@@ -96,7 +96,7 @@ jobs:
 
       - name: Post Comment
         if: ${{ steps.diff.outputs.diff != '' }}
-        uses: mshick/add-pr-comment@v2
+        uses: mshick/add-pr-comment@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           message-id: ${{ github.event.pull_request.number }}/${{ matrix.resource }}
