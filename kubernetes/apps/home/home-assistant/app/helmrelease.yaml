@@ -28,24 +28,11 @@ spec:
               tag: 2025.12.5@sha256:6be0843b06ad82233639e56f261b2377f78df140e3d16d2d08b2c29c8889b697
             env:
               HASS_HTTP_TRUSTED_PROXY_1: 10.246.0.0/16
-              # Uncomment these to switch from SQLite to CNPG PostgreSQL.
-              # CNPG auto-generates credentials in `home-assistant-postgres-app` Secret.
-              # Then add `recorder: !include db_url.yaml` (or similar) to configuration.yaml.
-              # DB_HOST: home-assistant-postgres-rw
-              # DB_PORT: "5432"
-              # DB_USER:
-              #   valueFrom:
-              #     secretKeyRef:
-              #       name: home-assistant-postgres-app
-              #       key: username
-              # DB_PASS:
-              #   valueFrom:
-              #     secretKeyRef:
-              #       name: home-assistant-postgres-app
-              #       key: password
-#            envFrom:
-#              - secretRef:
-#                  name: "{{ .Release.Name }}-secret"
+              DB_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-postgres-app
+                    key: uri
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
