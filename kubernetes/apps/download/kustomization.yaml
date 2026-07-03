@@ -12,5 +12,4 @@ resources:
   - ./radarr/ks.yaml
   - ./prowlarr/ks.yaml
   - ./recyclarr/ks.yaml
-  # bazarr: subtitle management
-  # - ./bazarr/ks.yaml
+  - ./bazarr/ks.yaml
