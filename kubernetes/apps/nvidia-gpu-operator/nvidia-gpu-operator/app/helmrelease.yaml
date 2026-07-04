@@ -32,6 +32,4 @@ spec:
     psa:
       enabled: false
     validator:
-      env:
-        - name: WITH_WORKLOAD
-          value: "false"
+      enabled: false
