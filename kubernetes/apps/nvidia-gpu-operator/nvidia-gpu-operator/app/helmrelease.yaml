@@ -26,7 +26,7 @@ spec:
     driver:
       enabled: false
     toolkit:
-      enabled: true
+      enabled: false
     cdi:
       enabled: true
     psa:
