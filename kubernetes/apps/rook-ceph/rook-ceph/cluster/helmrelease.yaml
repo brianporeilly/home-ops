@@ -23,19 +23,9 @@ spec:
     monitoring:
       enabled: true
       createPrometheusRules: true
-      prometheusRules:
+      prometheusRuleOverrides:
         CephPoolGrowthWarning:
-          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata
-        CephPoolUsageCritical:
-          expr: ceph_pool_percent_used >= 90
-          for: 5m
-          labels:
-            severity: critical
-          annotations:
-            summary: "Ceph pool {{ $labels.pool_name }} is critically full"
-            description: >-
-              Pool {{ $labels.pool_name }} is at {{ $value }}% capacity.
-              This may cause OSD backfill and performance degradation.
+          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
     route:
       dashboard:
         host:
