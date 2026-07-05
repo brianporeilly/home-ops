@@ -29,7 +29,7 @@ spec:
       enabled: false
     cdi:
       enabled: true
-    psa:
+    dcgmExporter:
       enabled: false
-    validator:
+    psa:
       enabled: false
