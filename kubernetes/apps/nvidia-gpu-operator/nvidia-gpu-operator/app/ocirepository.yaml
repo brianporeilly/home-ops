@@ -3,12 +3,12 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: cert-manager
+  name: nvidia-gpu-operator
 spec:
   interval: 15m
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: v1.20.3
-  url: oci://quay.io/jetstack/charts/cert-manager
+    tag: 26.3.3
+  url: oci://ghcr.io/home-operations/charts-mirror/nvidia-gpu-operator
