@@ -13,6 +13,21 @@
       "automerge": false
     },
     {
+      "description": "Group kube-prometheus-stack with its companion CRDs chart - they're versioned independently but released in lockstep against the same prometheus-operator appVersion",
+      "matchPackageNames": [
+        "ghcr.io/prometheus-community/charts/kube-prometheus-stack",
+        "ghcr.io/prometheus-community/charts/prometheus-operator-crds"
+      ],
+      "groupName": "kube-prometheus-stack",
+      "automerge": false
+    },
+    {
+      "description": "Group mariadb-operator with its companion CRDs chart - previously merged as separate PRs (#58/#60, #87/#89)",
+      "matchPackageNames": ["mariadb-operator", "mariadb-operator-crds"],
+      "groupName": "mariadb-operator",
+      "automerge": false
+    },
+    {
       "description": "Auto-merge patch updates for non-critical dependencies",
       "matchUpdateTypes": ["patch", "pin"],
       "matchManagers": ["flux"],
