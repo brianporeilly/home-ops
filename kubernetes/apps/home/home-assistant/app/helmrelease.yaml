@@ -33,6 +33,11 @@ spec:
                   secretKeyRef:
                     name: home-assistant-postgres-app
                     key: uri
+              SLACK_WEBHOOK_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-secrets
+                    key: slack_webhook_url
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
