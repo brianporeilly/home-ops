@@ -86,7 +86,20 @@ jobs:
       - name: Generate Diff
         id: diff
         run: |
+          # --limit-bytes on the flux-local invocation only caps each individual
+          # resource's diff, not the total across every changed resource. A chart
+          # bump that touches many resources at once (e.g. a dashboard ConfigMap
+          # refresh) can still produce a combined diff too large to pass as an
+          # argument/env var to the comment action ("Argument list too long").
+          # Cap the total here so this step never fails on diff size.
+          MAX_BYTES=60000
           if [ -s diff.patch ]; then
+            if [ "$(wc -c < diff.patch)" -gt "$MAX_BYTES" ]; then
+              head -c "$MAX_BYTES" diff.patch > diff.patch.truncated
+              echo "" >> diff.patch.truncated
+              echo "... (diff truncated, exceeded ${MAX_BYTES} bytes)" >> diff.patch.truncated
+              mv diff.patch.truncated diff.patch
+            fi
             echo "diff<<EOF" >> "$GITHUB_OUTPUT"
             cat diff.patch >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
