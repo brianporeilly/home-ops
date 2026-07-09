@@ -12,3 +12,4 @@ resources:
 # - ./grocy/ks.yaml
   - ./changedetection/ks.yaml
   - ./searxng/ks.yaml
+  - ./microbin/ks.yaml
