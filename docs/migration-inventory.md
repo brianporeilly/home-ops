@@ -25,7 +25,7 @@ Legend:
 | kube-vip | ✅ | ✅ | Different config (BGP w/ AS 65001) |
 | kube-vip-cloud-provider | ❌ | ✅ | New - LoadBalancer IPs via CIDR |
 | metallb | ✅ | ❌ | Replaced by kube-vip cloud provider |
-| calico | ✅ | ✅ | Installed differently (Calico operator, not in repo) |
+| calico | ✅ | ✅ | Flux-managed (tigera-operator HelmRelease + Installation CRs) |
 | oauth2-proxy | ✅ | ❌ |  | No | ❌ Skip - not needed |
 | system-upgrade-controller | ✅ | ❌ | K3s managed separately |
 | kubernetes-dashboard | ✅ | 💀 | Prefer k9s + phone app |
@@ -34,6 +34,7 @@ Legend:
 | reloader | ❌ | ✅ | New - auto-restart pods on config changes |
 | snapshot-controller | ❌ | ✅ | New - VolumeSnapshots |
 | kured | ❌ | ✅ | New - reboot management |
+| ceph-csi-drivers | ❌ | ✅ | New - CSI SA/RBAC for ceph-csi-operator |
 
 ---
 
@@ -46,8 +47,8 @@ Legend:
 | jellyseerr | ✅ | ❓ | None (just config) | No | Not started - media requests portal |
 | navidrome | ✅ | 💀 | None (reads music from NAS) | Yes - music library | Not using |
 | ersatztv | ❌ | 🟡 | None (reads media from NAS) | Yes - media library | New - virtual TV channels, needs NAS |
-| tdarr | ✅ | 🔲 | Config only | Yes - media library | Staged but not wired in kustomization |
-| bazarr | ✅ | 🌿 | Config only (small) | Yes - media library | Branch `add-bazarr`, subtitle management |
+| tdarr | ✅ | 🔲 | Config only | Yes - media library | On main but not wired in kustomization |
+| bazarr | ✅ | ✅ | Config only (small) | Yes - media library | Subtitle management |
 
 ---
 
@@ -62,7 +63,7 @@ Legend:
 | recyclarr | ❌ | ✅ | Config migrated | No | New - auto-sync quality profiles |
 | nzbget | ✅ | 🔲 | Config only (small) | Yes - download staging | Disabled in favor of sabnzbd |
 | readarr | ✅ | 💀 | N/A | N/A | Replaced by grimmory |
-| lidarr | ✅ | 🌿 | Config only (small) | Yes - music library | Branch `add-lidarr`, music management |
+| lidarr | ✅ | ✅ | Config only (small) | Yes - music library | Music management |
 | qbittorrent | ✅ | 🌿 | Config + torrents | Yes - download staging | Branch `add-qbittorrent`, PR not opened |
 | mylar | ✅ | ⚪ | N/A | N/A | Was scaled to 0 on old cluster |
 
@@ -79,7 +80,7 @@ Legend:
 | home-assistant-influxdb | ✅ | 💀 |  | No | Not needed |
 | grocy | ✅ | 🔲 | N/A | No | Staged, commented out |
 | frigate | ✅ | 🔲 | **Major** - recordings | Yes - NVR storage | Staged, disabled; needs NAS for recordings |
-| changedetection | ✅ | 🌿 | Config only (small) | No | Branch `add-changedetection` |
+| changedetection | ✅ | ✅ | Config only (small) | No | URL monitoring |
 | paperless-ngx | ✅ | 🌿 | Clean cutover (no data) | No | Branch `add-paperless-ngx`, needs sops on secret |
 | vaultwarden | ✅ | 🌿 | **Major** - vault DB | No | Branch `add-vaultwarden`, needs sops on secret |
 
@@ -90,7 +91,7 @@ Legend:
 | App | Old | New | Data Migration | NAS Dep | Notes |
 |-----|-----|-----|---------------|---------|-------|
 | pihole | ✅ | 💀 | Config only (small) | No | Skip - not needed |
-| searxng | ✅ | 🌿 | Config only | No | Branch `add-searxng` |
+| searxng | ✅ | ✅ | Config only | No | Metasearch engine |
 | calibre-web | ✅ | ⚪ | N/A | Yes - e-book library | Was 0 replicas (grimmory replaces) |
 | octoprint | ✅ | 🌿 | N/A | No | Branch `add-octoprint`, needs node + USB config |
 | magic-mirror | ✅ | ⚪ | N/A | No | Was 0 replicas |
@@ -113,6 +114,7 @@ Legend:
 | fluent-bit | ✅ | Log shipping to Loki |
 | smartctl-exporter | ✅ | SMART disk monitoring |
 | rook-ceph | ✅ | Storage (replaces Longhorn) |
+| ceph-csi-drivers | ✅ | CSI SA/RBAC for ceph-csi-operator |
 | envoy-gateway | ✅ | Ingress (replaces nginx-ingress) |
 | postgres-operator (CNPG) | ✅ | Database operator |
 | mariadb-operator | ✅ | Database operator |
@@ -122,14 +124,15 @@ Legend:
 ## Migration Priority
 
 ### ✅ Done — deployed and working
-- All infrastructure (cert-manager, metrics-server, kube-vip, kube-vip-cloud-provider, reloader, snapshot-controller, kured)
+- All infrastructure (cert-manager, metrics-server, kube-vip, kube-vip-cloud-provider, reloader, snapshot-controller, kured, calico)
 - All observability (prometheus/grafana/loki, fluent-bit, smartctl-exporter, gatus-sidecar)
-- All storage (rook-ceph, rook-ceph-cluster)
+- All storage (rook-ceph, rook-ceph-cluster, ceph-csi-drivers)
 - All networking (envoy-gateway, certificates, omada-controller)
 - All databases (CNPG, mariadb-operator)
-- **esphome** (PR #29, merged & enabled)
+- **esphome** (merged & enabled)
 - **immich**, **grimmory**
-- **arr stack**: sabnzbd, sonarr, radarr, prowlarr, recyclarr
+- **arr stack**: sabnzbd, sonarr, radarr, prowlarr, recyclarr, lidarr, bazarr
+- **changedetection**, **searxng**
 - **jellyfin**, **audiobookshelf**, **ersatztv** (all need NAS media to be useful)
 
 ### 🟡 Deployed but needs data migration
@@ -141,14 +144,10 @@ Legend:
 - **vaultwarden** — `add-vaultwarden`, needs sops on ADMIN_TOKEN
 - **octoprint** — `add-octoprint`, needs node + USB config
 - **minecraft** — `add-minecraft`, ready to PR
-- **bazarr** — `add-bazarr`, disabled
-- **lidarr** — `add-lidarr`, disabled
-- **changedetection** — `add-changedetection`, disabled
-- **searxng** — `add-searxng`, disabled
 
 ### 🔲 Staged (disabled but mergeable)
 - **grocy** — commented out, just uncomment
-- **tdarr** — scaffolded but not wired into kustomization
+- **tdarr** — on main but not wired into kustomization
 - **frigate** — commented out, needs NAS
 - **nzbget** — commented out in favor of sabnzbd
 
@@ -177,8 +176,8 @@ Legend:
 
 **Config-only (migrated or straightforward):**
 - sonarr, radarr, prowlarr, jellyseerr
-- changedetection, searxng, pihole
-- lidarr, bazarr (branched, not merged)
+- changedetection, searxng
+- lidarr, bazarr
 
 **Media (NAS reads only, no migration needed):**
 - jellyfin, audiobookshelf, navidrome, tdarr, ersatztv — just repoint to NAS share
