@@ -27,6 +27,11 @@ spec:
           - name: alertname
             value: Watchdog
             matchType: =
+      - receiver: "null"
+        matchers:
+          - name: alertname
+            value: KuredRebootInProgress
+            matchType: =
       - receiver: slack
         matchers:
           - name: severity
@@ -43,6 +48,27 @@ spec:
       targetMatch:
         - name: severity
           value: warning
+          matchType: =
+    # A node reboot (kured drain/reboot/uncordon) causes a predictable, self-healing
+    # batch of Ceph/etcd/node alerts. Suppress those while kured has a node marked
+    # in-progress (see kured configuration.annotateNodes + kured-alerts PrometheusRule).
+    - sourceMatch:
+        - name: alertname
+          value: KuredRebootInProgress
+          matchType: =
+      targetMatch:
+        - name: alertname
+          value: (CephMonDown|CephMonDownQuorumAtRisk|CephOSDDown|CephOSDDownHigh|CephOSDHostDown|CephPGsUnclean|CephSlowOps|CephHealthWarning|etcdHighNumberOfLeaderChanges|etcdHighCommitDurations|NodeClockNotSynchronising|TargetDown|KubeAggregatedAPIDown|KubePodNotReady|KubeDeploymentReplicasMismatch)
+          matchType: =~
+    # CephHealthWarning is a summary alert that fires whenever any more specific
+    # Ceph alert is active; avoid double-paging for the same underlying issue.
+    - sourceMatch:
+        - name: alertname
+          value: (CephMonDown|CephMonDownQuorumAtRisk|CephOSDDown|CephOSDDownHigh|CephOSDHostDown|CephPGsUnclean|CephSlowOps)
+          matchType: =~
+      targetMatch:
+        - name: alertname
+          value: CephHealthWarning
           matchType: =
   receivers:
     - name: "null"

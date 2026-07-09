@@ -9,4 +9,5 @@ resources:
   - ./ocirepository.yaml
   - ./podmonitors.yaml
   - ./flux-prometheusrules.yaml
+  - ./kured-prometheusrules.yaml
   - ./prometheusrule-volumes.yaml
