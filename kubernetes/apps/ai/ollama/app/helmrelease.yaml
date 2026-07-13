@@ -22,10 +22,7 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
         pod:
-          # This cluster's nvidia-gpu-operator runs with driver/toolkit pre-installed
-          # on the host and CDI enabled; adjust to `nvidia` if the CDI RuntimeClass
-          # turns out not to be what's active.
-          runtimeClassName: nvidia-cdi
+          runtimeClassName: nvidia
         containers:
           app:
             image:
