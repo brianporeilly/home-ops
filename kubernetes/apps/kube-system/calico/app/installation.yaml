@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/operator.tigera.io/installation_v1.json
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  variant: Calico
+  calicoNetwork:
+    bgp: Enabled
+    hostPorts: Enabled
+    ipPools:
+      - name: default-ipv4-ippool
+        blockSize: 26
+        cidr: 10.246.0.0/16
+        encapsulation: VXLANCrossSubnet
+        natOutgoing: Enabled
+        nodeSelector: all()
+    nodeAddressAutodetectionV4:
+      firstFound: true
+    linuxDataplane: Iptables
+  cni:
+    type: Calico
+    ipam:
+      type: Calico
+  controlPlaneReplicas: 2
+  nonPrivileged: Disabled
+  nodeUpdateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
