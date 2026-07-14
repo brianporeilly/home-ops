@@ -80,6 +80,10 @@ spec:
       app:
         primary: true
         controller: minecraft
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.10"
         ports:
           minecraft:
             port: 25565

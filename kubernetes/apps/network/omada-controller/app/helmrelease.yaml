@@ -62,6 +62,8 @@ spec:
         controller: omada-controller
         type: LoadBalancer
         externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.3"
         ipFamilies: [ IPv4 ]
         ipFamilyPolicy: PreferDualStack
         ports:

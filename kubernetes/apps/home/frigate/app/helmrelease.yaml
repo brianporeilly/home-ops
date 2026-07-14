@@ -49,6 +49,9 @@ spec:
     service:
       app:
         type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.11"
         ports:
           http:
             appProtocol: kubernetes.io/wss
