@@ -9,5 +9,9 @@ resources:
   - ./home-assistant/ks.yaml
   # minecraft: uncomment when ready to play
   # - ./minecraft/ks.yaml
+  - ./esphome/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
+  - ./changedetection/ks.yaml
+  - ./searxng/ks.yaml
+  - ./microbin/ks.yaml

@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: kube-vip
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/kube-system/kube-vip-cloud-provider/app
   prune: true

@@ -48,6 +48,8 @@ spec:
       namespace: network
     - name: rook-ceph
       namespace: *namespace
+    - name: ceph-csi-drivers
+      namespace: *namespace
     - name: snapshot-controller
       namespace: kube-system
   healthChecks:

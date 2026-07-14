@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/nzbget
-              tag: 25.3.0@sha256:4a4cf04d8e87a1b5fb1894477701146e06ae41c736208b14ade1662db07adc1a
+              tag: 26.2.0@sha256:fd02970c635c700471c5ba36e6928f3424b2277a3c7ba86e91169fea6cd22f3f
             env:
               NZBGET__PORT: &port 6789
             probes:
