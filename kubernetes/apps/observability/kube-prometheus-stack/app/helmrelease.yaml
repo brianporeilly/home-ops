@@ -102,6 +102,9 @@ spec:
         - pods=[*]
         - deployments=[*]
         - persistentvolumeclaims=[*]
+      metricAnnotationsAllowlist:
+        # surfaces kured's reboot-in-progress marker so Prometheus can alert on it
+        - nodes=[weave.works/kured-reboot-in-progress]
       prometheus:
         monitor:
           enabled: true

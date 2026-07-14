@@ -55,7 +55,7 @@ spec:
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: *hostname
-      kubevip.io/loadbalancerIPs: "10.20.250.2"
+      kubevip.io/loadbalancerIPs: "10.20.250.1"
   listeners:
     - name: http
       protocol: HTTP

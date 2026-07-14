@@ -1,0 +1,98 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: ollama
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      ollama:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          runtimeClassName: nvidia
+        containers:
+          app:
+            image:
+              repository: docker.io/ollama/ollama
+              tag: 0.32.0@sha256:57f573b47f1f71ebb445789f279fe3e596a8beab182f7cf486db9205bad87c5a
+            env:
+              HOME: /data
+              OLLAMA_MODELS: /data/models
+              OLLAMA_HOST: 0.0.0.0:11434
+            probes:
+              liveness: &probes
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 11434
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                cpu: "4"
+                memory: 6Gi
+                nvidia.com/gpu: 1
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: ollama
+        ports:
+          http:
+            port: 11434
+
+    route:
+      app:
+        hostnames:
+          - ollama.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /data
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          ollama:
+            app:
+              - path: /tmp
