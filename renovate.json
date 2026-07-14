@@ -7,6 +7,17 @@
       "/kubernetes/apps/.+\\.yaml$/"
     ]
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)\\s+[A-Z_]+_VERSION: (?<currentValue>.+)"
+      ],
+      "datasourceTemplate": "{{{datasource}}}",
+      "depNameTemplate": "{{{depName}}}"
+    }
+  ],
   "packageRules": [
     {
       "description": "Group app-template chart updates",
