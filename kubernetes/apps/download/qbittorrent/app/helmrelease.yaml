@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: docker.io/qbittorrentofficial/qbittorrent-nox
-              tag: 5.2.2-1@sha256:fe64431f3b0cdfdc29713303f59a8750500f657a8df8f6ae9cf7c2df55af5969
+              tag: 5.2.3-1@sha256:eabf3ceeeffd5fc7fbdde84c1400ac717f553127d1326aa40c46a5b9f14304d5
             env:
               PUID: "1000"
               PGID: "1000"
