@@ -7,6 +7,8 @@ components:
   - ../../components/common
 resources:
   - ./home-assistant/ks.yaml
+  # minecraft: uncomment when ready to play
+  # - ./minecraft/ks.yaml
   - ./esphome/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
