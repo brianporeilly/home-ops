@@ -1,15 +1,13 @@
 # Loads default set of integrations. Do not remove.
 default_config:
 
-# Pre-fills onboarding's location/unit step so first login only asks for
-# the admin account. TODO: replace with real values (approximate is fine).
 homeassistant:
   name: Home
-  latitude: 0.0
-  longitude: 0.0
-  elevation: 0
+  latitude: !env_var HOME_LATITUDE
+  longitude: !env_var HOME_LONGITUDE
+  elevation: !env_var HOME_ELEVATION
   unit_system: metric
-  time_zone: America/New_York
+  time_zone: America/Anchorage
   currency: USD
   country: US
 
