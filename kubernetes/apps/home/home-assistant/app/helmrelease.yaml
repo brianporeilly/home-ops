@@ -28,9 +28,16 @@ spec:
               tag: 2026.7.2@sha256:547d0fcb67ceb2c2d3adf22db37c7ea79d9ff9e91f3e3c536c6aebd998083f0f
             env:
               HASS_HTTP_TRUSTED_PROXY_1: 10.246.0.0/16
-#            envFrom:
-#              - secretRef:
-#                  name: "{{ .Release.Name }}-secret"
+              DB_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-postgres-app
+                    key: uri
+              SLACK_WEBHOOK_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-secrets
+                    key: slack_webhook_url
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
