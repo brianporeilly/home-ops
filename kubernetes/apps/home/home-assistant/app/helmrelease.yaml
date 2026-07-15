@@ -38,6 +38,21 @@ spec:
                   secretKeyRef:
                     name: home-assistant-secrets
                     key: slack_webhook_url
+              HOME_LATITUDE:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-secrets
+                    key: home_latitude
+              HOME_LONGITUDE:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-secrets
+                    key: home_longitude
+              HOME_ELEVATION:
+                valueFrom:
+                  secretKeyRef:
+                    name: home-assistant-secrets
+                    key: home_elevation
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
