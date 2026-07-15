@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: changedetection
+  name: qbittorrent
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: changedetection
+    name: qbittorrent
   install:
     remediation:
       retries: -1
@@ -18,26 +18,39 @@ spec:
       retries: 3
   values:
     controllers:
-      changedetection:
+      qbittorrent:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/dgtlmoon/changedetection.io
-              tag: 0.55.8@sha256:fab18103da4995c98df9529752848ccb061b4ecf8bd24c307936af0656f8ba16
+              repository: docker.io/qbittorrentofficial/qbittorrent-nox
+              tag: 5.2.3-1@sha256:eabf3ceeeffd5fc7fbdde84c1400ac717f553127d1326aa40c46a5b9f14304d5
+            env:
+              PUID: "1000"
+              PGID: "1000"
+              TZ: UTC
+              UMASK: "002"
+              QBT_LEGAL_NOTICE: confirm
+              QBT_WEBUI_PORT: "8080"
             probes:
               liveness: &probes
                 enabled: true
-                type: TCP
+                custom: true
                 spec:
-                  tcpSocket:
-                    port: 5000
+                  httpGet:
+                    path: /
+                    port: &port 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
                   failureThreshold: 3
               readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -45,46 +58,55 @@ spec:
             resources:
               requests:
                 cpu: 100m
-                memory: 100Mi
+                memory: 200Mi
               limits:
-                memory: 512Mi
+                memory: 2Gi
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
         fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
         primary: true
-        controller: changedetection
+        controller: qbittorrent
         ports:
           http:
-            port: 5000
+            port: 8080
 
     route:
       app:
         hostnames:
-          - changedetection.internal.oreillys.io
+          - qbittorrent.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
 
     persistence:
-      data:
-        suffix: data
+      config:
+        suffix: config
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
-        size: "5Gi"
+        size: "1Gi"
         globalMounts:
-          - path: /datastore
-      tmpfs:
+          - path: /config
+      # TODO: Replace with NAS NFS mount when available.
+      # Ceph-backed PVC for download staging works but is expensive for
+      # transient torrent data.  Switch to NAS-backed NFS + hardlink
+      # completion once the NFS CSI driver is wired up.
+      downloads:
+        suffix: downloads
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "100Gi"
+        globalMounts:
+          - path: /downloads
+      tmp:
         type: emptyDir
-        advancedMounts:
-          changedetection:
-            app:
-              - path: /tmp
+        globalMounts:
+          - path: /tmp

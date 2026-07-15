@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: changedetection
+  name: ollama
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: changedetection
+    name: ollama
   install:
     remediation:
       retries: -1
@@ -18,22 +18,28 @@ spec:
       retries: 3
   values:
     controllers:
-      changedetection:
+      ollama:
         annotations:
           reloader.stakater.com/auto: "true"
+        pod:
+          runtimeClassName: nvidia
         containers:
           app:
             image:
-              repository: ghcr.io/dgtlmoon/changedetection.io
-              tag: 0.55.8@sha256:fab18103da4995c98df9529752848ccb061b4ecf8bd24c307936af0656f8ba16
+              repository: docker.io/ollama/ollama
+              tag: 0.32.0@sha256:57f573b47f1f71ebb445789f279fe3e596a8beab182f7cf486db9205bad87c5a
+            env:
+              HOME: /data
+              OLLAMA_MODELS: /data/models
+              OLLAMA_HOST: 0.0.0.0:11434
             probes:
               liveness: &probes
                 enabled: true
                 type: TCP
                 spec:
                   tcpSocket:
-                    port: 5000
-                  initialDelaySeconds: 0
+                    port: 11434
+                  initialDelaySeconds: 10
                   periodSeconds: 10
                   timeoutSeconds: 1
                   failureThreshold: 3
@@ -44,10 +50,12 @@ spec:
               capabilities: { drop: [ "ALL" ] }
             resources:
               requests:
-                cpu: 100m
-                memory: 100Mi
-              limits:
+                cpu: 250m
                 memory: 512Mi
+              limits:
+                cpu: "4"
+                memory: 6Gi
+                nvidia.com/gpu: 1
 
     defaultPodOptions:
       securityContext:
@@ -60,15 +68,15 @@ spec:
     service:
       app:
         primary: true
-        controller: changedetection
+        controller: ollama
         ports:
           http:
-            port: 5000
+            port: 11434
 
     route:
       app:
         hostnames:
-          - changedetection.internal.oreillys.io
+          - ollama.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
@@ -79,12 +87,12 @@ spec:
         suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
-        size: "5Gi"
+        size: "20Gi"
         globalMounts:
-          - path: /datastore
-      tmpfs:
+          - path: /data
+      tmp:
         type: emptyDir
         advancedMounts:
-          changedetection:
+          ollama:
             app:
               - path: /tmp

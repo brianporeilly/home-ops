@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: &app tdarr
+  name: octoprint
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: tdarr
+    name: octoprint
   install:
     remediation:
       retries: -1
@@ -18,30 +18,26 @@ spec:
       retries: 3
   values:
     controllers:
-      tdarr:
+      octoprint:
         annotations:
           reloader.stakater.com/auto: "true"
+        pod:
+          # Pin to the node with the 3D printer USB connection
+          # nodeSelector:
+          #   kubernetes.io/hostname: <node-name>
         containers:
           app:
             image:
-              repository: ghcr.io/haveagitgat/tdarr
-              tag: 2.83.01@sha256:518b86cf99e60b07f7b1139a8dd9bad196288e033b215353e6cd146e8324899f
-            env:
-              PUID: 1000
-              PGID: 1000
-              serverIP: 0.0.0.0
-              serverPort: &serverPort 8266
-              webUIPort: &port 8265
-              internalNode: "false"
-              inContainer: "true"
+              repository: octoprint/octoprint
+              tag: 1.11.8@sha256:392bcadf7e5719fe9cbeae607c917a3ebd8915579d593ee9e91809defc15dd6a
             probes:
               liveness: &probes
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
-                    path: /api/v2/status
-                    port: *port
+                    path: /
+                    port: &port 80
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
@@ -52,68 +48,61 @@ spec:
                 spec:
                   failureThreshold: 30
                   periodSeconds: 10
+            # Privileged needed for USB serial access (/dev/ttyACM* / /dev/ttyUSB*)
+            # If this is too permissive, try mounting specific device via hostPath instead
             securityContext:
-              allowPrivilegeEscalation: false
+              privileged: true
               readOnlyRootFilesystem: true
               capabilities: { drop: [ "ALL" ] }
             resources:
               requests:
                 cpu: 100m
-                memory: 512Mi
+                memory: 200Mi
               limits:
-                memory: 2Gi
+                memory: 1Gi
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
         fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
         primary: true
-        controller: *app
+        controller: octoprint
         ports:
           http:
-            port: *port
-      server:
-        controller: *app
-        ports:
-          server:
-            port: *serverPort
+            port: 80
 
     route:
       app:
         hostnames:
-          - tdarr.internal.oreillys.io
+          - octoprint.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        rules:
-          - backendRefs:
-              - name: tdarr-app
-                port: *port
 
     persistence:
       config:
+        suffix: config
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
-        advancedMounts:
-          tdarr:
-            app:
-              - path: /app/configs
-                subPath: config
-              - path: /app/server
-                subPath: server
-
-      tmpfs:
+        globalMounts:
+          - path: /octoprint
+      tmp:
         type: emptyDir
-        advancedMounts:
-          tdarr:
-            app:
-              - path: /tmp
-                subPath: tmp
+        globalMounts:
+          - path: /tmp
+      # Prefer stable serial device symlinks over raw /dev/ttyUSB* which can
+      # change on reboot.  Uncomment and adjust after identifying the printer
+      # device on the target node:
+      # usb:
+      #   type: hostPath
+      #   hostPath: /dev/serial/by-id
+      #   globalMounts:
+      #     - path: /dev/serial/by-id

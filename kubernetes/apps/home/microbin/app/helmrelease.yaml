@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: changedetection
+  name: microbin
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: changedetection
+    name: microbin
   install:
     remediation:
       retries: -1
@@ -18,37 +18,52 @@ spec:
       retries: 3
   values:
     controllers:
-      changedetection:
+      microbin:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/dgtlmoon/changedetection.io
-              tag: 0.55.8@sha256:fab18103da4995c98df9529752848ccb061b4ecf8bd24c307936af0656f8ba16
-            probes:
-              liveness: &probes
+              repository: docker.io/danielszabo99/microbin
+              tag: 2.1.4@sha256:e66131ff155fcf37d7daa64ec0a457d22d44f0057e5422efb6f085c0967700fc
+            env:
+              MICROBIN_PORT: &port 8080
+              MICROBIN_BIND: 0.0.0.0
+              MICROBIN_DATA_DIR: /opt/microbin
+            envFrom:
+              - secretRef:
+                  name: microbin-secret
+            probes: &probes
+              liveness:
                 enabled: true
-                type: TCP
+                custom: true
                 spec:
-                  tcpSocket:
-                    port: 5000
-                  initialDelaySeconds: 0
-                  periodSeconds: 10
-                  timeoutSeconds: 1
+                  httpGet:
+                    path: /
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
                   failureThreshold: 3
-              readiness: *probes
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  failureThreshold: 3
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: [ "ALL" ] }
+              capabilities:
+                drop: ["ALL"]
             resources:
               requests:
-                cpu: 100m
-                memory: 100Mi
+                cpu: 10m
               limits:
-                memory: 512Mi
-
+                memory: 256Mi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -56,24 +71,19 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-
     service:
       app:
-        primary: true
-        controller: changedetection
         ports:
           http:
-            port: 5000
-
+            port: *port
     route:
       app:
         hostnames:
-          - changedetection.internal.oreillys.io
+          - microbin.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
-
     persistence:
       data:
         suffix: data
@@ -81,10 +91,10 @@ spec:
         accessMode: ReadWriteOnce
         size: "5Gi"
         globalMounts:
-          - path: /datastore
-      tmpfs:
+          - path: /opt/microbin
+      tmp:
         type: emptyDir
         advancedMounts:
-          changedetection:
+          microbin:
             app:
               - path: /tmp

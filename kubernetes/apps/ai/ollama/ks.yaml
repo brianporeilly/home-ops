@@ -3,17 +3,21 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app kube-vip-cloud-provider
-  namespace: &namespace kube-system
+  name: &app ollama
+  namespace: &namespace ai
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
-    - name: kube-vip
-      namespace: kube-system
+    - name: envoy-gateway-config
+      namespace: network
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+    - name: nvidia-gpu-operator
+      namespace: nvidia-gpu-operator
   interval: 1h
-  path: ./kubernetes/apps/kube-system/kube-vip-cloud-provider/app
+  path: ./kubernetes/apps/ai/ollama/app
   prune: true
   retryInterval: 2m
   sourceRef:
