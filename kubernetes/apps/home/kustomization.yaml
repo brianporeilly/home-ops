@@ -17,5 +17,4 @@ resources:
   - ./changedetection/ks.yaml
   - ./searxng/ks.yaml
   - ./microbin/ks.yaml
-  # paperless-ngx: disabled until secret.yaml is sops-encrypted with PAPERLESS_SECRET_KEY
-  # - ./paperless-ngx/ks.yaml
+  - ./paperless-ngx/ks.yaml
