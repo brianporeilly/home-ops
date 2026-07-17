@@ -7,8 +7,12 @@ components:
   - ../../components/common
 resources:
 #  - ./nzbget/ks.yaml
+  # qbittorrent: uncomment after NAS NFS is wired up, or keep Ceph PVC for staging
+  # - ./qbittorrent/ks.yaml
   - ./sabnzbd/ks.yaml
   - ./sonarr/ks.yaml
   - ./radarr/ks.yaml
   - ./prowlarr/ks.yaml
   - ./recyclarr/ks.yaml
+  - ./lidarr/ks.yaml
+  - ./bazarr/ks.yaml

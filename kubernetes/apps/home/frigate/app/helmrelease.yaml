@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: ghcr.io/blakeblackshear/frigate
-              tag: "0.17.0-beta1@sha256:5d5549165bcd31e7aeb171222741b8a6f29870e5e4cc5fd8a042a08e4bf54853"
+              tag: "0.18.0-beta1@sha256:6c3b9c55c35f06a174aeb0254d7953c001bb85b66e3357334f62eec0ddc9b1e7"
             env:
               TZ: America/Anchorage
             probes:
@@ -49,6 +49,9 @@ spec:
     service:
       app:
         type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.11"
         ports:
           http:
             appProtocol: kubernetes.io/wss

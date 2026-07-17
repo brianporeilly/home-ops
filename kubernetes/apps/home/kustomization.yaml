@@ -7,7 +7,15 @@ components:
   - ../../components/common
 resources:
   - ./home-assistant/ks.yaml
-  # vaultwarden: disabled until secret.yaml is sops-encrypted with ADMIN_TOKEN
-  # - ./vaultwarden/ks.yaml
+  # octoprint: needs nodeSelector + USB device path set before enabling
+  # - ./octoprint/ks.yaml
+  # minecraft: uncomment when ready to play
+  # - ./minecraft/ks.yaml
+  - ./esphome/ks.yaml
   #- ./frigate/ks.yaml
 # - ./grocy/ks.yaml
+  - ./changedetection/ks.yaml
+  - ./searxng/ks.yaml
+  - ./microbin/ks.yaml
+  # vaultwarden: disabled until secret.yaml is sops-encrypted with ADMIN_TOKEN
+  # - ./vaultwarden/ks.yaml
