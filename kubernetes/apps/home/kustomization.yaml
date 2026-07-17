@@ -17,3 +17,5 @@ resources:
   - ./changedetection/ks.yaml
   - ./searxng/ks.yaml
   - ./microbin/ks.yaml
+  # vaultwarden: disabled until secret.yaml is sops-encrypted with ADMIN_TOKEN
+  # - ./vaultwarden/ks.yaml
