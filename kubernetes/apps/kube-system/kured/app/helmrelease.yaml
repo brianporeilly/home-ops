@@ -17,6 +17,11 @@ spec:
     remediation:
       retries: 3
   values:
+    configuration:
+      # Stamps weave.works/kured-reboot-in-progress on a node for the exact
+      # span of drain -> reboot -> uncordon, so Prometheus/Alertmanager can
+      # inhibit the alerts that are an expected side effect of a reboot.
+      annotateNodes: true
     extraEnvVars:
      - name: KURED_NOTIFY_URL
        valueFrom:

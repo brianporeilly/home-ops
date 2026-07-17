@@ -1,0 +1,26 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kured-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kured
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    - name: kured
+      rules:
+        - alert: KuredRebootInProgress
+          annotations:
+            summary: "Node {{ $labels.node }} is being drained/rebooted by kured"
+            description: >-
+              kured has annotated {{ $labels.node }} with
+              weave.works/kured-reboot-in-progress. Ceph/etcd/node-readiness
+              alerts are an expected side effect while this is active and are
+              inhibited via the alertmanager KuredRebootInProgress inhibit rule.
+          expr: |
+            max by (node) (kube_node_annotations{annotation_weave_works_kured_reboot_in_progress!=""})
+          labels:
+            severity: info
