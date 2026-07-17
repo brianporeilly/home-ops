@@ -18,3 +18,4 @@ resources:
   - ./searxng/ks.yaml
   - ./microbin/ks.yaml
   - ./paperless-ngx/ks.yaml
+  - ./vaultwarden/ks.yaml
