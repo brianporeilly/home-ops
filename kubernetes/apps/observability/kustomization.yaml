@@ -13,3 +13,4 @@ resources:
   - ./smartctl-exporter/ks.yaml
   - ./gatus-sidecar/ks.yaml
   - ./snmp-exporter/ks.yaml
+  - ./goflow2/ks.yaml
