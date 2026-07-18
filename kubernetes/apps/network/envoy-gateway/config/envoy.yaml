@@ -50,6 +50,9 @@ metadata:
   name: envoy-external
   annotations:
     external-dns.alpha.kubernetes.io/target: &hostname external.oreillys.io
+    gatus.home-operations.com/endpoint: |
+      alerts:
+        - type: slack
 spec:
   gatewayClassName: envoy
   infrastructure:
@@ -81,6 +84,9 @@ metadata:
   name: envoy-internal
   annotations:
     external-dns.alpha.kubernetes.io/target: &hostname internal.oreillys.io
+    gatus.home-operations.com/endpoint: |
+      alerts:
+        - type: slack
 spec:
   gatewayClassName: envoy
   infrastructure:
