@@ -53,9 +53,15 @@ spec:
             resources:
               requests:
                 cpu: 25m
-                memory: 128Mi
+                memory: 256Mi
               limits:
-                memory: 512Mi
+                # Podfetch buffers whole episode files into memory before writing to
+                # disk (no streaming download path), and downloads up to
+                # max_parallel_downloads (default 3) episodes concurrently, so peak
+                # usage is driven by episode file size x concurrency, not baseline
+                # (idle is ~20-30Mi). 512Mi was getting OOMKilled on concurrent
+                # downloads of a few normal-sized episodes.
+                memory: 2Gi
 
     defaultPodOptions:
       securityContext:
