@@ -155,6 +155,11 @@ spec:
           revision: 2
           datasource:
             - { name: DS_PROMETHEUS, value: Prometheus }
+        snmp-stats:
+          # renovate: depName="SNMP Stats"
+          gnetId: 11169
+          revision: 1
+          datasource: Prometheus
         zfs:
           # renovate: depName="ZFS"
           gnetId: 7845
