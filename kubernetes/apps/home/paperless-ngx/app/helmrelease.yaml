@@ -47,6 +47,10 @@ spec:
               PAPERLESS_REDIS: "redis://{{ .Release.Name }}-valkey:6379"
               PAPERLESS_URL: https://paperless.internal.oreillys.io
               PAPERLESS_TIME_ZONE: UTC
+              # s6-overlay init refuses to boot otherwise: k8s emptyDir mounts for
+              # /run are always root-owned + world-writable, which fails s6's
+              # ownership check under readOnlyRootFilesystem + non-root uid.
+              S6_YES_I_WANT_A_WORLD_WRITABLE_RUN_BECAUSE_KUBERNETES: "1"
             envFrom:
               - secretRef:
                   name: "{{ .Release.Name }}-secret"
@@ -170,3 +174,9 @@ spec:
           paperless-ngx:
             app:
               - path: /tmp
+      run:
+        type: emptyDir
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /run
