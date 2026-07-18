@@ -42,6 +42,24 @@ spec:
           skip_empty_lines on
           skip_long_lines on
 
+        [INPUT]
+          name syslog
+          alias syslog_opnsense
+          mode udp
+          listen 0.0.0.0
+          port 5514
+          parser syslog-rfc3164
+          tag syslog.opnsense
+
+        [INPUT]
+          name syslog
+          alias syslog_mikrotik
+          mode udp
+          listen 0.0.0.0
+          port 5515
+          parser syslog-rfc3164
+          tag syslog.mikrotik
+
       filters: |-
         [FILTER]
           name kubernetes
@@ -90,7 +108,40 @@ spec:
           labels job=fluent-bit, namespace=$k_namespace_name, app=$app
           structured_metadata container=$k_container_name, pod=$k_pod_name, host=$k_host
           compress gzip
+
+        [OUTPUT]
+          name loki
+          match syslog.opnsense
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          labels job=syslog, device=opnsense
+          compress gzip
+
+        [OUTPUT]
+          name loki
+          match syslog.mikrotik
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          labels job=syslog, device=mikrotik
+          compress gzip
     dashboards:
       enabled: true
     serviceMonitor:
       enabled: true
+    service:
+      type: LoadBalancer
+      annotations:
+        kubevip.io/loadbalancerIPs: "10.20.250.4"
+    extraPorts:
+      - port: 5514
+        containerPort: 5514
+        protocol: UDP
+        name: syslog-opnsense
+      - port: 5515
+        containerPort: 5515
+        protocol: UDP
+        name: syslog-mikrotik
