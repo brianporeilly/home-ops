@@ -76,6 +76,12 @@ spec:
 
     route:
       app:
+        annotations:
+          # Scaled to 0 (see gpu-operator-investigation-state.md) — silence Slack
+          # alerts inherited from the envoy-internal Gateway rather than paging on an
+          # app that's intentionally stopped.
+          gatus.home-operations.com/endpoint: |
+            alerts: []
         hostnames:
           - ollama.internal.oreillys.io
         parentRefs:

@@ -4,6 +4,20 @@ connectivity:
     target: 1.1.1.1:53
     interval: 1m
 
+# Slack webhook comes from the gatus-sidecar-secret Secret (GATUS_SLACK_WEBHOOK_URL env
+# var), substituted here by Gatus itself at startup. default-alert lets every endpoint's
+# `alerts: [{type: slack}]` annotation stay minimal — thresholds/description live here
+# once instead of being repeated per endpoint. Endpoints/Gateways can still override any
+# of these fields locally via their own gatus.home-operations.com/endpoint annotation.
+alerting:
+  slack:
+    webhook-url: ${GATUS_SLACK_WEBHOOK_URL}
+    default-alert:
+      description: "gatus health check failed"
+      send-on-resolved: true
+      failure-threshold: 3
+      success-threshold: 2
+
 metrics: true
 
 storage:
