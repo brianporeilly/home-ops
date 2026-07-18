@@ -1,0 +1,90 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: goflow2
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: goflow2
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      app:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/netsampler/goflow2
+              tag: v2.2.6@sha256:9971fb4c08adbe6519d5da38f14d3a0eefcc3c0d88cb2e49ab4c6415e99d32a0
+            args:
+              - -listen=netflow://:2055
+              - -transport.file=/dev/null
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /metrics
+                    port: &port 8080
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: app
+        ports:
+          http:
+            port: *port
+      netflow:
+        controller: app
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.5"
+        ipFamilies: [ IPv4 ]
+        ipFamilyPolicy: PreferDualStack
+        ports:
+          netflow:
+            port: 2055
+            protocol: UDP
+
+    serviceMonitor:
+      app:
+        serviceName: goflow2-app
+        endpoints:
+          - port: http
+            path: /metrics
+            interval: 30s
