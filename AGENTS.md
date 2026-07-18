@@ -135,6 +135,7 @@ resources:
 - **Injection**: `common` kustomize component creates `sops-age` Secret + Namespace in every namespace
 - **Decryption**: Root Kustomization patches SOPS decryption into all child Kustomizations
 - **Usage**: `sops --encrypt secret.yaml` to encrypt, `sops secret.yaml` to edit. Decryption is automatic via Flux.
+- **Agent behavior**: Never run `sops`, touch age keys, or attempt encryption yourself. Write `secret.yaml` with plaintext `stringData` and explicitly warn the user it still needs to be `sops`-encrypted before committing/applying.
 
 ## Database Operators
 

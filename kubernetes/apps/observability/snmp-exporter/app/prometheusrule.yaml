@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: snmp-exporter-rules
+spec:
+  groups:
+    - name: snmp-exporter.rules
+      rules:
+        - alert: SnmpTargetDown
+          expr: |-
+            up{job="snmp-exporter"} == 0
+          for: 5m
+          annotations:
+            summary: >-
+              SNMP scrape of {{ $labels.instance }} is failing
+          labels:
+            severity: critical
+
+        - alert: SnmpInterfaceDown
+          expr: |-
+            ifOperStatus == 2 and on(instance, ifDescr) ifAdminStatus == 1
+          for: 5m
+          annotations:
+            summary: >-
+              Interface {{ $labels.ifDescr }} on {{ $labels.instance }} is admin-up but oper-down
+          labels:
+            severity: warning
+
+        - alert: SnmpInterfaceHighErrorRate
+          expr: |-
+            rate(ifInErrors[5m]) > 10 or rate(ifOutErrors[5m]) > 10
+          for: 10m
+          annotations:
+            summary: >-
+              Interface {{ $labels.ifDescr }} on {{ $labels.instance }} has a high error rate
+          labels:
+            severity: warning

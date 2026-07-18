@@ -1,0 +1,49 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app snmp-exporter
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: snmp-exporter
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: *app
+    extraArgs:
+      - --config.file=/run/secrets/snmp-exporter/snmp.yml
+    extraSecretMounts:
+      - name: snmp-exporter-config
+        mountPath: /run/secrets/snmp-exporter
+        secretName: snmp-exporter-config
+        readOnly: true
+    serviceMonitor:
+      enabled: true
+      params:
+        - name: opnsense
+          module:
+            - if_mib
+          target: 10.2.0.1
+          auth:
+            - opnsense_v2
+        - name: crs305-1
+          module:
+            - if_mib
+          target: 10.10.0.1
+          auth:
+            - mikrotik_v2
+        # crs305-2 (10.10.0.2) not yet online - add once provisioned
+      path: /snmp
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels:
+            - __param_target
+          targetLabel: instance

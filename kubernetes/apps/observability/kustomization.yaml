@@ -12,3 +12,4 @@ resources:
   - ./loki/ks.yaml
   - ./smartctl-exporter/ks.yaml
   - ./gatus-sidecar/ks.yaml
+  - ./snmp-exporter/ks.yaml
