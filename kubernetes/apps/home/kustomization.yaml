@@ -17,3 +17,4 @@ resources:
   - ./changedetection/ks.yaml
   - ./searxng/ks.yaml
   - ./microbin/ks.yaml
+  - ./vaultwarden/ks.yaml
