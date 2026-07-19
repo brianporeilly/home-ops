@@ -94,6 +94,9 @@ data:
               "instant": true,
               "refId": "A"
             }
+          ],
+          "transformations": [
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
           ]
         },
         {
@@ -127,6 +130,9 @@ data:
               "instant": true,
               "refId": "A"
             }
+          ],
+          "transformations": [
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
           ]
         },
         {
@@ -159,6 +165,9 @@ data:
               "instant": true,
               "refId": "A"
             }
+          ],
+          "transformations": [
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
           ]
         },
         {
@@ -192,6 +201,9 @@ data:
               "instant": true,
               "refId": "A"
             }
+          ],
+          "transformations": [
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
           ]
         },
         {
@@ -225,6 +237,9 @@ data:
               "instant": true,
               "refId": "A"
             }
+          ],
+          "transformations": [
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
           ]
         }
       ]
