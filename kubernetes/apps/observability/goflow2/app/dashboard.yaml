@@ -96,8 +96,7 @@ data:
             }
           ],
           "transformations": [
-            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value #A", "desc": true }] } }
           ]
         },
         {
@@ -133,8 +132,7 @@ data:
             }
           ],
           "transformations": [
-            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value #A", "desc": true }] } }
           ]
         },
         {
@@ -169,8 +167,7 @@ data:
             }
           ],
           "transformations": [
-            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value #A", "desc": true }] } }
           ]
         },
         {
@@ -206,8 +203,7 @@ data:
             }
           ],
           "transformations": [
-            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value #A", "desc": true }] } }
           ]
         },
         {
@@ -243,8 +239,7 @@ data:
             }
           ],
           "transformations": [
-            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value #A", "desc": true }] } }
           ]
         }
       ]
