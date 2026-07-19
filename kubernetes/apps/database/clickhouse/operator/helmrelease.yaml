@@ -24,3 +24,9 @@ spec:
   values:
     serviceMonitor:
       enabled: true
+    configs:
+      files:
+        config.yaml:
+          watch:
+            namespaces:
+              include: [".*"]
