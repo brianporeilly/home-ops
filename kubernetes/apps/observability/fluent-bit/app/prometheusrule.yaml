@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fluent-bit-rules
+spec:
+  groups:
+    - name: fluent-bit.rules
+      rules:
+        - alert: FluentBitContainerLogsStopped
+          expr: |-
+            rate(fluentbit_output_proc_records_total{name="loki.0"}[15m]) == 0
+          for: 15m
+          annotations:
+            summary: >-
+              Container log shipping (kubernetes.* -> Loki) has stopped on {{ $labels.instance }}
+          labels:
+            severity: warning
+
+        - alert: FluentBitOutputErrors
+          expr: |-
+            increase(fluentbit_output_errors_total[15m]) > 0
+          for: 5m
+          annotations:
+            summary: >-
+              fluent-bit output {{ $labels.name }} on {{ $labels.instance }} is erroring
+          labels:
+            severity: warning
+
+        - alert: FluentBitRecordsDropped
+          expr: |-
+            increase(fluentbit_output_dropped_records_total[15m]) > 0
+          for: 5m
+          annotations:
+            summary: >-
+              fluent-bit output {{ $labels.name }} on {{ $labels.instance }} is dropping records
+          labels:
+            severity: warning
