@@ -31,12 +31,18 @@ spec:
         - name: opnsense
           module:
             - if_mib
+            - ucd_system_stats
+            - ucd_memory
+            - ucd_la_table
+            - hrSystem
+            - hrStorage
           target: 10.2.0.1
           auth:
             - opnsense_v2
         - name: crs305-1
           module:
             - if_mib
+            - mikrotik
           target: 10.10.0.1
           auth:
             - mikrotik_v2
