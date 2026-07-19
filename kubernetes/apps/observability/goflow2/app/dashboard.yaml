@@ -205,7 +205,7 @@ data:
             {
               "datasource": { "type": "loki", "uid": "loki" },
               "expr": "topk(10, sum by (dst_port) (sum_over_time({job=\"netflow\"} | json | dst_port < 32768 | unwrap bytes [$__range])))",
-              "legendFormat": "{{dst_port}}",
+              "legendFormat": "Port {{dst_port}}",
               "queryType": "instant",
               "instant": true,
               "refId": "A"
