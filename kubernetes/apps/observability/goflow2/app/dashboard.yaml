@@ -96,9 +96,8 @@ data:
             }
           ],
           "transformations": [
-            { "id": "labelsToFields", "options": {} },
-            { "id": "merge", "options": {} },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
+            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
           ]
         },
         {
@@ -134,9 +133,8 @@ data:
             }
           ],
           "transformations": [
-            { "id": "labelsToFields", "options": {} },
-            { "id": "merge", "options": {} },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
+            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
           ]
         },
         {
@@ -171,9 +169,8 @@ data:
             }
           ],
           "transformations": [
-            { "id": "labelsToFields", "options": {} },
-            { "id": "merge", "options": {} },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
+            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
           ]
         },
         {
@@ -209,9 +206,8 @@ data:
             }
           ],
           "transformations": [
-            { "id": "labelsToFields", "options": {} },
-            { "id": "merge", "options": {} },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
+            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
           ]
         },
         {
@@ -247,9 +243,8 @@ data:
             }
           ],
           "transformations": [
-            { "id": "labelsToFields", "options": {} },
-            { "id": "merge", "options": {} },
-            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Value", "desc": true }] } }
+            { "id": "reduce", "options": { "reducers": ["max"], "mode": "seriesToRows" } },
+            { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Max", "desc": true }] } }
           ]
         }
       ]
