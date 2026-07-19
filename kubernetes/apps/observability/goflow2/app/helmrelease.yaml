@@ -28,7 +28,6 @@ spec:
               tag: v2.2.6@sha256:9971fb4c08adbe6519d5da38f14d3a0eefcc3c0d88cb2e49ab4c6415e99d32a0
             args:
               - -listen=netflow://:2055
-              - -transport.file=/dev/null
             probes:
               liveness: &probes
                 enabled: true
