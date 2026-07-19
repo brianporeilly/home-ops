@@ -1,0 +1,45 @@
+---
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata:
+  name: akvorado-clickhouse
+spec:
+  configuration:
+    clusters:
+      - name: akvorado
+        layout:
+          shardsCount: 1
+          replicasCount: 1
+    users:
+      akvorado/password:
+        valueFrom:
+          secretKeyRef:
+            name: akvorado-creds
+            key: CLICKHOUSE_PASSWORD
+      akvorado/networks/ip: "::/0"
+      akvorado/profile: default
+  templates:
+    podTemplates:
+      - name: akvorado-clickhouse
+        spec:
+          containers:
+            - name: clickhouse
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  memory: 4Gi
+    volumeClaimTemplates:
+      - name: akvorado-clickhouse-storage
+        spec:
+          storageClassName: ceph-block
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi
+  defaults:
+    templates:
+      podTemplate: akvorado-clickhouse
+      dataVolumeClaimTemplate: akvorado-clickhouse-storage
