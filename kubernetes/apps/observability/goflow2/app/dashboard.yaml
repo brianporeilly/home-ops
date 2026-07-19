@@ -33,7 +33,7 @@ data:
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__rate_interval]))",
+              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__interval]))",
               "queryType": "range",
               "refId": "A"
             }
@@ -56,7 +56,7 @@ data:
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__rate_interval]))",
+              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__interval]))",
               "legendFormat": "total",
               "queryType": "range",
               "refId": "A"
@@ -165,7 +165,7 @@ data:
           "id": 6,
           "type": "barchart",
           "title": "Top Destination Ports",
-          "description": "Raw port numbers - cross-reference well-known ports as needed (443=HTTPS, 53=DNS, etc).",
+          "description": "Raw port numbers, excluding the ephemeral/dynamic range (32768+) which is mostly random per-connection response ports - cross-reference well-known ports as needed (443=HTTPS, 53=DNS, etc).",
           "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
@@ -186,7 +186,7 @@ data:
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
-              "expr": "topk(10, sum by (dst_port) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range])))",
+              "expr": "topk(10, sum by (dst_port) (sum_over_time({job=\"netflow\"} | json | dst_port < 32768 | unwrap bytes [$__range])))",
               "legendFormat": "{{dst_port}}",
               "queryType": "instant",
               "instant": true,
