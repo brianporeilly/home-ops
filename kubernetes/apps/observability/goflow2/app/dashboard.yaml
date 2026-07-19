@@ -8,6 +8,177 @@ metadata:
   annotations:
     grafana_folder: "Network"
 data:
+  goflow2-per-host-traffic.json: |
+    {
+      "title": "NetFlow Per-Host Traffic",
+      "uid": "netflow-per-host-traffic",
+      "tags": ["goflow2", "netflow", "network"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "1m",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Total Throughput",
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "Bps", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } },
+            "overrides": []
+          },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__rate_interval]))",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Throughput Over Time",
+          "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "spanNulls": true, "pointSize": 8 }
+            },
+            "overrides": []
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(rate({job=\"netflow\"} | json | unwrap bytes[$__rate_interval]))",
+              "legendFormat": "total",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "bargauge",
+          "title": "Top Destination Hosts",
+          "description": "Total bytes by destination address over the selected time range.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "min": 0 },
+            "overrides": []
+          },
+          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "topk(10, sum by (dst_addr) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range])))",
+              "legendFormat": "{{dst_addr}}",
+              "queryType": "instant",
+              "instant": true,
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "bargauge",
+          "title": "Top Source Hosts",
+          "description": "Total bytes by source address over the selected time range.",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "min": 0 },
+            "overrides": []
+          },
+          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "topk(10, sum by (src_addr) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range])))",
+              "legendFormat": "{{src_addr}}",
+              "queryType": "instant",
+              "instant": true,
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "bargauge",
+          "title": "Traffic by Protocol",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "min": 0 },
+            "overrides": []
+          },
+          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (proto) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range]))",
+              "legendFormat": "{{proto}}",
+              "queryType": "instant",
+              "instant": true,
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "bargauge",
+          "title": "Top Destination Ports",
+          "description": "Raw port numbers - cross-reference well-known ports as needed (443=HTTPS, 53=DNS, etc).",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "min": 0 },
+            "overrides": []
+          },
+          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "topk(10, sum by (dst_port) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range])))",
+              "legendFormat": "{{dst_port}}",
+              "queryType": "instant",
+              "instant": true,
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "bargauge",
+          "title": "Traffic by Exporter",
+          "description": "Which router/switch the flow data came from.",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "min": 0 },
+            "overrides": []
+          },
+          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (sampler_address) (sum_over_time({job=\"netflow\"} | json | unwrap bytes [$__range]))",
+              "legendFormat": "{{sampler_address}}",
+              "queryType": "instant",
+              "instant": true,
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }
   goflow2-collector-health.json: |
     {
       "title": "goflow2 Collector Health",
