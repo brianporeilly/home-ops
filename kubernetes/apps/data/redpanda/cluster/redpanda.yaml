@@ -21,6 +21,8 @@ spec:
     external:
       service:
         enabled: false
+    tls:
+      enabled: false
     monitoring:
       enabled: true
     console:
