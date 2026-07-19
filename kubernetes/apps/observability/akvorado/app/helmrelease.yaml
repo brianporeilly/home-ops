@@ -1,0 +1,324 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: akvorado
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: akvorado
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      orchestrator:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: quay.io/akvorado/akvorado
+              tag: 2.4.1@sha256:d3cb3ae5716dcb70b665c9f1068f1edea4c1d8a327f924303f3dc65a6fcae098
+            args:
+              - orchestrator
+              - /etc/akvorado/akvorado.yaml
+            env:
+              AKVORADO_CFG_CLICKHOUSEDB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: CLICKHOUSE_PASSWORD
+            probes:
+              liveness: &orchestrator-probe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/usr/local/bin/akvorado", "healthcheck"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *orchestrator-probe
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+          geoipupdate:
+            image:
+              repository: ghcr.io/maxmind/geoipupdate
+              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+            env:
+              GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
+              GEOIPUPDATE_FREQUENCY: "48"
+              GEOIPUPDATE_ACCOUNT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_ACCOUNT_ID
+              GEOIPUPDATE_LICENSE_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_LICENSE_KEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+      inlet:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: quay.io/akvorado/akvorado
+              tag: 2.4.1@sha256:d3cb3ae5716dcb70b665c9f1068f1edea4c1d8a327f924303f3dc65a6fcae098
+            args:
+              - inlet
+              - http://akvorado-orchestrator:8080
+            probes:
+              liveness: &inlet-probe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/usr/local/bin/akvorado", "healthcheck"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *inlet-probe
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+      outlet:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: quay.io/akvorado/akvorado
+              tag: 2.4.1@sha256:d3cb3ae5716dcb70b665c9f1068f1edea4c1d8a327f924303f3dc65a6fcae098
+            args:
+              - outlet
+              - http://akvorado-orchestrator:8080
+            env:
+              AKVORADO_CFG_OUTLET_METADATA_CACHEPERSISTFILE: /run/akvorado/metadata.cache
+              AKVORADO_CFG_OUTLET_FLOW_STATEPERSISTFILE: /run/akvorado/flow.state
+            probes:
+              liveness: &outlet-probe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/usr/local/bin/akvorado", "healthcheck"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *outlet-probe
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+          geoipupdate:
+            image:
+              repository: ghcr.io/maxmind/geoipupdate
+              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+            env:
+              GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
+              GEOIPUPDATE_FREQUENCY: "48"
+              GEOIPUPDATE_ACCOUNT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_ACCOUNT_ID
+              GEOIPUPDATE_LICENSE_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_LICENSE_KEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+      console:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: quay.io/akvorado/akvorado
+              tag: 2.4.1@sha256:d3cb3ae5716dcb70b665c9f1068f1edea4c1d8a327f924303f3dc65a6fcae098
+            args:
+              - console
+              - http://akvorado-orchestrator:8080
+            env:
+              AKVORADO_CFG_CONSOLE_DATABASE_DSN: /run/akvorado/console.sqlite
+            probes:
+              liveness: &console-probe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/usr/local/bin/akvorado", "healthcheck"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 20
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *console-probe
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    persistence:
+      config:
+        type: secret
+        name: akvorado-config
+        advancedMounts:
+          orchestrator:
+            app:
+              - path: /etc/akvorado
+                readOnly: true
+      geoip-orchestrator:
+        type: emptyDir
+        advancedMounts:
+          orchestrator:
+            app:
+              - path: /usr/share/GeoIP
+                readOnly: true
+            geoipupdate:
+              - path: /usr/share/GeoIP
+      geoip-outlet:
+        type: emptyDir
+        advancedMounts:
+          outlet:
+            app:
+              - path: /usr/share/GeoIP
+                readOnly: true
+            geoipupdate:
+              - path: /usr/share/GeoIP
+      outlet-run:
+        type: emptyDir
+        advancedMounts:
+          outlet:
+            app:
+              - path: /run/akvorado
+      console-run:
+        suffix: console-run
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        advancedMounts:
+          console:
+            app:
+              - path: /run/akvorado
+
+    service:
+      console:
+        primary: true
+        controller: console
+        ports:
+          http:
+            port: 8080
+      orchestrator:
+        controller: orchestrator
+        ports:
+          http:
+            port: 8080
+      outlet:
+        controller: outlet
+        ports:
+          http:
+            port: 8080
+      inlet-http:
+        controller: inlet
+        ports:
+          http:
+            port: 8080
+      inlet-flows:
+        controller: inlet
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kubevip.io/loadbalancerIPs: "10.20.250.6"
+        ipFamilies: [IPv4]
+        ipFamilyPolicy: PreferDualStack
+        ports:
+          netflow:
+            port: 2055
+            protocol: UDP
+          ipfix:
+            port: 4739
+            protocol: UDP
+          sflow:
+            port: 6343
+            protocol: UDP
+
+    route:
+      console:
+        hostnames:
+          - akvorado.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: akvorado-console
+                port: 8080
+
+    serviceMonitor:
+      console:
+        serviceName: akvorado-console
+        endpoints:
+          - port: http
+            path: /api/v0/metrics
+            interval: 30s
+      orchestrator:
+        serviceName: akvorado-orchestrator
+        endpoints:
+          - port: http
+            path: /api/v0/metrics
+            interval: 30s
+      outlet:
+        serviceName: akvorado-outlet
+        endpoints:
+          - port: http
+            path: /api/v0/metrics
+            interval: 30s
+      inlet:
+        serviceName: akvorado-inlet-http
+        endpoints:
+          - port: http
+            path: /api/v0/metrics
+            interval: 30s

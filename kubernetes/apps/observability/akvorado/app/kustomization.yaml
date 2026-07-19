@@ -2,10 +2,8 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: database
-components:
-  - ../../components/common
 resources:
-  - ./clickhouse/ks.yaml
-  - ./mariadb/ks.yaml
-  - ./postgres/ks.yaml
+  - ./helmrelease.yaml
+  - ./ocirepository.yaml
+  - ./clickhouse.yaml
+  - ./secret.yaml

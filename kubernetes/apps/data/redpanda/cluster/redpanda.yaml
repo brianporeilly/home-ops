@@ -1,0 +1,27 @@
+---
+apiVersion: cluster.redpanda.com/v1alpha2
+kind: Redpanda
+metadata:
+  name: redpanda
+spec:
+  clusterSpec:
+    statefulset:
+      replicas: 1
+    resources:
+      cpu:
+        cores: 1
+      memory:
+        container:
+          max: 2Gi
+    storage:
+      persistentVolume:
+        enabled: true
+        size: 20Gi
+        storageClass: ceph-block
+    external:
+      service:
+        enabled: false
+    monitoring:
+      enabled: true
+    console:
+      enabled: false
