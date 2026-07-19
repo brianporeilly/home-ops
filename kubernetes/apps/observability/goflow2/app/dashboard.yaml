@@ -72,7 +72,9 @@ data:
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
             "defaults": { "unit": "bytes", "min": 0 },
-            "overrides": []
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Bytes" }] }
+            ]
           },
           "options": {
             "orientation": "horizontal",
@@ -108,7 +110,9 @@ data:
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
             "defaults": { "unit": "bytes", "min": 0 },
-            "overrides": []
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Bytes" }] }
+            ]
           },
           "options": {
             "orientation": "horizontal",
@@ -143,7 +147,9 @@ data:
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
             "defaults": { "unit": "bytes", "min": 0 },
-            "overrides": []
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Bytes" }] }
+            ]
           },
           "options": {
             "orientation": "horizontal",
@@ -179,7 +185,10 @@ data:
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
             "defaults": { "unit": "bytes", "min": 0 },
-            "overrides": []
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Bytes" }] },
+              { "matcher": { "id": "byName", "options": "dst_port" }, "properties": [{ "id": "unit", "value": "none" }] }
+            ]
           },
           "options": {
             "orientation": "horizontal",
@@ -215,7 +224,9 @@ data:
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": {
             "defaults": { "unit": "bytes", "min": 0 },
-            "overrides": []
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Bytes" }] }
+            ]
           },
           "options": {
             "orientation": "horizontal",
