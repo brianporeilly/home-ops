@@ -30,7 +30,7 @@ spec:
               - orchestrator
               - /etc/akvorado/akvorado.yaml
             env:
-              AKVORADO_CFG_CLICKHOUSEDB_PASSWORD:
+              AKVORADO_CFG_ORCHESTRATOR_CLICKHOUSEDB_PASSWORD:
                 valueFrom:
                   secretKeyRef:
                     name: akvorado-creds
