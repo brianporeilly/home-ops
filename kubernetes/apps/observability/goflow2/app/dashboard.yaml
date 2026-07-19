@@ -65,7 +65,7 @@ data:
         },
         {
           "id": 3,
-          "type": "bargauge",
+          "type": "barchart",
           "title": "Top Destination Hosts",
           "description": "Total bytes by destination address over the selected time range.",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
@@ -74,7 +74,17 @@ data:
             "defaults": { "unit": "bytes", "min": 0 },
             "overrides": []
           },
-          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "options": {
+            "orientation": "horizontal",
+            "xTickLabelRotation": 0,
+            "showValue": "always",
+            "stacking": "none",
+            "groupWidth": 0.7,
+            "barWidth": 0.97,
+            "barRadius": 0,
+            "fullHighlight": false,
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }
+          },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
@@ -88,7 +98,7 @@ data:
         },
         {
           "id": 4,
-          "type": "bargauge",
+          "type": "barchart",
           "title": "Top Source Hosts",
           "description": "Total bytes by source address over the selected time range.",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
@@ -97,7 +107,17 @@ data:
             "defaults": { "unit": "bytes", "min": 0 },
             "overrides": []
           },
-          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "options": {
+            "orientation": "horizontal",
+            "xTickLabelRotation": 0,
+            "showValue": "always",
+            "stacking": "none",
+            "groupWidth": 0.7,
+            "barWidth": 0.97,
+            "barRadius": 0,
+            "fullHighlight": false,
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }
+          },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
@@ -111,7 +131,7 @@ data:
         },
         {
           "id": 5,
-          "type": "bargauge",
+          "type": "barchart",
           "title": "Traffic by Protocol",
           "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
           "datasource": { "type": "loki", "uid": "loki" },
@@ -119,7 +139,17 @@ data:
             "defaults": { "unit": "bytes", "min": 0 },
             "overrides": []
           },
-          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "options": {
+            "orientation": "horizontal",
+            "xTickLabelRotation": 0,
+            "showValue": "always",
+            "stacking": "none",
+            "groupWidth": 0.7,
+            "barWidth": 0.97,
+            "barRadius": 0,
+            "fullHighlight": false,
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }
+          },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
@@ -133,7 +163,7 @@ data:
         },
         {
           "id": 6,
-          "type": "bargauge",
+          "type": "barchart",
           "title": "Top Destination Ports",
           "description": "Raw port numbers - cross-reference well-known ports as needed (443=HTTPS, 53=DNS, etc).",
           "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
@@ -142,7 +172,17 @@ data:
             "defaults": { "unit": "bytes", "min": 0 },
             "overrides": []
           },
-          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "options": {
+            "orientation": "horizontal",
+            "xTickLabelRotation": 0,
+            "showValue": "always",
+            "stacking": "none",
+            "groupWidth": 0.7,
+            "barWidth": 0.97,
+            "barRadius": 0,
+            "fullHighlight": false,
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }
+          },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
@@ -156,7 +196,7 @@ data:
         },
         {
           "id": 7,
-          "type": "bargauge",
+          "type": "barchart",
           "title": "Traffic by Exporter",
           "description": "Which router/switch the flow data came from.",
           "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
@@ -165,7 +205,17 @@ data:
             "defaults": { "unit": "bytes", "min": 0 },
             "overrides": []
           },
-          "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "options": {
+            "orientation": "horizontal",
+            "xTickLabelRotation": 0,
+            "showValue": "always",
+            "stacking": "none",
+            "groupWidth": 0.7,
+            "barWidth": 0.97,
+            "barRadius": 0,
+            "fullHighlight": false,
+            "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }
+          },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "loki" },
