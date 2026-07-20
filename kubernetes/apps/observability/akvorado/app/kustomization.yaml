@@ -11,3 +11,5 @@ resources:
   - ./grafana-datasource.yaml
   - ./grafana-alert.yaml
   - ./dashboard.yaml
+  - ./dashboard-troubleshooting.yaml
+  - ./dashboard-top-talkers.yaml

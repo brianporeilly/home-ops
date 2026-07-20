@@ -1,0 +1,386 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: akvorado-top-talkers-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Network"
+data:
+  akvorado-top-talkers.json: |
+    {
+      "title": "Akvorado Top Talkers",
+      "uid": "akvorado-top-talkers",
+      "tags": [
+        "akvorado",
+        "netflow",
+        "network"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "editable": true,
+      "graphTooltip": 1,
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "refresh": "5m",
+      "panels": [
+        {
+          "id": 1,
+          "title": "WAN Bandwidth Over Time",
+          "description": "Upload = traffic leaving via the external (WAN) interface. Download = traffic entering via it.",
+          "type": "timeseries",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bps",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "spanNulls": false
+              },
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 2,
+              "rawSql": "SELECT toStartOfMinute(TimeReceived) AS time,\n  sum(if(OutIfBoundary = 'external', Bytes, 0)) * 8 / 60 AS \"Upload\",\n  sum(if(InIfBoundary = 'external', Bytes, 0)) * 8 / 60 AS \"Download\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived)\nGROUP BY time\nORDER BY time",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Top Talkers (Total Traffic)",
+          "description": "Ranked by total bytes sent, regardless of direction.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT SrcNetName AS \"Device\", SrcAddr AS \"IP\",\n  sum(Bytes) AS \"Bytes\", sum(Packets) AS \"Packets\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived)\nGROUP BY SrcNetName, SrcAddr\nORDER BY \"Bytes\" DESC\nLIMIT 20",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Top Upload Usage by Client",
+          "description": "Traffic leaving via the WAN, grouped by the internal device that sent it.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT SrcNetName AS \"Device\", SrcAddr AS \"IP\",\n  sum(Bytes) AS \"Bytes Uploaded\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived) AND OutIfBoundary = 'external'\nGROUP BY SrcNetName, SrcAddr\nORDER BY \"Bytes Uploaded\" DESC\nLIMIT 20",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Top Download Usage by Client",
+          "description": "Traffic entering via the WAN, grouped by the internal device that received it.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 17
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT DstNetName AS \"Device\", DstAddr AS \"IP\",\n  sum(Bytes) AS \"Bytes Downloaded\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived) AND InIfBoundary = 'external'\nGROUP BY DstNetName, DstAddr\nORDER BY \"Bytes Downloaded\" DESC\nLIMIT 20",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Top Source ASNs",
+          "description": "Which networks/providers your inbound traffic originates from.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 17
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT SrcAS AS \"ASN\",\n  dictGetOrDefault('akvorado.asns', 'name', SrcAS, 'Unknown') AS \"AS Name\",\n  sum(Bytes) AS \"Bytes\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived) AND SrcAS > 0\nGROUP BY SrcAS, \"AS Name\"\nORDER BY \"Bytes\" DESC\nLIMIT 20",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Top Destination Countries",
+          "description": "Where your outbound traffic is going, geographically.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 26
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT DstCountry AS \"Country\", sum(Bytes) AS \"Bytes\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived) AND DstCountry != ''\nGROUP BY DstCountry\nORDER BY \"Bytes\" DESC\nLIMIT 15",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Top Destination Ports",
+          "description": "What services/applications are actually being used - the port a connection was made to.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 26
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT DstPort AS \"Port\",\n  dictGetOrDefault('akvorado.protocols', 'name', Proto, 'Unknown') AS \"Protocol\",\n  sum(Bytes) AS \"Bytes\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived) AND OutIfBoundary = 'external'\nGROUP BY DstPort, Proto\nORDER BY \"Bytes\" DESC\nLIMIT 20",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "Protocol Mix",
+          "description": "Overall TCP/UDP/ICMP/etc composition of traffic.",
+          "type": "table",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "akvorado-clickhouse"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 35
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "grafana-clickhouse-datasource",
+                "uid": "akvorado-clickhouse"
+              },
+              "queryType": "sql",
+              "format": 1,
+              "rawSql": "SELECT dictGetOrDefault('akvorado.protocols', 'name', Proto, toString(Proto)) AS \"Protocol\",\n  sum(Bytes) AS \"Bytes\"\nFROM akvorado.flows\nWHERE $__timeFilter(TimeReceived)\nGROUP BY \"Protocol\"\nORDER BY \"Bytes\" DESC\nLIMIT 10",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }
