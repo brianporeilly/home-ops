@@ -53,10 +53,29 @@ spec:
                 memory: 128Mi
               limits:
                 memory: 512Mi
-          # geoipupdate: temporarily removed - MaxMind daily download quota
-          # exhausted by repeated crash-loop restarts during initial rollout
-          # debugging. Re-add once the quota resets (geoip.optional: true in
-          # akvorado.yaml means the app runs fine without it in the meantime).
+          geoipupdate:
+            image:
+              repository: ghcr.io/maxmind/geoipupdate
+              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+            env:
+              GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
+              GEOIPUPDATE_FREQUENCY: "48"
+              GEOIPUPDATE_ACCOUNT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_ACCOUNT_ID
+              GEOIPUPDATE_LICENSE_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_LICENSE_KEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
       inlet:
         annotations:
           reloader.stakater.com/auto: "true"
@@ -118,7 +137,29 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 1Gi
-          # geoipupdate: temporarily removed, see orchestrator comment above.
+          geoipupdate:
+            image:
+              repository: ghcr.io/maxmind/geoipupdate
+              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+            env:
+              GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
+              GEOIPUPDATE_FREQUENCY: "48"
+              GEOIPUPDATE_ACCOUNT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_ACCOUNT_ID
+              GEOIPUPDATE_LICENSE_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: GEOIPUPDATE_LICENSE_KEY
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
       console:
         annotations:
           reloader.stakater.com/auto: "true"
@@ -175,6 +216,8 @@ spec:
             app:
               - path: /usr/share/GeoIP
                 readOnly: true
+            geoipupdate:
+              - path: /usr/share/GeoIP
       geoip-outlet:
         type: emptyDir
         advancedMounts:
@@ -182,6 +225,8 @@ spec:
             app:
               - path: /usr/share/GeoIP
                 readOnly: true
+            geoipupdate:
+              - path: /usr/share/GeoIP
       outlet-run:
         type: emptyDir
         advancedMounts:
