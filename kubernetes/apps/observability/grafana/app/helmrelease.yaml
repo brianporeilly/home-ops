@@ -68,6 +68,7 @@ spec:
             url: http://alertmanager-operated.observability.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+              handleGrafanaManagedAlerts: true
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1
