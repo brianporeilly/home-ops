@@ -28,6 +28,7 @@ spec:
               tag: v2.15.1@sha256:7a3cbd1643b1d330ad458466d285527abaab532241ed17b7d6235e7fc93fbcd0
             env:
               NEXTAUTH_URL: https://linkwarden.internal.oreillys.io/api/v1/auth
+              NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
               DATABASE_URL:
                 valueFrom:
                   secretKeyRef:
