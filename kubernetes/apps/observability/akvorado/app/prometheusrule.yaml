@@ -1,0 +1,57 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: akvorado-rules
+spec:
+  groups:
+    - name: akvorado.rules
+      rules:
+        - alert: AkvoradoInletNoFlowsReceived
+          expr: |-
+            sum(increase(akvorado_inlet_flow_input_udp_packets_total[15m])) == 0
+          for: 15m
+          annotations:
+            summary: >-
+              Akvorado inlet has received no NetFlow/IPFIX/sFlow packets from any
+              exporter in the last 15 minutes
+          labels:
+            severity: critical
+
+        - alert: AkvoradoOutletNotWritingToClickHouse
+          expr: |-
+            increase(akvorado_outlet_core_received_raw_flows_total[15m]) > 0
+            and
+            increase(akvorado_outlet_clickhouse_flow_per_batch_count[15m]) == 0
+          for: 10m
+          annotations:
+            summary: >-
+              Akvorado outlet is receiving flows but nothing has been written to
+              ClickHouse in the last 15 minutes (enrichment likely blocking every
+              flow - check sampling-rate/SNMP metadata config)
+          labels:
+            severity: critical
+
+        - alert: AkvoradoOutletKafkaConsumerLagHigh
+          expr: |-
+            akvorado_outlet_kafka_consumergroup_lag_messages > 10000
+          for: 10m
+          annotations:
+            summary: >-
+              Akvorado outlet's Kafka consumer lag is {{ $value | printf "%.0f" }}
+              messages and rising - outlet can't keep up with inbound flow volume
+          labels:
+            severity: warning
+
+        - alert: AkvoradoOutletSNMPMetadataErrorsHigh
+          expr: |-
+            sum by (exporter) (rate(akvorado_outlet_metadata_provider_errors_total[15m])) > 0
+          for: 15m
+          annotations:
+            summary: >-
+              Akvorado outlet's SNMP metadata polling is failing for exporter
+              {{ $labels.exporter }} - interface names won't resolve and those
+              flows may be silently dropped from enrichment
+          labels:
+            severity: warning
