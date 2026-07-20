@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: akvorado-grafana-alert
+  labels:
+    grafana_alert: "1"
+data:
+  akvorado-wan-utilization.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: akvorado.wan
+        folder: Network
+        interval: 5m
+        rules:
+          - uid: akvorado-wan-upload-util
+            title: "Akvorado: WAN upload utilization high"
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: akvorado-clickhouse
+                model:
+                  queryType: sql
+                  format: 1
+                  rawSql: >-
+                    SELECT sum(Bytes) * 8 / 300 AS bps FROM akvorado.flows
+                    WHERE TimeReceived > now() - INTERVAL 5 MINUTE AND
+                    OutIfBoundary = 'external'
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  refId: B
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: B
+                  refId: C
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 67500000
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - C
+                      reducer:
+                        type: last
+                        params: []
+                      type: query
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            annotations:
+              summary: >-
+                WAN upload has sustained over 67.5 Mbps (90% of the 75 Mbps
+                plan) for 5 minutes
+            labels:
+              severity: warning

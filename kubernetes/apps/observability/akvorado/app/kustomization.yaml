@@ -7,3 +7,6 @@ resources:
   - ./ocirepository.yaml
   - ./clickhouse.yaml
   - ./secret.yaml
+  - ./prometheusrule.yaml
+  - ./grafana-datasource.yaml
+  - ./grafana-alert.yaml

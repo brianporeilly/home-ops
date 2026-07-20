@@ -21,17 +21,6 @@ data:
               summary: >-
                 No syslog messages received from OPNsense in the last 30 minutes
 
-          - alert: SyslogDeviceSilent
-            expr: |
-              absent_over_time({job="syslog", device="mikrotik"}[30m])
-            for: 5m
-            labels:
-              severity: warning
-              device: mikrotik
-            annotations:
-              summary: >-
-                No syslog messages received from the MikroTik switch in the last 30 minutes
-
           - alert: SyslogErrorRateHigh
             expr: |
               count_over_time({job="syslog", device="opnsense"} |~ `(?i)error|critical|failed` [15m]) > 20
