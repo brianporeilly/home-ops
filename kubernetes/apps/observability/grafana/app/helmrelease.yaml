@@ -182,6 +182,10 @@ spec:
         enabled: true
         searchNamespace: ALL
         labelValue: ""
+      alerts:
+        enabled: true
+        searchNamespace: ALL
+        labelValue: ""
     plugins:
       - grafana-clock-panel
       - grafana-piechart-panel
@@ -189,6 +193,7 @@ spec:
       - natel-discrete-panel
       - pr0ps-trackmap-panel
       - vonage-status-panel
+      - grafana-clickhouse-datasource
     serviceMonitor:
       enabled: true
     route:
