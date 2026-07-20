@@ -1,0 +1,103 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: thelounge
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: thelounge
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      thelounge:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/thelounge
+              tag: 4.5.2@sha256:7e18ada1421f341b6b129dbb8e4a307320c34ffe38ceef0799ead7f5a3643dbc
+            env:
+              THELOUNGE_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: thelounge-secret
+                    key: THELOUNGE_USER
+              THELOUNGE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: thelounge-secret
+                    key: THELOUNGE_PASSWORD
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 9000
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  failureThreshold: 30
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: thelounge
+        ports:
+          http:
+            port: 9000
+
+    route:
+      app:
+        hostnames:
+          - thelounge.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        globalMounts:
+          - path: /config
