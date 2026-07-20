@@ -41,19 +41,8 @@ spec:
           name tail
           alias kubernetes
           path /var/log/containers/*.log
-          exclude_path /var/log/containers/goflow2-*.log
           parser containerd
           tag kubernetes.*
-          skip_empty_lines on
-          skip_long_lines on
-          storage.type filesystem
-
-        [INPUT]
-          name tail
-          alias netflow
-          path /var/log/containers/goflow2-*.log
-          parser cri
-          tag netflow.raw
           skip_empty_lines on
           skip_long_lines on
           storage.type filesystem
@@ -115,13 +104,6 @@ spec:
           rename k_labels_app app
           rename k_labels_k8s-app app
 
-        [FILTER]
-          name parser
-          match netflow.raw
-          key_name message
-          parser json
-          reserve_data off
-
       outputs: |-
         [OUTPUT]
           name loki
@@ -156,17 +138,6 @@ spec:
           labels job=syslog, device=mikrotik
           compress gzip
           storage.total_limit_size 512M
-
-        [OUTPUT]
-          name loki
-          match netflow.raw
-          host loki-headless.observability.svc.cluster.local
-          port 3100
-          uri /loki/api/v1/push
-          line_format json
-          labels job=netflow
-          compress gzip
-          storage.total_limit_size 2G
     dashboards:
       enabled: true
     serviceMonitor:
