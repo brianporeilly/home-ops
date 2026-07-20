@@ -23,14 +23,16 @@ data:
 
           - alert: SyslogDeviceSilent
             expr: |
-              absent_over_time({job="syslog", device="mikrotik"}[30m])
-            for: 5m
+              absent_over_time({job="syslog", device="mikrotik"}[6h])
+            for: 10m
             labels:
               severity: warning
               device: mikrotik
             annotations:
               summary: >-
-                No syslog messages received from the MikroTik switch in the last 30 minutes
+                No syslog messages received from the MikroTik switch in the last 6 hours.
+                RouterOS only logs on state changes, so quiet periods are normal -
+                this window is wide on purpose.
 
           - alert: SyslogErrorRateHigh
             expr: |
