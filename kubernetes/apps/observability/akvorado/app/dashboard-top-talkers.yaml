@@ -105,7 +105,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -148,7 +161,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes Uploaded"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -191,7 +217,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes Downloaded"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -234,7 +273,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -277,7 +329,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -320,7 +385,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
@@ -363,7 +441,20 @@ data:
                 }
               }
             },
-            "overrides": []
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Bytes"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "decbytes"
+                  }
+                ]
+              }
+            ]
           },
           "options": {
             "showHeader": true,
