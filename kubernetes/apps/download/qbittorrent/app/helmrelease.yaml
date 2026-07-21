@@ -54,7 +54,9 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: [ "ALL" ] }
+              capabilities:
+                drop: [ "ALL" ]
+                add: [ "CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID" ]
             resources:
               requests:
                 cpu: 100m
