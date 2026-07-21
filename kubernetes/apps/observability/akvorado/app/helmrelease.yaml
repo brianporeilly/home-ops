@@ -56,7 +56,7 @@ spec:
           geoipupdate:
             image:
               repository: ghcr.io/maxmind/geoipupdate
-              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+              tag: v8@sha256:1e05ff9d6927f909253f3926c1a7cfd541dc75d7eec8ca3134e02c46def43721
             env:
               GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
               GEOIPUPDATE_FREQUENCY: "48"
@@ -140,7 +140,7 @@ spec:
           geoipupdate:
             image:
               repository: ghcr.io/maxmind/geoipupdate
-              tag: v7@sha256:45e15eb310528fd308c5c0abee9a8e6d580f1e2b1251e960dec2863dc7f0102f
+              tag: v8@sha256:1e05ff9d6927f909253f3926c1a7cfd541dc75d7eec8ca3134e02c46def43721
             env:
               GEOIPUPDATE_EDITION_IDS: "GeoLite2-ASN GeoLite2-Country"
               GEOIPUPDATE_FREQUENCY: "48"
