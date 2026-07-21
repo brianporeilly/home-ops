@@ -35,3 +35,62 @@ spec:
   selector:
     matchLabels:
       control-plane: envoy-gateway
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envoy-gateway-rules
+spec:
+  groups:
+    - name: envoy-gateway.rules
+      rules:
+        - alert: EnvoyExternalRateLimitTriggered
+          expr: |-
+            sum(increase(envoy_http_local_rate_limit_enforced{pod=~"envoy-external-.*"}[5m])) > 0
+          for: 1m
+          annotations:
+            summary: >-
+              Envoy's local rate limiter has started rejecting requests on
+              envoy-external ({{ $value | printf "%.0f" }} in the last 5m).
+              This only tells you rate limiting is happening in aggregate -
+              check the access logs in Loki (job=envoy or similar, filter on
+              x_forwarded_for) to see which client IP triggered it.
+          labels:
+            severity: warning
+
+        - alert: EnvoyExternalTrafficSpike
+          expr: |-
+            (
+              sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[5m]))
+              /
+              sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[1h]))
+            ) > 5
+            and
+            sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[5m])) > 1
+          for: 5m
+          annotations:
+            summary: >-
+              envoy-external's request rate over the last 5m is more than 5x
+              its trailing 1h average - could be a traffic surge, a scan, or
+              something gone wrong downstream.
+          labels:
+            severity: warning
+
+        - alert: EnvoyExternalHighErrorRate
+          expr: |-
+            (
+              sum(rate(envoy_http_downstream_rq_xx{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*", envoy_response_code_class="4"}[15m]))
+              /
+              sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[15m]))
+            ) > 0.25
+            and
+            sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[15m])) > 0.1
+          for: 15m
+          annotations:
+            summary: >-
+              Over 25% of envoy-external's requests have been 4xx for 15m -
+              classic signature of scanning/probing (looking for /admin,
+              /.env, etc) rather than normal traffic.
+          labels:
+            severity: warning
