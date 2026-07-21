@@ -14,3 +14,4 @@ resources:
   - ./gatus-sidecar/ks.yaml
   - ./snmp-exporter/ks.yaml
   - ./akvorado/ks.yaml
+  - ./kromgo/ks.yaml
