@@ -21,6 +21,24 @@ spec:
       qbittorrent:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.37.0@sha256:37f7b378a29ceb4c551b1b5582e27747b855bbfaa73fa11914fe0df028dc581f
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                mkdir -p /config/qBittorrent/config
+                if [ ! -f /config/qBittorrent/config/qBittorrent.conf ]; then
+                  echo "Seeding qBittorrent.conf (WebUI credentials pre-configured, first run)"
+                  cp /seed/qBittorrent.conf /config/qBittorrent/config/qBittorrent.conf
+                else
+                  echo "qBittorrent.conf already exists, leaving it alone"
+                fi
+                chown -R 1000:1000 /config
         containers:
           app:
             image:
@@ -97,6 +115,15 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      config-seed:
+        type: secret
+        name: qbittorrent-config-seed
+        advancedMounts:
+          qbittorrent:
+            init-config:
+              - path: /seed/qBittorrent.conf
+                subPath: qBittorrent.conf
+                readOnly: true
       # TODO: Replace with NAS NFS mount when available.
       # Ceph-backed PVC for download staging works but is expensive for
       # transient torrent data.  Switch to NAS-backed NFS + hardlink
