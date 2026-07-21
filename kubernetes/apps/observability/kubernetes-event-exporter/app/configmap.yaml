@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-event-exporter-config
+data:
+  config.yaml: |
+    logLevel: info
+    logFormat: json
+    route:
+      routes:
+        - drop:
+            - type: "Normal"
+          match:
+            - receiver: stdout
+    receivers:
+      - name: stdout
+        stdout:
+          deDot: true
