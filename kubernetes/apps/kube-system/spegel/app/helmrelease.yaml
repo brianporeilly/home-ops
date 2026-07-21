@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/spegel-org/spegel/main/charts/spegel/values.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spegel
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: spegel
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    serviceMonitor:
+      enabled: true
+    grafanaDashboard:
+      enabled: true
+      mode: Sidecar
+      labels:
+        grafana_dashboard: "1"
+    spegel:
+      containerdSock: /run/containerd/containerd.sock
+      containerdRegistryConfigPath: /etc/containerd/certs.d
+    resources:
+      requests:
+        memory: 128Mi
+      limits:
+        memory: 256Mi
