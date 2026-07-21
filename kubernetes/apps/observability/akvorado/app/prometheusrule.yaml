@@ -55,3 +55,14 @@ spec:
               flows may be silently dropped from enrichment
           labels:
             severity: warning
+
+        - alert: AkvoradoNetworkSourceStale
+          expr: |-
+            increase(akvorado_common_remotedatasource_updates_total{source="opnsense-dnsmasq"}[1h]) == 0
+          for: 30m
+          annotations:
+            summary: >-
+              No successful DHCP-leases fetch from OPNsense in over an hour -
+              new devices won't get hostname resolution in flow data
+          labels:
+            severity: warning
