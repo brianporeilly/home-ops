@@ -15,3 +15,4 @@ resources:
   - ./snmp-exporter/ks.yaml
   - ./akvorado/ks.yaml
   - ./kromgo/ks.yaml
+  - ./kubernetes-event-exporter/ks.yaml
