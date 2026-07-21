@@ -10,3 +10,4 @@ resources:
   - ./tuwunel/ks.yaml
   - ./thelounge/ks.yaml
   - ./atuin/ks.yaml
+  - ./nebraska/ks.yaml
