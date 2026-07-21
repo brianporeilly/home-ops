@@ -160,6 +160,16 @@ spec:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: envoy-external
+      sectionName: https
+  # Listener-level (sectionName) policies fully replace, rather than merge
+  # with, the Gateway-level "envoy" policy below for that listener - so
+  # compression/timeout are repeated here to avoid losing them on https.
+  compression:
+    - type: Brotli
+    - type: Gzip
+  timeout:
+    http:
+      requestTimeout: 10m
   rateLimit:
     type: Local
     local:
