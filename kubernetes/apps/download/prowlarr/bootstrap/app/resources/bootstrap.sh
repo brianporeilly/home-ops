@@ -2,6 +2,7 @@
 set -eu
 
 PROWLARR_URL="http://prowlarr.download.svc.cluster.local:9696"
+FAILURES=0
 
 echo "Waiting for prowlarr to become ready..."
 until curl -sf -H "X-Api-Key: ${PROWLARR_API_KEY}" "$PROWLARR_URL/api/v1/system/status" >/dev/null 2>&1; do
@@ -34,10 +35,19 @@ register_app() {
   fields="${fields}]"
 
   echo "Registering $name in Prowlarr..."
-  curl -sf -H "X-Api-Key: ${PROWLARR_API_KEY}" -H "Content-Type: application/json" \
+  response_file=$(mktemp)
+  status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${PROWLARR_API_KEY}" -H "Content-Type: application/json" \
     -X POST "$PROWLARR_URL/api/v1/applications" \
-    -d "{\"name\":\"${name}\",\"syncLevel\":\"fullSync\",\"implementation\":\"${name}\",\"implementationName\":\"${name}\",\"configContract\":\"${name}Settings\",\"fields\":${fields},\"tags\":[]}"
-  echo
+    -d "{\"name\":\"${name}\",\"syncLevel\":\"fullSync\",\"implementation\":\"${name}\",\"implementationName\":\"${name}\",\"configContract\":\"${name}Settings\",\"fields\":${fields},\"tags\":[]}")
+  if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+    echo "$name registered (status $status)"
+  else
+    echo "Failed to register $name (status $status):"
+    cat "$response_file"
+    echo
+    FAILURES=$((FAILURES + 1))
+  fi
+  rm -f "$response_file"
 }
 
 register_app "Sonarr" "http://sonarr.download.svc.cluster.local:8989" "${SONARR_API_KEY}" \
@@ -49,6 +59,9 @@ register_app "Radarr" "http://radarr.download.svc.cluster.local:7878" "${RADARR_
 register_app "Lidarr" "http://lidarr.download.svc.cluster.local:8686" "${LIDARR_API_KEY}" \
   "[3000,3010,3030,3040,3050,3060]"
 
+# Note: redirect must be true for Usenet indexers (Prowlarr rejects the
+# request otherwise) - this function is currently Usenet-only. Revisit if a
+# torrent indexer is ever added here.
 register_indexer() {
   name="$1"
   implementation="$2"
@@ -64,12 +77,13 @@ register_indexer() {
   fi
 
   echo "Registering $name in Prowlarr..."
-  curl -sf -H "X-Api-Key: ${PROWLARR_API_KEY}" -H "Content-Type: application/json" \
+  response_file=$(mktemp)
+  status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${PROWLARR_API_KEY}" -H "Content-Type: application/json" \
     -X POST "$PROWLARR_URL/api/v1/indexer" \
     -d "{
       \"name\":\"${name}\",
       \"enable\":true,
-      \"redirect\":false,
+      \"redirect\":true,
       \"priority\":25,
       \"appProfileId\":1,
       \"protocol\":\"usenet\",
@@ -82,10 +96,23 @@ register_indexer() {
         {\"name\":\"apiKey\",\"value\":\"${api_key}\"}
       ],
       \"tags\":[]
-    }"
-  echo
+    }")
+  if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+    echo "$name registered (status $status)"
+  else
+    echo "Failed to register $name (status $status):"
+    cat "$response_file"
+    echo
+    FAILURES=$((FAILURES + 1))
+  fi
+  rm -f "$response_file"
 }
 
 register_indexer "NZBPlanet" "Newznab" "https://nzbplanet.net" "${NZBPLANET_API_KEY}"
+
+if [ "$FAILURES" -gt 0 ]; then
+  echo "Done with $FAILURES failure(s)."
+  exit 1
+fi
 
 echo "Done."
