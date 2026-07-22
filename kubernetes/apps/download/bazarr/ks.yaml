@@ -14,6 +14,10 @@ spec:
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: sonarr
+      namespace: download
+    - name: radarr
+      namespace: download
   interval: 1h
   path: ./kubernetes/apps/download/bazarr/app
   prune: true

@@ -17,8 +17,7 @@ sonarr:
             port: 8080
             use_ssl: false
             url_base: /
-            username: !env QBT_USERNAME
-            password: !env QBT_PASSWORD
+            api_key: !env QBT_API_KEY
             tv_category: tv-sonarr
       update_password: true
 
@@ -39,7 +38,27 @@ radarr:
             port: 8080
             use_ssl: false
             url_base: /
-            username: !env QBT_USERNAME
-            password: !env QBT_PASSWORD
+            api_key: !env QBT_API_KEY
             movie_category: radarr
+      update_password: true
+
+lidarr:
+  lidarr:
+    base_url: http://lidarr.download.svc.cluster.local:8686
+    api_key: !env LIDARR_API_KEY
+    download_clients:
+      data:
+        - name: qbittorrent
+          type: qbittorrent
+          enable: true
+          priority: 1
+          remove_completed_downloads: false
+          remove_failed_downloads: true
+          fields:
+            host: qbittorrent.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env QBT_API_KEY
+            music_category: lidarr
       update_password: true

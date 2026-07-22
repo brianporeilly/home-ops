@@ -43,16 +43,16 @@ spec:
                   secretKeyRef:
                     name: radarr-secret
                     key: RADARR__AUTH__APIKEY
-              QBT_USERNAME:
+              LIDARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: lidarr-secret
+                    key: LIDARR__AUTH__APIKEY
+              QBT_API_KEY:
                 valueFrom:
                   secretKeyRef:
                     name: qbittorrent-creds
-                    key: QBT_USERNAME
-              QBT_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: qbittorrent-creds
-                    key: QBT_PASSWORD
+                    key: QBT_API_KEY
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
