@@ -26,6 +26,17 @@ spec:
             image:
               repository: ghcr.io/home-operations/lidarr
               tag: 3.1.3.4975@sha256:3f195dec89774e2cdac9be7dda8fe96f7ce39df2fd0cd7c150a6907f28c58faf
+            env:
+              LIDARR__APP__INSTANCENAME: Lidarr
+              LIDARR__APP__THEME: dark
+              LIDARR__AUTH__METHOD: External
+              LIDARR__AUTH__REQUIRED: DisabledForLocalAddresses
+              LIDARR__LOG__DBENABLED: "False"
+              LIDARR__LOG__LEVEL: info
+              LIDARR__SERVER__PORT: 8686
+            envFrom:
+              - secretRef:
+                  name: lidarr-secret
             probes:
               liveness: &probes
                 enabled: true

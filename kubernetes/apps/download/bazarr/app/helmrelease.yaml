@@ -21,6 +21,36 @@ spec:
       bazarr:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.37.0@sha256:37f7b378a29ceb4c551b1b5582e27747b855bbfaa73fa11914fe0df028dc581f
+            env:
+              SONARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: sonarr-secret
+                    key: SONARR__AUTH__APIKEY
+              RADARR_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: radarr-secret
+                    key: RADARR__AUTH__APIKEY
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                mkdir -p /config/config
+                if [ ! -f /config/config/config.yaml ]; then
+                  echo "Seeding Bazarr config.yaml (Sonarr/Radarr connections + WebUI credentials pre-configured, first run)"
+                  cp /seed/config.yaml /config/config/config.yaml
+                  sed -i "s|__SONARR_API_KEY__|${SONARR_API_KEY}|g" /config/config/config.yaml
+                  sed -i "s|__RADARR_API_KEY__|${RADARR_API_KEY}|g" /config/config/config.yaml
+                else
+                  echo "Bazarr config.yaml already exists, leaving it alone"
+                fi
         containers:
           app:
             image:
@@ -83,6 +113,15 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      config-seed:
+        type: secret
+        name: bazarr-config-seed
+        advancedMounts:
+          bazarr:
+            init-config:
+              - path: /seed/config.yaml
+                subPath: config.yaml
+                readOnly: true
       tmpfs:
         type: emptyDir
         advancedMounts:

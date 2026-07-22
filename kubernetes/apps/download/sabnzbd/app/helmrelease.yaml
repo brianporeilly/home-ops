@@ -19,6 +19,22 @@ spec:
   values:
     controllers:
       sabnzbd:
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.37.0@sha256:37f7b378a29ceb4c551b1b5582e27747b855bbfaa73fa11914fe0df028dc581f
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /config/sabnzbd.ini ]; then
+                  echo "Seeding sabnzbd.ini (WebUI credentials + Usenet server pre-configured, first run)"
+                  cp /seed/sabnzbd.ini /config/sabnzbd.ini
+                else
+                  echo "sabnzbd.ini already exists, leaving it alone"
+                fi
         containers:
           app:
             image:
@@ -34,6 +50,9 @@ spec:
                 sabnzbd.downloads.svc.cluster.local,
                 sabnzbd.internal.oreillys.io,
                 nzb.internal.oreillys.io
+            envFrom:
+              - secretRef:
+                  name: sabnzbd-creds
             probes:
               liveness: &probes
                 enabled: true
@@ -88,6 +107,15 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      config-seed:
+        type: secret
+        name: sabnzbd-config-seed
+        advancedMounts:
+          sabnzbd:
+            init-config:
+              - path: /seed/sabnzbd.ini
+                subPath: sabnzbd.ini
+                readOnly: true
 #      media:
 #        type: nfs
 #        server: nfs.oreillys.lan

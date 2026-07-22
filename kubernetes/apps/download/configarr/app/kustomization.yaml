@@ -5,4 +5,9 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
-  - ./secret.yaml
+configMapGenerator:
+  - name: configarr-configmap
+    files:
+      - config.yml=./resources/config.yml
+generatorOptions:
+  disableNameSuffixHash: true
