@@ -19,3 +19,4 @@ resources:
   - ./lidarr/ks.yaml
   - ./bazarr/ks.yaml
   - ./configarr/ks.yaml
+  - ./arr-notifications/ks.yaml
