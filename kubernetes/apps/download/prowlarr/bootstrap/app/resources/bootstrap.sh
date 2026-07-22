@@ -49,4 +49,43 @@ register_app "Radarr" "http://radarr.download.svc.cluster.local:7878" "${RADARR_
 register_app "Lidarr" "http://lidarr.download.svc.cluster.local:8686" "${LIDARR_API_KEY}" \
   "[3000,3010,3030,3040,3050,3060]"
 
+register_indexer() {
+  name="$1"
+  implementation="$2"
+  base_url="$3"
+  api_key="$4"
+
+  existing="$(curl -s -H "X-Api-Key: ${PROWLARR_API_KEY}" "$PROWLARR_URL/api/v1/indexer" \
+    | jq -r --arg name "$name" '.[]? | select(.name==$name) | .id' | head -n1)"
+
+  if [ -n "${existing:-}" ]; then
+    echo "$name already registered in Prowlarr (id=$existing), skipping"
+    return 0
+  fi
+
+  echo "Registering $name in Prowlarr..."
+  curl -sf -H "X-Api-Key: ${PROWLARR_API_KEY}" -H "Content-Type: application/json" \
+    -X POST "$PROWLARR_URL/api/v1/indexer" \
+    -d "{
+      \"name\":\"${name}\",
+      \"enable\":true,
+      \"redirect\":false,
+      \"priority\":25,
+      \"appProfileId\":1,
+      \"protocol\":\"usenet\",
+      \"privacy\":\"private\",
+      \"implementation\":\"${implementation}\",
+      \"implementationName\":\"${implementation}\",
+      \"configContract\":\"${implementation}Settings\",
+      \"fields\":[
+        {\"name\":\"baseUrl\",\"value\":\"${base_url}\"},
+        {\"name\":\"apiKey\",\"value\":\"${api_key}\"}
+      ],
+      \"tags\":[]
+    }"
+  echo
+}
+
+register_indexer "NZBPlanet" "Newznab" "https://nzbplanet.net" "${NZBPLANET_API_KEY}"
+
 echo "Done."

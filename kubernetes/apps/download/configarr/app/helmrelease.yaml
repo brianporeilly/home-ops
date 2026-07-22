@@ -53,6 +53,11 @@ spec:
                   secretKeyRef:
                     name: qbittorrent-creds
                     key: QBT_API_KEY
+              SABNZBD_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: sabnzbd-creds
+                    key: SABNZBD__API_KEY
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
