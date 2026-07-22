@@ -18,6 +18,8 @@ spec:
       namespace: download
     - name: prowlarr
       namespace: download
+    - name: jellyfin
+      namespace: media
   interval: 1h
   path: ./kubernetes/apps/download/arr-notifications/app
   prune: true
