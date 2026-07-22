@@ -19,6 +19,17 @@ sonarr:
             url_base: /
             api_key: !env QBT_API_KEY
             tv_category: tv-sonarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
+            tv_category: tv-sonarr
       update_password: true
 
 radarr:
@@ -40,6 +51,17 @@ radarr:
             url_base: /
             api_key: !env QBT_API_KEY
             movie_category: radarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
+            movie_category: radarr
       update_password: true
 
 lidarr:
@@ -60,5 +82,16 @@ lidarr:
             use_ssl: false
             url_base: /
             api_key: !env QBT_API_KEY
+            music_category: lidarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
             music_category: lidarr
       update_password: true

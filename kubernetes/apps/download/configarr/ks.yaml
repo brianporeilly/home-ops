@@ -18,6 +18,8 @@ spec:
       namespace: download
     - name: qbittorrent
       namespace: download
+    - name: sabnzbd
+      namespace: download
   interval: 1h
   path: ./kubernetes/apps/download/configarr/app
   prune: true
