@@ -16,9 +16,10 @@ until curl -sf "$QBT_HOST" >/dev/null 2>&1; do
 done
 
 echo "Running qui setup (no-op if already completed)..."
-curl -s -o /dev/null -c "$COOKIES" -X POST "$QUI_URL/api/auth/setup" \
+SETUP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -c "$COOKIES" -X POST "$QUI_URL/api/auth/setup" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"${QUI_USERNAME}\",\"password\":\"${QUI_PASSWORD}\"}"
+  -d "{\"username\":\"${QUI_USERNAME}\",\"password\":\"${QUI_PASSWORD}\"}")
+echo "Setup responded with status $SETUP_STATUS (200 = created, 400 = already completed, anything else is worth investigating)"
 
 echo "Logging in..."
 LOGIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -c "$COOKIES" -X POST "$QUI_URL/api/auth/login" \
