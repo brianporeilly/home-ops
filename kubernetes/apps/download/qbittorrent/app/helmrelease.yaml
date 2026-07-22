@@ -25,7 +25,7 @@ spec:
           init-config:
             image:
               repository: docker.io/library/busybox
-              tag: 1.37.0@sha256:37f7b378a29ceb4c551b1b5582e27747b855bbfaa73fa11914fe0df028dc581f
+              tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
             command:
               - sh
               - -c
