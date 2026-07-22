@@ -38,11 +38,11 @@ JSON
   if [ -n "${existing:-}" ]; then
     echo "${app_name}: Slack notification already registered (id=${existing}), updating..."
     status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-      -X PUT "${base_url}/api/${api_path}/notification/${existing}" -d "$payload")
+      -X PUT "${base_url}/api/${api_path}/notification/${existing}?forceSave=true" -d "$payload")
   else
     echo "${app_name}: registering Slack notification..."
     status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-      -X POST "${base_url}/api/${api_path}/notification" -d "$payload")
+      -X POST "${base_url}/api/${api_path}/notification?forceSave=true" -d "$payload")
   fi
 
   if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
@@ -105,11 +105,11 @@ JSON
   if [ -n "${existing:-}" ]; then
     echo "${app_name}: Jellyfin notification already registered (id=${existing}), updating..."
     status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-      -X PUT "${base_url}/api/${api_path}/notification/${existing}" -d "$payload")
+      -X PUT "${base_url}/api/${api_path}/notification/${existing}?forceSave=true" -d "$payload")
   else
     echo "${app_name}: registering Jellyfin notification..."
     status=$(curl -s -o "$response_file" -w "%{http_code}" -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-      -X POST "${base_url}/api/${api_path}/notification" -d "$payload")
+      -X POST "${base_url}/api/${api_path}/notification?forceSave=true" -d "$payload")
   fi
 
   if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
