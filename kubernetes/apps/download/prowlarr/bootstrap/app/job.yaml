@@ -43,6 +43,11 @@ spec:
                 secretKeyRef:
                   name: lidarr-secret
                   key: LIDARR__AUTH__APIKEY
+            - name: NZBPLANET_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-bootstrap-creds
+                  key: NZBPLANET_API_KEY
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
