@@ -19,7 +19,7 @@ spec:
     - name: lidarr
       namespace: download
   interval: 1h
-  path: ./kubernetes/apps/download/prowlarr-bootstrap/app
+  path: ./kubernetes/apps/download/prowlarr/bootstrap/app
   prune: true
   retryInterval: 2m
   sourceRef:

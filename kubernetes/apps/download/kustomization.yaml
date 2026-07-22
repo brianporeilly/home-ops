@@ -9,12 +9,12 @@ resources:
 #  - ./nzbget/ks.yaml
   - ./qbittorrent/ks.yaml
   - ./qui/ks.yaml
-  - ./qui-bootstrap/ks.yaml
+  - ./qui/bootstrap/ks.yaml
   - ./sabnzbd/ks.yaml
   - ./sonarr/ks.yaml
   - ./radarr/ks.yaml
   - ./prowlarr/ks.yaml
-  - ./prowlarr-bootstrap/ks.yaml
+  - ./prowlarr/bootstrap/ks.yaml
   - ./recyclarr/ks.yaml
   - ./lidarr/ks.yaml
   - ./bazarr/ks.yaml

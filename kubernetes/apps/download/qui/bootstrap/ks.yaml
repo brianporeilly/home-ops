@@ -15,7 +15,7 @@ spec:
     - name: qbittorrent
       namespace: download
   interval: 1h
-  path: ./kubernetes/apps/download/qui-bootstrap/app
+  path: ./kubernetes/apps/download/qui/bootstrap/app
   prune: true
   retryInterval: 2m
   sourceRef:
