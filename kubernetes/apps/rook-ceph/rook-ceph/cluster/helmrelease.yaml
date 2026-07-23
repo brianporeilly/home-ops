@@ -24,14 +24,26 @@ spec:
       enabled: true
       createPrometheusRules: true
       prometheusRuleOverrides:
-        CephPoolGrowthWarning:
-          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
         # Bare predict_linear on host filesystems with no usage threshold and
         # for: 0s — fires on any transient 2d dip (image pulls, pod churn).
         # kube-prometheus-stack's NodeFilesystemSpaceFillingUp covers host
         # disks properly (usage gate + prediction + 1h duration).
         CephNodeDiskspaceWarning:
           disabled: true
+        CephNodeNetworkPacketDrops:
+          expr: |
+            (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) / (
+              rate(node_network_receive_packets_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_packets_total{device!="lo"}[10m])
+            ) >= 0.005 and (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) >= 100
+        CephPoolGrowthWarning:
+          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
     route:
       dashboard:
         host:
