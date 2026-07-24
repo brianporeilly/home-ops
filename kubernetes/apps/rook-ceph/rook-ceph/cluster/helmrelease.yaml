@@ -24,14 +24,26 @@ spec:
       enabled: true
       createPrometheusRules: true
       prometheusRuleOverrides:
-        CephPoolGrowthWarning:
-          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
         # Bare predict_linear on host filesystems with no usage threshold and
         # for: 0s — fires on any transient 2d dip (image pulls, pod churn).
         # kube-prometheus-stack's NodeFilesystemSpaceFillingUp covers host
         # disks properly (usage gate + prediction + 1h duration).
         CephNodeDiskspaceWarning:
           disabled: true
+        CephNodeNetworkPacketDrops:
+          expr: |
+            (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) / (
+              rate(node_network_receive_packets_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_packets_total{device!="lo"}[10m])
+            ) >= 0.005 and (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) >= 100
+        CephPoolGrowthWarning:
+          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
     route:
       dashboard:
         host:
@@ -50,6 +62,25 @@ spec:
           bdev_async_discard_threads: "1" # quote
           osd_class_update_on_start: "false" # quote
           device_failure_prediction_mode: local # requires mgr module
+        osd:
+          # The old WD Green / SMR HDDs top out at ~250 IOPS, so BlueStore
+          # observes the occasional slow read. The default warn threshold of 1
+          # slow op + a 24h (86400s) lifetime turns that into a permanent
+          # HEALTH_WARN (BLUESTORE_SLOW_OP_ALERT). While these disks stay in
+          # service for bulk capacity, relax it: warn only on a sustained
+          # handful, and let it clear within the hour.
+          bluestore_slow_ops_warn_threshold: "5" # quote (default 1)
+          bluestore_slow_ops_warn_lifetime: "3600" # quote (default 86400 = 24h)
+          # Prioritise client I/O over recovery/backfill/scrub so latency stays
+          # smooth on the ~250 IOPS HDDs. Trade-off: backfill (e.g. during the
+          # future SSD-DB migration) runs slower - fine for a homelab.
+          osd_mclock_profile: high_client_ops # was 'balanced'
+          # Deep scrubs are a major slow-op source on spinning disks. Stretch
+          # the interval and confine scrubs to an off-peak window; 81 PGs /
+          # ~66 GiB scrub comfortably inside a nightly window.
+          osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
+          osd_scrub_begin_hour: "1" # quote, 01:00 local
+          osd_scrub_end_hour: "6" # quote, 06:00 local
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:
