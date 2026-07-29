@@ -142,7 +142,7 @@ Naming: Gene Wolfe *Book of the New Sun*, guild-masters faction = control plane
 | hostname | machine | target etcd disk | interim disk (testing now) |
 |----------|---------|------------------|----------------------------|
 | `cp-palaemon` | Lenovo (8GB) | S3610 200GB | Intel 520 240GB (2.5" SATA) |
-| `cp-gurloes` | Dell 7050 (was test-01) | S3610 200GB | Toshiba 256GB NVMe |
+| `cp-gurloes` | Dell 7050 (was test-01) | S3610 200GB | **Patriot P210 128GB** (slow — Toshiba NVMe removed) |
 | `cp-malrubius` | Dell 7050 (was wk-02) | S3610 200GB | Samsung 870 EVO 500GB |
 
 All CP-only, **tainted NoSchedule**. Keeps every Patriot out of etcd. **CP tier is
@@ -194,9 +194,12 @@ valuable as HDD block.db devices (§2), so leave workers on X400/Patriot.
 
 ## Open decisions / constraints
 
-- **10GbE: RESOLVED** — spare NIC dropped into `wk-eata` (old wk-03, the 32G node that
-  lacked it) → all 4 OSD hosts now 10GbE; NAS (`nas-ultan`) also has one installed. Whole
-  Ceph recovery path is 10GbE.
+- **10GbE: RE-OPENED (2026-07-29 scan).** `wk-eata` shows **only onboard 1GbE** (`enp0s31f6`);
+  the spare 10GbE NIC is **not installed/detected** — so only 3 of 4 OSD hosts (severian/drotte/
+  roche, all `f0` @ 10000Mb/s) are actually on 10GbE. eata's HDD OSD recovery path is 1GbE until
+  the card is seated. NAS (`nas-ultan`) has its Intel dual-port 10GbE **installed but link-down**
+  (`enp2s0f0/f1` present, no speed); it's currently live on onboard 1GbE (`enp0s25`). Action:
+  check eata's PCIe slot / reseat its NIC; patch + bring up nas-ultan's 10GbE. Then re-scan.
 - **Bays: RESOLVED** — drotte/roche/eata each have ≥1 spare connector. drotte = 3rd SSD host
   (WD Blue) + colocated HGST block.db; roche/eata = block.db SSD alongside their EARX.
 - **EFAX: RESOLVED** — 6 drives → 5 in the pool + 1 cold spare.
@@ -230,5 +233,10 @@ Finish the baseline first (S3610 swap + block.db SSDs). After that, in value ord
    self-healing. Medium priority for a homelab (degraded ≠ data loss).
 4. **RAM — only if metrics say so.** 32G workers look adequate; check Prometheus worker
    memory / OSD pressure before buying. CP 8G nodes are fine as-is. Don't buy on spec.
+   *DIMM headroom is now mapped (see `node-inventory.md` → RAM/DIMMs):* the three DDR3 Haswell
+   workers (severian/drotte/roche) **and the NAS are at their 32 GB platform ceiling** — no DIMM
+   path, only a board/CPU swap. Only DDR4 nodes can grow: `wk-eata` →64 GB and `wk-jonas` →32 GB
+   (both need module *swaps*, slots full), and the CP nodes have **empty DDR4 slots** (cheapest
+   add) if 8 GB ever gets tight for the control plane.
 5. **UPS (if none).** Cheap insurance for the whole cluster + the SMR ZFS pool against power
    events; complements the PLP SSDs.
