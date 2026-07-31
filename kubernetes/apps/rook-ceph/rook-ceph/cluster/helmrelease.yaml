@@ -216,4 +216,40 @@ spec:
       isDefault: false
       deletionPolicy: Delete
 
-    cephObjectStores: []
+    # S3-compatible object store (RGW) — the in-cluster backup target for CNPG
+    # Barman / MariaDB-native backups (and later Loki chunk storage). Pools are
+    # HDD-backed (bulk backup data belongs on spinning disk, not the SSD tier)
+    # and size 3 across the 3 HDD hosts. See docs/backup-dr-plan.md.
+    # NOTE: RGW lives on Ceph, so it shares fate with the cluster it backs up —
+    # it serves fast same-cluster restores/PITR; the durable DR copies must be
+    # synced off-Ceph (NAS + off-site) per the plan.
+    cephObjectStores:
+      - name: ceph-objectstore
+        spec:
+          metadataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          dataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          preservePoolsOnDelete: true
+          gateway:
+            port: 80
+            instances: 1
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+        storageClass:
+          enabled: true
+          name: ceph-bucket
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          parameters:
+            region: us-east-1
