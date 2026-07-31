@@ -89,7 +89,7 @@ spec:
     persistence:
       db:
         suffix: db
-        storageClass: "ceph-block"
+        storageClass: "ceph-block-ssd"
         accessMode: ReadWriteOnce
         size: "1Gi"
         globalMounts:

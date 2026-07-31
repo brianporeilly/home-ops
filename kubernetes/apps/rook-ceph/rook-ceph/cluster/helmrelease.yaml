@@ -114,15 +114,55 @@ spec:
         useAllDevices: true
 
     cephBlockPools:
+      # Bulk / default tier — pinned to the HDD device class so spinning disks
+      # carry general-purpose PVCs and the SSD OSDs stay reserved for the fast
+      # pool below. failureDomain host + size 3 = one copy per HDD host.
       - name: ceph-blockpool
         spec:
           failureDomain: host
+          deviceClass: hdd
           replicated:
             size: 3
         storageClass:
           enabled: true
           name: ceph-block
           isDefault: true
+          reclaimPolicy: Delete
+          allowVolumeExpansion: true
+          volumeBindingMode: Immediate
+          mountOptions:
+            - discard
+          parameters:
+            compression_mode: aggressive
+            compression_algorithm: zstd
+            imageFormat: "2"
+            imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
+            csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+            csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/fstype: ext4
+      # Fast tier — SSD device class for latency-sensitive PVCs (databases).
+      # Only 2 SSD hosts exist today (wk-jonas, wk-severian), so this pool runs
+      # size 2 until the 3rd SSD OSD (WD Blue -> wk-drotte) lands, then bump to
+      # size 3. See docs/disk-hardware-plan.md §2. min_size 2 = no single-copy
+      # writes; trade-off is a single SSD-host reboot pauses writes to this pool
+      # (acceptable: the DBs here replicate at the app layer across instances).
+      - name: ceph-blockpool-ssd
+        spec:
+          failureDomain: host
+          deviceClass: ssd
+          replicated:
+            size: 2
+            requireSafeReplicaSize: true
+          parameters:
+            min_size: "2"
+        storageClass:
+          enabled: true
+          name: ceph-block-ssd
+          isDefault: false
           reclaimPolicy: Delete
           allowVolumeExpansion: true
           volumeBindingMode: Immediate
@@ -159,9 +199,11 @@ spec:
           dataPools:
             - failureDomain: host
               name: data0
+              deviceClass: hdd
               replicated:
                 size: 3
           metadataPool:
+            deviceClass: hdd
             replicated:
               size: 3
           metadataServer:
@@ -174,4 +216,40 @@ spec:
       isDefault: false
       deletionPolicy: Delete
 
-    cephObjectStores: []
+    # S3-compatible object store (RGW) — the in-cluster backup target for CNPG
+    # Barman / MariaDB-native backups (and later Loki chunk storage). Pools are
+    # HDD-backed (bulk backup data belongs on spinning disk, not the SSD tier)
+    # and size 3 across the 3 HDD hosts. See docs/backup-dr-plan.md.
+    # NOTE: RGW lives on Ceph, so it shares fate with the cluster it backs up —
+    # it serves fast same-cluster restores/PITR; the durable DR copies must be
+    # synced off-Ceph (NAS + off-site) per the plan.
+    cephObjectStores:
+      - name: ceph-objectstore
+        spec:
+          metadataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          dataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          preservePoolsOnDelete: true
+          gateway:
+            port: 80
+            instances: 1
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+        storageClass:
+          enabled: true
+          name: ceph-bucket
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          parameters:
+            region: us-east-1
