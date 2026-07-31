@@ -17,7 +17,7 @@ spec:
       persistentVolume:
         enabled: true
         size: 20Gi
-        storageClass: ceph-block
+        storageClass: ceph-block-ssd
     external:
       service:
         enabled: false
