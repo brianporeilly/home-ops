@@ -1,6 +1,12 @@
 # Disk / Storage Hardware Plan
 
-Status: **planning** (2026-07-24). Source inventory: `disk-inventory` (root of repo).
+Status: **in progress** (updated 2026-07-30). Source inventory: `disk-inventory` (root of repo).
+
+**Done:** 5 OSDs deployed and auto-classed (3× HDD, 2× SSD); Ceph split into device-class
+tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block` (see `ceph-device-class-tiering` memory);
+CephObjectStore/RGW being added as the backup S3 target (`backup-dr-plan.md`).
+**Pending:** WD Blue 3rd SSD OSD (→ bump SSD pool size 2→3), block.db SSDs (roche/eata), etcd
+S3610 PLP swap, `wk-eata` 10GbE NIC, NAS build. Backups (`backup-dr-plan.md`) not yet implemented.
 
 Goal: assign every usable disk to a role during the cluster + NAS rebuild, fix the
 known pain (etcd fsync latency, Ceph HDD slow-ops), and keep spend near-zero given
@@ -213,9 +219,9 @@ S3610 swap, attach block.db at OSD-create time, build the NAS.
 
 Finish the baseline first (S3610 swap + block.db SSDs). After that, in value order:
 
-1. **Backups — highest value.** Once `nas-ultan` is up, stand up a real backup system
-   (Kopia/Velero → NAS) for the app PVCs. Now that storage is solid, this is the biggest
-   remaining risk-reducer and it's cheap. (Ties to the earlier ad-hoc backup scripts.)
+1. **Backups — highest value, now planned in detail.** See **`backup-dr-plan.md`** for the
+   full architecture (DB-native PITR + file-level PVC + off-site, with a Ceph RGW S3 target).
+   Still the biggest remaining risk-reducer; blocked only on standing up the S3 target + NAS.
 2. **GPU / AI — the blocker was etcd contention, and this rebuild fixes it.** `ollama` is
    GPU-wired correctly (`runtimeClassName: nvidia` + `nvidia.com/gpu: 1`) but sits at
    **`replicas: 0`** — parked because booting it (loading a multi-GB model) produced an I/O

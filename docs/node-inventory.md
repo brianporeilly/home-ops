@@ -99,14 +99,14 @@ DDR4 slots — by far the cheapest headroom if 8 GB ever proves tight for etcd/c
 
 | Hostname | OS / boot disk | Ceph OSDs / data disks | block.db | Notes |
 |----------|----------------|------------------------|----------|-------|
-| `cp-gurloes`   | **Patriot P210 128GB** (interim — slow; awful `dd` at Flatcar install) → **S3610 200GB** | — | — | tainted NoSchedule; was Toshiba NVMe, now on a spare Patriot; S3610 pending |
+| `cp-gurloes`   | **Patriot P210 128GB** (interim — slow) → **S3610 200GB** (pending) | — | — | tainted NoSchedule |
 | `cp-malrubius` | Samsung 870 EVO 500GB → **S3610 200GB** | — | — | tainted NoSchedule; S3610 pending |
 | `cp-palaemon`  | Intel 520 240GB (SSDSC2CW240A3) → **S3610 200GB** (etcd) | — | — | tainted NoSchedule; 2.5" bay; **+ Intel SSDPEKKF256G7L 256GB NVMe in M.2 (undocumented spare)**; S3610 pending |
 | `wk-severian`  | Patriot P210 128GB | **SSD:** Samsung 850 EVO 1TB | — | 2-bay, SATA-only |
 | `wk-drotte`    | SanDisk X400 128GB (SD8SB8U) | **HDD:** HGST HUA723020ALA640 2TB · **SSD:** WD Blue WDBNCE0010P 1TB · **GPU:** GTX 745 | HGST colocated | SATA-only; WD Blue **pending, not yet present** (old-NAS Longhorn) |
 | `wk-roche`     | SanDisk X400 128GB (SD8SB8U) | **HDD:** WD20EARX 2TB · **GPU:** GTX 745 | SATA SSD (pending) | SATA-only; block.db SSD not yet present |
 | `wk-eata`      | Patriot P210 128GB | **HDD:** WD20EARX 2TB | SATA SSD (pending) | SATA-only; block.db SSD not yet present; ⚠ **10GbE NIC not detected** (only onboard 1GbE) |
-| `wk-jonas`     | Patriot P210 128GB (⚠ **not detected** — loose SATA ribbon to 2.5" bay came off MFF board; reseating) | **SSD:** WD_BLACK SN770M 1TB NVMe | — | MFF, M.2 |
+| `wk-jonas`     | Patriot P210 128GB | **SSD:** WD_BLACK SN770M 1TB NVMe | — | MFF, M.2 |
 | `nas-ultan`    | Crucial M4 64GB (boot) | **ZFS (planned):** 5× WD60EFAX 6TB + 1× HGST HUS726060ALE611 6TB (3 mirror vdevs) + 1× WD60EFAX cold spare | — | **disks to be re-laid to plan at teardown.** *Currently* (old cluster): 4× WD60EFAX + 1× HGST in ZFS; WD Blue 1TB SSD = `/data` (Longhorn — reclaim target); X400 128GB = `/var`; 6× iSCSI Longhorn PVCs mounted |
 
 ## Notes

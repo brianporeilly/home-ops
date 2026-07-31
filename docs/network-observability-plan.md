@@ -92,10 +92,9 @@ the order hit — useful if something regresses or this gets redeployed fresh:
    orchestrator/outlet were **temporarily removed** (commit in PR #186) since
    the non-zero exit on a 429 was blocking pod readiness even after every
    other bug was fixed. `geoip.optional: true` means Akvorado runs fine
-   without them. **Re-add once the quota resets** (roughly 24h from
-   2026-07-19 ~22:00 UTC) — restore the `geoipupdate` container blocks and
-   their `persistence.geoip-*.advancedMounts.*.geoipupdate` entries that were
-   removed from `helmrelease.yaml`.
+   without them. **(Since re-added** once the quota reset — the `geoipupdate`
+   container blocks and their `persistence.geoip-*.advancedMounts.*.geoipupdate`
+   entries are back in `helmrelease.yaml`.**)**
 
 ### Not yet done — pick up here
 - **Device-side: add Akvorado as a second NetFlow export target.** OPNsense
@@ -103,7 +102,6 @@ the order hit — useful if something regresses or this gets redeployed fresh:
   (`10.20.250.5:2055`). Need to add Akvorado's inlet
   (`10.20.250.6:2055`) as an additional target on both, per the device
   commands already in Pillar 3 above (swap the IP).
-- Re-add `geoipupdate` sidecars once MaxMind's quota resets (see above).
 - Haven't yet browsed `akvorado.internal.oreillys.io` to confirm the console
   UI itself works end-to-end and is showing real flow data — cluster-side
   health is confirmed (`HelmRelease Ready`, all 4 pods `1/1 Running`), but
@@ -134,20 +132,6 @@ the order hit — useful if something regresses or this gets redeployed fresh:
 - **DIY hostname/GeoIP enrichment on goflow2's own dashboards** — this is what
   prompted evaluating Akvorado in the first place; superseded by just running
   a purpose-built tool instead of hand-building the enrichment.
-
----
-
-## Current state (found while scoping this)
-
-`kubernetes/apps/observability/snmp-exporter/` already exists on this branch but
-is incomplete and has two copy/paste bugs from `smartctl-exporter`:
-
-- `app/secret.yaml` contains the **grafana-admin-secret** (wrong secret, unrelated to SNMP)
-- `app/prometheusrule.yaml` contains **smartctl alert rules**, not SNMP ones
-- The app's `ks.yaml` is **not referenced** in `kubernetes/apps/observability/kustomization.yaml`, so Flux isn't reconciling it at all yet
-- `helmrelease.yaml` has one target wired up (`opnsense` / `10.2.0.1` / module `if_mib` / auth `public_v2`) — auth `public_v2` means SNMPv2c with community string `public`, the well-known default. Should be changed before exposing this to real devices.
-
-These need to be cleaned up as step zero regardless of the rest of this plan.
 
 ---
 
