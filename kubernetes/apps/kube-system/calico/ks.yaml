@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app calico
-  namespace: &namespace kube-system
+  namespace: kube-system # ks object stays here so other apps' dependsOn refs resolve
 spec:
   commonMetadata:
     labels:
@@ -22,6 +22,10 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: *namespace
+  # Install into tigera-operator ns (Calico standard) so Flux ADOPTS the bootstrap
+  # release (tigera-operator/tigera-operator) instead of forking a duplicate in
+  # kube-system. Cluster-scoped CRs here (Installation/APIServer/Goldmane/Whisker)
+  # ignore targetNamespace. See tigera-operator-namespace-rbac-loop memory.
+  targetNamespace: tigera-operator
   timeout: 5m
   wait: false

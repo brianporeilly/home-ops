@@ -18,3 +18,8 @@ spec:
         name: linkwarden-postgres-creds
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: linkwarden-postgres-backup

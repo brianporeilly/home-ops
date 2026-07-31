@@ -7,6 +7,9 @@ resources:
   - ./ocirepository.yaml
   - ./cluster.yaml
   - ./secret.yaml
+  - ./obc.yaml
+  - ./objectstore.yaml
+  - ./scheduledbackup.yaml
 configMapGenerator:
   - name: home-assistant-configmap
     files:

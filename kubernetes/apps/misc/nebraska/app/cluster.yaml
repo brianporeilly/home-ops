@@ -18,3 +18,8 @@ spec:
         name: nebraska-postgres-creds
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: nebraska-postgres-backup
