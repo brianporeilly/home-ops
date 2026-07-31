@@ -20,3 +20,8 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS vector CASCADE
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: immich-postgres-backup

@@ -1,0 +1,9 @@
+---
+# Bucket + S3 credentials for this cluster's Barman backups (Ceph RGW).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: linkwarden-postgres-backup
+spec:
+  bucketName: cnpg-linkwarden
+  storageClassName: ceph-bucket
