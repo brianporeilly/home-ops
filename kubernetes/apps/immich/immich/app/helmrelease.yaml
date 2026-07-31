@@ -163,11 +163,17 @@ spec:
                 port: 2283
 
     persistence:
+      # retain the media volume across helm uninstall/remediation. Without this,
+      # a failed install (retries: -1) uninstalls the release and DELETES this
+      # PVC, while the CNPG Postgres DB persists — the empty new volume then
+      # fails immich's folder-integrity check (DB says folders are initialized,
+      # disk has no .immich markers) and the release crash-loops forever.
       data:
         suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "100Gi"
+        retain: true
         advancedMounts:
           server:
             app:
