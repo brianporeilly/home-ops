@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
-              tag: 3.0.3@sha256:356d953d1503bde02c31229df191a638c94cef265d8836f844cb5f909ade686a
+              tag: 3.0.4@sha256:d5651511a6e3a5cb5e5c0da1f5024aa296a4051a28d9d743ce832a8eca16b453
             env:
               PAPERLESS_DBHOST: paperless-postgres-rw
               PAPERLESS_DBPORT: "5432"
