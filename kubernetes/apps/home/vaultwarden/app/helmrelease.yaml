@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: vaultwarden/server
-              tag: 1.36.0@sha256:ae4bcc7bf8ac933eb1854fe3b849c74bd94dffef56c2490f9fdeac0c3f916d92
+              tag: 1.37.1@sha256:e9efdf001bf0d68c21f2cbfb8e1d9b5961a7ca9c85e0a7e58bf51a13b997d744
             env:
               DOMAIN: https://vaultwarden.internal.oreillys.io
               SIGNUPS_ALLOWED: "false"
