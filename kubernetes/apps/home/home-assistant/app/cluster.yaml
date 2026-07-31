@@ -16,3 +16,8 @@ spec:
       owner: home_assistant
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: home-assistant-postgres-backup
