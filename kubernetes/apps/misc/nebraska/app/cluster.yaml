@@ -9,7 +9,7 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:17.6-standard-trixie
   storage:
     size: 2Gi
-    storageClass: ceph-block
+    storageClass: ceph-block-ssd
   bootstrap:
     initdb:
       database: nebraska
