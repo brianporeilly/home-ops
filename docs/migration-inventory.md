@@ -64,7 +64,7 @@ Legend:
 | nzbget | ✅ | 🔲 | Config only (small) | Yes - download staging | Disabled in favor of sabnzbd |
 | readarr | ✅ | 💀 | N/A | N/A | Replaced by grimmory |
 | lidarr | ✅ | ✅ | Config only (small) | Yes - music library | Music management |
-| qbittorrent | ✅ | 🌿 | Config + torrents | Yes - download staging | Branch `add-qbittorrent`, PR not opened |
+| qbittorrent | ✅ | ✅ | Config migrated | Yes - download staging | Deployed |
 | mylar | ✅ | ⚪ | N/A | N/A | Was scaled to 0 on old cluster |
 
 ---
@@ -73,7 +73,7 @@ Legend:
 
 | App | Old | New | Data Migration | NAS Dep | Notes |
 |-----|-----|-----|---------------|---------|-------|
-| home-assistant | ✅ | 🟡 | **Major** - DB + config | No | Running, but old SQLite→CNPG migration not done yet |
+| home-assistant | ✅ | 🟡 | Old history not imported | No | Running on fresh CNPG (SSD tier); old SQLite recorder history not imported — decide keep/drop |
 | esphome | ✅ | ✅ | N/A | No | Config only, merged & enabled (PR #29) |
 | mosquitto | ✅ | ⚪ | N/A | N/A | Was 0 replicas on old cluster |
 | zwavejs2mqtt | ✅ | ⚪ | N/A | N/A | Was 0 replicas on old cluster |
@@ -81,8 +81,8 @@ Legend:
 | grocy | ✅ | 🔲 | N/A | No | Staged, commented out |
 | frigate | ✅ | 🔲 | **Major** - recordings | Yes - NVR storage | Staged, disabled; needs NAS for recordings |
 | changedetection | ✅ | ✅ | Config only (small) | No | URL monitoring |
-| paperless-ngx | ✅ | 🌿 | Clean cutover (no data) | No | Branch `add-paperless-ngx`, needs sops on secret |
-| vaultwarden | ✅ | 🌿 | **Major** - vault DB | No | Branch `add-vaultwarden`, needs sops on secret |
+| paperless-ngx | ✅ | ✅ | Fresh (no data) | No | Deployed; CNPG on SSD tier |
+| vaultwarden | ✅ | ✅ | Confirm vault migrated | No | Deployed; verify old vault DB imported |
 
 ---
 
@@ -126,22 +126,23 @@ Legend:
 ### ✅ Done — deployed and working
 - All infrastructure (cert-manager, metrics-server, kube-vip, kube-vip-cloud-provider, reloader, snapshot-controller, kured, calico)
 - All observability (prometheus/grafana/loki, fluent-bit, smartctl-exporter, gatus-sidecar)
-- All storage (rook-ceph, rook-ceph-cluster, ceph-csi-drivers)
+- All storage (rook-ceph, rook-ceph-cluster, ceph-csi-drivers) — **device-class tiered**:
+  DBs on `ceph-block-ssd` (SSD OSDs), bulk/media on `ceph-block` (HDD). See
+  `ceph-device-class-tiering` memory + `disk-hardware-plan.md`.
 - All networking (envoy-gateway, certificates, omada-controller)
-- All databases (CNPG, mariadb-operator)
+- All databases (CNPG ×5, mariadb-operator) — all on the SSD tier
 - **esphome** (merged & enabled)
-- **immich**, **grimmory**
+- **immich**, **grimmory**, **paperless-ngx**, **vaultwarden**, **qbittorrent**
+- **home-assistant** (fresh CNPG; old history not imported)
 - **arr stack**: sabnzbd, sonarr, radarr, prowlarr, recyclarr, lidarr, bazarr
 - **changedetection**, **searxng**
 - **jellyfin**, **audiobookshelf**, **ersatztv** (all need NAS media to be useful)
 
-### 🟡 Deployed but needs data migration
-- **home-assistant** — SQLite → CNPG migration not done
+### 🟡 Deployed but needs data decision
+- **home-assistant** — running on fresh CNPG; old SQLite recorder history not imported (decide keep/drop)
+- **vaultwarden** — deployed; confirm the old vault DB was imported
 
 ### 🌿 Branch ready, needs PR + merge
-- **qbittorrent** — `add-qbittorrent`, needs node + USB config
-- **paperless-ngx** — `add-paperless-ngx`, needs sops on ADMIN_TOKEN/PAPERLESS_SECRET_KEY
-- **vaultwarden** — `add-vaultwarden`, needs sops on ADMIN_TOKEN
 - **octoprint** — `add-octoprint`, needs node + USB config
 - **minecraft** — `add-minecraft`, ready to PR
 
@@ -169,10 +170,13 @@ Legend:
 
 ## Data Migration Notes
 
-**Requires DB migration (not done):**
-- home-assistant: SQLite → PostgreSQL (CNPG) — high complexity
-- vaultwarden: SQLite dump/restore — moderate, needs downtime
-- paperless-ngx: PostgreSQL dump/restore — moderate, new cluster branch ready
+**DB data decisions (apps deployed, data import outstanding):**
+- home-assistant: running on fresh CNPG (SSD); old SQLite recorder history not imported — decide keep/drop
+- vaultwarden: deployed; confirm the old vault DB was imported
+- paperless-ngx: deployed fresh (no prior data to migrate)
+
+All CNPG/MariaDB databases now live on the `ceph-block-ssd` tier. Backups are not yet in
+place — see `backup-dr-plan.md` for the target architecture.
 
 **Config-only (migrated or straightforward):**
 - sonarr, radarr, prowlarr, jellyseerr
