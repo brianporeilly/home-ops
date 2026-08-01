@@ -270,7 +270,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kubevip.io/loadbalancerIPs: "10.20.250.6"
+          kube-vip.io/loadbalancerIPs: "10.20.250.6"
         ipFamilies: [IPv4]
         ipFamilyPolicy: PreferDualStack
         ports:
