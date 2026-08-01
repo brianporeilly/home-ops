@@ -77,6 +77,14 @@ spec:
               limits:
                 memory: 128Mi
       inlet:
+        # DaemonSet so every worker has a local inlet endpoint: with the
+        # inlet-flows Service on externalTrafficPolicy: Local (needed to
+        # preserve the router source IP = the NetFlow exporter identity),
+        # kube-vip announces the VIP from the endpoint nodes, and whichever
+        # node BGP delivers .6 to has a local inlet to receive it. A single
+        # Deployment replica dropped nearly all flows (VIP landing on nodes
+        # without the endpoint).
+        type: daemonset
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
