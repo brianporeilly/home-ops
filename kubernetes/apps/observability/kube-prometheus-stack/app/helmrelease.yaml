@@ -106,6 +106,38 @@ spec:
       metricAnnotationsAllowlist:
         # surfaces kured's reboot-in-progress marker so Prometheus can alert on it
         - nodes=[weave.works/kured-reboot-in-progress]
+      # CustomResourceState for CNPG base backups. The Barman Cloud *plugin* does
+      # NOT populate the operator's last_available_backup_timestamp metric (stays
+      # 0), so base-backup staleness is derived here from the Backup CR's
+      # status.stoppedAt. CRS Gauge auto-parses the RFC3339 timestamp to unix
+      # seconds; failed/running backups have a null stoppedAt so emit no series
+      # (max-over-completed pins to the last good run). See docs/backup-dr-plan.md §5.
+      rbac:
+        extraRules:
+          - apiGroups: ["postgresql.cnpg.io"]
+            resources: ["backups"]
+            verbs: ["list", "watch"]
+      customResourceState:
+        enabled: true
+        config:
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: postgresql.cnpg.io
+                  version: v1
+                  kind: Backup
+                metricNamePrefix: cnpg_backup
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  cluster: [metadata, labels, "cnpg.io/cluster"]
+                  phase: [status, phase]
+                metrics:
+                  - name: stopped_at
+                    help: "Unix time a CNPG base backup stopped"
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, stoppedAt]
       prometheus:
         monitor:
           enabled: true
