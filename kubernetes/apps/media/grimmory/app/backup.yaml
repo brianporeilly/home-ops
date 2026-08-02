@@ -1,0 +1,26 @@
+---
+# Native mariadb-operator backup to Ceph RGW (S3). See docs/backup-dr-plan.md.
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Backup
+metadata:
+  name: grimmory-mariadb-backup
+spec:
+  mariaDbRef:
+    name: grimmory-mariadb
+  schedule:
+    cron: "0 3 * * *" # 03:00 daily
+  compression: gzip
+  maxRetention: 720h # 30d
+  storage:
+    s3:
+      bucket: mariadb-grimmory
+      endpoint: rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+      region: us-east-1
+      accessKeyIdSecretKeyRef:
+        name: grimmory-mariadb-backup
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKeySecretKeyRef:
+        name: grimmory-mariadb-backup
+        key: AWS_SECRET_ACCESS_KEY
+      tls:
+        enabled: false
