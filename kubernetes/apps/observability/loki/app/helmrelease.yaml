@@ -87,6 +87,15 @@ spec:
             local:
               directory: /rules
           rule_path: /rules/fake
+    monitoring:
+      # Scrape Loki's own metrics (loki_s3_*, ingester, compactor, etc.) into
+      # Prometheus. dashboards/rules stay off (default); metricsInstance is the
+      # deprecated Grafana-Agent CR path and must be disabled or it templates a
+      # MetricsInstance CRD we don't have.
+      serviceMonitor:
+        enabled: true
+        metricsInstance:
+          enabled: false
     singleBinary:
       replicas: 1
       # -config.expand-env lets the S3 storage config above read the RGW
