@@ -21,6 +21,31 @@ spec:
       orchestrator:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # akvorado's orchestrator manages the ClickHouse SCHEMA but does not
+          # create the database itself — on a fresh cluster / DB wipe it just
+          # crashloops "Database akvorado does not exist". Ensure the DB exists
+          # first (idempotent, retries until ClickHouse is reachable).
+          create-clickhouse-db:
+            image:
+              repository: curlimages/curl
+              tag: 8.11.0
+            env:
+              CLICKHOUSE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: akvorado-creds
+                    key: CLICKHOUSE_PASSWORD
+            command:
+              - sh
+              - -c
+              - |
+                until curl -sSf 'http://clickhouse-akvorado-clickhouse:8123/' \
+                  -H "X-ClickHouse-User: akvorado" \
+                  -H "X-ClickHouse-Key: ${CLICKHOUSE_PASSWORD}" \
+                  --data-binary 'CREATE DATABASE IF NOT EXISTS akvorado'; do
+                  echo "waiting for clickhouse..."; sleep 5;
+                done
         containers:
           app:
             image:
@@ -77,6 +102,14 @@ spec:
               limits:
                 memory: 128Mi
       inlet:
+        # DaemonSet so every worker has a local inlet endpoint: with the
+        # inlet-flows Service on externalTrafficPolicy: Local (needed to
+        # preserve the router source IP = the NetFlow exporter identity),
+        # kube-vip announces the VIP from the endpoint nodes, and whichever
+        # node BGP delivers .6 to has a local inlet to receive it. A single
+        # Deployment replica dropped nearly all flows (VIP landing on nodes
+        # without the endpoint).
+        type: daemonset
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
@@ -270,7 +303,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kubevip.io/loadbalancerIPs: "10.20.250.6"
+          kube-vip.io/loadbalancerIPs: "10.20.250.6"
         ipFamilies: [IPv4]
         ipFamilyPolicy: PreferDualStack
         ports:
