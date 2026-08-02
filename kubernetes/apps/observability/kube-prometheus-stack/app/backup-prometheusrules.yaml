@@ -41,6 +41,28 @@ spec:
           for: 30m
           labels:
             severity: warning
+        # Base-backup (not WAL) staleness. cnpg_backup_stopped_at comes from the
+        # kube-state-metrics CustomResourceState on the Backup CR (see the KSM
+        # config in helmrelease.yaml) because the plugin path leaves the built-in
+        # backup metric at 0. Scheduled base backups run daily at 03:00, so >30h
+        # since the last completed one means a run was missed. A cluster that has
+        # never completed a base backup emits no series and can't fire this — the
+        # WAL/ScheduledBackup signals cover that bootstrap window.
+        - alert: CNPGBaseBackupStale
+          annotations:
+            summary: "CNPG base backup is stale ({{ $labels.cluster }})"
+            description: >-
+              Cluster {{ $labels.cluster }} in namespace {{ $labels.namespace }}
+              last completed a base backup {{ $value | humanizeDuration }} ago
+              (scheduled daily). PITR still depends on WAL archiving, but the
+              base-backup floor is no longer advancing.
+          expr: |
+            time() - max by (namespace, cluster) (
+              cnpg_backup_stopped_at{phase="completed"}
+            ) > 60 * 60 * 30
+          for: 30m
+          labels:
+            severity: warning
 
     # MariaDB — the operator runs scheduled backups as native CronJobs/Jobs, so
     # kube-state-metrics covers them directly (no CRD-state config needed).

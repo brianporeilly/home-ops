@@ -3,10 +3,10 @@
 Status: **Partially implemented** (updated 2026-08-02). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
 target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
-snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts (§5). **Still open and
-NAS-gated:** RGW→NAS sync, Volsync/Kopia for non-DB PVCs, off-site (§2 L2/L3). **Open, no NAS
-needed:** confirm the sops age-key backup ×2 (§6, owner task), Loki→RGW (§4), restore runbook +
-testing (§6). See the checklist in §8 for per-item status.
+snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
+(§5), Loki chunk storage → RGW (§4). **Still open and NAS-gated:** RGW→NAS sync, Volsync/Kopia for
+non-DB PVCs, off-site (§2 L2/L3). **Open, no NAS needed:** confirm the sops age-key backup ×2 (§6,
+owner task), restore runbook + testing (§6). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -120,9 +120,14 @@ swap if we decide the RGW hop isn't worth it — the DB-native config is target-
 ---
 
 ## 4. Loki storage on RGW (phase 2, unblocks retention/HA)
-The network-observability plan flagged Loki HA/retention as blocked on an S3 backend. Once RGW
-exists, switch Loki's `storage` to the RGW `loki-chunks` bucket (still `SingleBinary` is fine;
-this is about durable chunk storage + retention, not necessarily HA). Optional, do after L1.
+The network-observability plan flagged Loki HA/retention as blocked on an S3 backend.
+
+**DONE (2026-08-02):** Loki (`SingleBinary`) switched from `filesystem` to the RGW `loki` bucket
+(S3). Clean break — pre-switch chunks on the PVC are no longer queryable but age out within the 14d
+retention; the PVC stays for WAL/active tsdb index + compactor/ruler working dirs (ruler storage is
+still `local`, rules come from the sidecar). Credentials come from the `loki-bucket` OBC Secret via
+`-config.expand-env=true` + `extraEnvFrom`. This is durable chunk storage + retention, not off-Ceph
+DR (RGW shares fate with Ceph). See `observability/loki/app/{helmrelease,obc}.yaml`.
 
 ---
 
@@ -143,11 +148,15 @@ A backup nobody watches rots silently.
 (only the deprecated in-tree `barmanObjectStore` populated it), so it can't be used for
 last-good-backup alerting. The `pg_stat_archiver_*` metrics are used instead.
 
-**Still open (no NAS needed):** alerting on CNPG **base**-backup staleness (distinct from WAL
-archiving). There is no usable operator metric on the plugin path, so this needs a
-**kube-state-metrics CustomResourceState** config exposing the `backups.postgresql.cnpg.io`
-`.status.stoppedAt`/`phase` as a metric, then a staleness rule. (MariaDB base backups are already
-covered because they run as Jobs.) Self-contained follow-up.
+**DONE (2026-08-02):** CNPG **base**-backup staleness (distinct from WAL archiving). A
+**kube-state-metrics CustomResourceState** on `backups.postgresql.cnpg.io` exposes
+`.status.stoppedAt` (CRS Gauge auto-parses RFC3339 → unix seconds) labelled by `cnpg.io/cluster`
+and `phase`; failed/running backups have a null `stoppedAt` so emit no series. Alert
+`CNPGBaseBackupStale` fires when `time() - max by(cluster)(cnpg_backup_stopped_at{phase="completed"})`
+exceeds 30h (daily schedule). KSM config lives in `kube-prometheus-stack/app/helmrelease.yaml`
+(with `rbac.extraRules` for the CRD); the rule is in `backup-prometheusrules.yaml`. Edge case: a
+cluster with no completed base backup yet emits no series and can't fire this — WAL/ScheduledBackup
+signals cover that bootstrap window. (MariaDB base backups are covered via `kube_job`.)
 
 ## 6. Secrets & rebuild runbook (highest-consequence, lowest-effort)
 - **SOPS age private key** — if lost, *every* secret is unrecoverable and the cluster can't be
@@ -178,14 +187,14 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 7. ⬜ **Volsync/Kopia for non-DB PVCs** → NAS. **NAS-gated.** (§2 L2)
 8. ⬜ **Off-site** from NAS (B2/R2). **NAS-gated.** (§2 L3)
 9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
-10. ⬜ **Loki → RGW** storage. *(no NAS needed)* (§4)
-11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + MariaDB done; CNPG **base**-backup
-    staleness (KSM CustomResourceState) still open. (§5)
+10. ✅ **Loki → RGW** storage. (§4)
+11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
+    + MariaDB all done. (§5)
 12. ⬜ **Restore testing + runbook** — periodic, documented. *(no NAS needed for the runbook)*
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up, no NAS required:** (2) age-key confirmation [owner], the CNPG base-backup KSM-CRS
-alert (§5), (10) Loki→RGW, and the (12) restore runbook. Everything else waits on the NAS.
+**Next up, no NAS required:** (2) age-key confirmation [owner] and the (12) restore runbook.
+Everything else waits on the NAS.
 
 ## 9. Open questions
 - Volsync vs standalone Kopia for L2 (leaning Volsync — ecosystem fit).
