@@ -19,7 +19,8 @@ sole NetFlow collector, on `10.20.250.6`. (The goflow2 how-to sections further
 down are kept as historical reference only.)
 
 **Akvorado confirmed working end-to-end (2026-08):** flows land in ClickHouse
-with the correct exporter IPs (e.g. MikroTik `10.10.0.1`). Getting there took
+with the correct exporter IPs — both OPNsense (`10.2.0.1`, the larger source)
+and MikroTik (`10.10.0.1`). Getting there took
 fixing three non-obvious bugs during the cluster rebuild — see the debugging
 notes below (kube-vip LB-IP annotation typo, missing ClickHouse database,
 inlet traffic policy). Related memories: `akvorado-clickhouse-database-missing`.
@@ -121,11 +122,9 @@ the order hit — useful if something regresses or this gets redeployed fresh:
     worker has a local endpoint, keeping `Local` + the correct source IP.
 
 ### Not yet done — pick up here
-- **Confirm OPNsense NetFlow target.** MikroTik is confirmed exporting NetFlow
-  v9 to Akvorado's inlet (`10.20.250.6:2055`) and its flows land in ClickHouse
-  (verified 2026-08, exporter `10.10.0.1`). OPNsense should point at `.6` too,
-  but so far only the MikroTik exporter has been observed — verify OPNsense's
-  Reporting → Netflow target is `10.20.250.6` and that its flows appear.
+- (NetFlow ingestion is fully working — both OPNsense `10.2.0.1` and MikroTik
+  `10.10.0.1` export to Akvorado's inlet `10.20.250.6:2055` and their flows
+  land in ClickHouse. Nothing outstanding on the collector side.)
 - Second MikroTik switch (`10.10.0.2`) still not provisioned — nothing
   (SNMP/syslog/netflow) covers it yet.
 - MikroTik RouterBOARD firmware is behind (`mtxrFirmwareVersion` 7.18.2 vs
