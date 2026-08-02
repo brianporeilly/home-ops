@@ -1,9 +1,12 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Draft / proposed** (2026-07-30). Companion to `disk-hardware-plan.md`,
-`node-inventory.md`, `migration-inventory.md`. Nothing here is implemented yet — the cluster
-currently has **zero backups of any kind** (no DB backups, no PVC backups, no etcd snapshot
-upload, no scheduled volume snapshots). This doc decides the target architecture and order.
+Status: **Partially implemented** (updated 2026-08-02). Companion to `disk-hardware-plan.md`,
+`node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
+target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
+snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts (§5). **Still open and
+NAS-gated:** RGW→NAS sync, Volsync/Kopia for non-DB PVCs, off-site (§2 L2/L3). **Open, no NAS
+needed:** confirm the sops age-key backup ×2 (§6, owner task), Loki→RGW (§4), restore runbook +
+testing (§6). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -79,6 +82,13 @@ it's the only copy of two rebuild-critical, not-in-git artifacts:
   filesystems, not in etcd. Without the CA a restore/rejoin can't match issued certs. Tar it
   off-node alongside each etcd snapshot.
 
+**DONE (2026-08-02):** `kubernetes/apps/kube-system/etcd-backup/` — a CronJob (every 6h) pinned
+to a control-plane node (nodeSelector + toleration, `hostNetwork` to reach `127.0.0.1:2379`)
+runs `etcdctl snapshot save` **and** tars `/etc/kubernetes/pki`, then an `rclone` sidecar pushes
+both to a timestamped prefix in the `etcd-backup` RGW bucket (14-day retention). This is the
+in-cluster/off-CP-node copy; the **off-Ceph** DR copy still rides the NAS sync (below). Alerts:
+`EtcdBackupStale` / `EtcdBackupJobFailing`.
+
 Note: because everything else is in git + Flux, a total loss can also be handled by
 `kubeadm init` fresh + Flux re-reconcile — the etcd/PKI backup is what turns a multi-hour
 rebuild into a restore, and preserves anything created imperatively (see §6).
@@ -117,11 +127,27 @@ this is about durable chunk storage + retention, not necessarily HA). Optional, 
 ---
 
 ## 5. Monitoring the backups
-A backup nobody watches rots silently. Once L1/L2 exist:
-- Alert on **backup failure** and **staleness** (last-successful-backup age): CNPG exposes
-  backup metrics; Volsync/restic and mariadb-operator expose status conditions → PrometheusRules.
-- Add these to the existing Alertmanager→Slack path; treat a stale backup as `warning`, a failed
-  backup run as `critical`.
+A backup nobody watches rots silently.
+
+**DONE (2026-08-02):** alerts wired into the existing Alertmanager→Slack path:
+- **etcd/PKI** — `EtcdBackupStale` (>14h since a successful run), `EtcdBackupJobFailing`
+  (`kubernetes/apps/kube-system/etcd-backup/app/prometheusrule.yaml`).
+- **CNPG** — `CNPGWALArchiveFailing` (new `pg_stat_archiver` failures) and `CNPGWALArchiveBacklog`
+  (WAL `.ready` files piling up) cover the **continuous/PITR** side.
+- **MariaDB** — `MariaDBBackupJobFailed` + `MariaDBBackupStale` via `kube_job`/`kube_cronjob`
+  metrics (the operator runs backups as native CronJobs).
+  (`kube-prometheus-stack/app/backup-prometheusrules.yaml`.)
+
+**Gotcha that shaped this:** CNPG's built-in backup-catalog metric
+`cnpg_collector_last_available_backup_timestamp` reads **0** on the **Barman Cloud plugin** path
+(only the deprecated in-tree `barmanObjectStore` populated it), so it can't be used for
+last-good-backup alerting. The `pg_stat_archiver_*` metrics are used instead.
+
+**Still open (no NAS needed):** alerting on CNPG **base**-backup staleness (distinct from WAL
+archiving). There is no usable operator metric on the plugin path, so this needs a
+**kube-state-metrics CustomResourceState** config exposing the `backups.postgresql.cnpg.io`
+`.status.stoppedAt`/`phase` as a metric, then a staleness rule. (MariaDB base backups are already
+covered because they run as Jobs.) Self-contained follow-up.
 
 ## 6. Secrets & rebuild runbook (highest-consequence, lowest-effort)
 - **SOPS age private key** — if lost, *every* secret is unrecoverable and the cluster can't be
@@ -143,19 +169,23 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 ---
 
 ## 8. Implementation order (proposed)
-1. **Dead-man's switch** — ~15 min, closes the scariest blind spot. (§7)
-2. **Confirm sops age-key backup** off-cluster ×2 — 30 min, removes the worst "can't rebuild". (§6)
-3. **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
-4. **CNPG Barman backups** → RGW, PITR verified — protects the DBs we just tiered. (§1)
-5. **MariaDB native backup** → RGW. (§1)
-6. **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. (§3)
-7. **Volsync/Kopia for non-DB PVCs** → NAS. (§2 L2)
-8. **Off-site** from NAS (B2/R2). (§2 L3)
-9. **etcd + /etc/kubernetes/pki** snapshot CronJob → NAS/S3. (cluster-state)
-10. **Loki → RGW** storage. (§4)
-11. **Backup monitoring** alerts. (§5)
-12. **Restore testing + runbook** — periodic, documented. *(on the list, not immediate)*
-13. **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
+1. ✅ **Dead-man's switch** — closes the scariest blind spot. (§7)
+2. ⬜ **Confirm sops age-key backup** off-cluster ×2 — removes the worst "can't rebuild". **Owner task.** (§6)
+3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
+4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
+5. ✅ **MariaDB native backup** → RGW. (§1)
+6. ⬜ **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. **NAS-gated.** (§3)
+7. ⬜ **Volsync/Kopia for non-DB PVCs** → NAS. **NAS-gated.** (§2 L2)
+8. ⬜ **Off-site** from NAS (B2/R2). **NAS-gated.** (§2 L3)
+9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
+10. ⬜ **Loki → RGW** storage. *(no NAS needed)* (§4)
+11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + MariaDB done; CNPG **base**-backup
+    staleness (KSM CustomResourceState) still open. (§5)
+12. ⬜ **Restore testing + runbook** — periodic, documented. *(no NAS needed for the runbook)*
+13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
+
+**Next up, no NAS required:** (2) age-key confirmation [owner], the CNPG base-backup KSM-CRS
+alert (§5), (10) Loki→RGW, and the (12) restore runbook. Everything else waits on the NAS.
 
 ## 9. Open questions
 - Volsync vs standalone Kopia for L2 (leaning Volsync — ecosystem fit).

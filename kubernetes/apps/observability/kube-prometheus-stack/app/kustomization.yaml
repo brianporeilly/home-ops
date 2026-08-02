@@ -12,3 +12,4 @@ resources:
   - ./flux-prometheusrules.yaml
   - ./kured-prometheusrules.yaml
   - ./prometheusrule-volumes.yaml
+  - ./backup-prometheusrules.yaml
