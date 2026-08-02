@@ -33,7 +33,10 @@ spec:
         replication_factor: 1
       compactor:
         working_directory: /var/loki/compactor/retention
-        delete_request_store: filesystem
+        # Must match the object store (s3): with the filesystem object store gone,
+        # delete_request_store:filesystem has no directory and fails to persist its
+        # boltdb ("mkdir index: read-only file system"). Keep delete requests in RGW.
+        delete_request_store: s3
         retention_enabled: true
       ingester:
         chunk_encoding: snappy
