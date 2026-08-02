@@ -128,6 +128,11 @@ spec:
                   kind: Backup
                 metricNamePrefix: cnpg_backup
                 labelsFromPath:
+                  # name makes each Backup CR a distinct series — without it every
+                  # completed backup for a cluster collapses to the same label set
+                  # and Prometheus keeps one arbitrary (often stale) sample, so
+                  # max()-by-cluster returns the wrong timestamp.
+                  name: [metadata, name]
                   namespace: [metadata, namespace]
                   cluster: [metadata, labels, "cnpg.io/cluster"]
                   phase: [status, phase]
