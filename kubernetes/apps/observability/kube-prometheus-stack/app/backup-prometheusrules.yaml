@@ -1,0 +1,73 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backup-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    # CNPG Postgres — continuous WAL archiving to RGW (the PITR side). The
+    # operator's built-in backup-catalog metric (last_available_backup_timestamp)
+    # is NOT populated on the Barman Cloud *plugin* path (it stays 0), so backup
+    # health is tracked here via the pg_stat_archiver signals instead.
+    - name: cnpg-backups
+      rules:
+        - alert: CNPGWALArchiveFailing
+          annotations:
+            summary: "CNPG WAL archiving is failing ({{ $labels.pod }})"
+            description: >-
+              Postgres instance {{ $labels.pod }} in namespace
+              {{ $labels.namespace }} has logged new failed WAL archive attempts
+              in the last 30m. Continuous archiving to RGW is broken — PITR
+              coverage is not advancing.
+          expr: |
+            increase(cnpg_pg_stat_archiver_failed_count[30m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: CNPGWALArchiveBacklog
+          annotations:
+            summary: "CNPG WAL archive backlog building ({{ $labels.pod }})"
+            description: >-
+              Postgres instance {{ $labels.pod }} in namespace
+              {{ $labels.namespace }} has {{ $value }} WAL segments waiting to be
+              archived. Archiving has stalled — the RGW target may be unreachable.
+          expr: |
+            cnpg_collector_pg_wal_archive_status{value="ready"} > 10
+          for: 30m
+          labels:
+            severity: warning
+
+    # MariaDB — the operator runs scheduled backups as native CronJobs/Jobs, so
+    # kube-state-metrics covers them directly (no CRD-state config needed).
+    - name: mariadb-backups
+      rules:
+        - alert: MariaDBBackupJobFailed
+          annotations:
+            summary: "MariaDB backup job failed ({{ $labels.job_name }})"
+            description: >-
+              Backup job {{ $labels.job_name }} in namespace
+              {{ $labels.namespace }} has failed.
+          expr: |
+            kube_job_failed{job_name=~".+-mariadb-backup-.+"} > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: MariaDBBackupStale
+          annotations:
+            summary: "MariaDB backup has not succeeded recently ({{ $labels.cronjob }})"
+            description: >-
+              The {{ $labels.cronjob }} CronJob in namespace
+              {{ $labels.namespace }} last succeeded
+              {{ $value | humanizeDuration }} ago (schedule is nightly).
+          expr: |
+            time() - max by (namespace, cronjob) (
+              kube_cronjob_status_last_successful_time{cronjob=~".+-mariadb-backup"}
+            ) > 60 * 60 * 26
+          for: 15m
+          labels:
+            severity: warning

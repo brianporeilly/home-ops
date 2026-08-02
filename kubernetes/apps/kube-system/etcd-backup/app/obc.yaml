@@ -1,0 +1,14 @@
+---
+# Bucket + S3 credentials for etcd snapshots and the kubeadm PKI tarball
+# (Ceph RGW). Reclaim policy is Retain (ceph-bucket SC) so the bucket + its
+# backups survive an accidental OBC delete. NOTE: RGW shares fate with the
+# cluster it protects — this covers etcd corruption / accidental-delete /
+# single control-plane rebuild; full-cluster DR needs these synced off-Ceph
+# (NAS + off-site) per docs/backup-dr-plan.md.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: etcd-backup
+spec:
+  bucketName: etcd-backup
+  storageClassName: ceph-bucket
