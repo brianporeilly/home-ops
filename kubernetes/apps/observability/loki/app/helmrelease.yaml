@@ -105,13 +105,31 @@ spec:
         enabled: true
       # Recording rules (18, grouped by job/route/namespace — all labels we have)
       # + alerting rules. Prometheus selects them via ruleSelectorNilUsesHelmValues=false.
+      # LokiCanaryLatency is now meaningful (canary enabled below). The chart ships
+      # no data-loss alert, so add one on the canary's missing-entries counter —
+      # the whole point of running the canary (write→flush→S3→read verification).
       rules:
         enabled: true
-        # Loki canary is disabled (lokiCanary.enabled: false), so loki_canary_*
-        # never exists and this alert is permanently no-data — turn it off.
-        configs:
-          LokiCanaryLatency:
-            enabled: false
+        additionalGroups:
+          - name: loki-canary-dataloss
+            rules:
+              - alert: LokiCanaryMissingEntries
+                # The canary writes log lines then reads them back; a non-zero
+                # missing count = entries that never became queryable, i.e. real
+                # ingest→store→query data loss. Expected to blip during Loki
+                # restarts (those writes genuinely were lost); the 15m `for`
+                # rides over a single reconcile.
+                expr: |
+                  sum(increase(loki_canary_missing_entries_total[15m])) > 0
+                for: 15m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "Loki canary detected missing log entries"
+                  description: >-
+                    The Loki canary wrote log lines that were not returned on
+                    read-back in the last 15m — Loki's ingest→object-store→query
+                    path is dropping data.
     singleBinary:
       replicas: 1
       # -config.expand-env lets the S3 storage config above read the RGW
@@ -138,7 +156,18 @@ spec:
     resultsCache:
       enabled: false
     lokiCanary:
-      enabled: false
+      # End-to-end probe: writes log lines and reads them back, exposing
+      # loki_canary_* (latency + missing/spot-check entries) — the only true
+      # write→flush→S3→read signal, valuable now chunks live in RGW.
+      enabled: true
+      # Single Deployment, not the default per-node DaemonSet: SingleBinary with
+      # replication_factor 1 is one ingest path, so per-node canaries add pods +
+      # streams for no extra coverage.
+      kind: Deployment
+      push: true
+      # The default target is loki-gateway, which we run at 0 replicas (no
+      # endpoints) — point directly at the loki service instead.
+      lokiurl: loki.observability.svc.cluster.local:3100
     test:
       enabled: false
     sidecar:
