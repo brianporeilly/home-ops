@@ -10,10 +10,10 @@ spec:
     - name: etcd-backup
       rules:
         - alert: EtcdBackupStale
-          # No successful etcd-backup Job in >14h (schedule is every 6h, so this
-          # means two consecutive runs were missed or failing).
+          # No successful etcd-backup Job in >30h (schedule is daily, so this
+          # means a run was missed/failing with ~6h of slack past the 24h cadence).
           expr: |
-            time() - max(kube_cronjob_status_last_successful_time{cronjob="etcd-backup", namespace="kube-system"}) > 60 * 60 * 14
+            time() - max(kube_cronjob_status_last_successful_time{cronjob="etcd-backup", namespace="kube-system"}) > 60 * 60 * 30
           for: 15m
           labels:
             severity: warning
@@ -21,7 +21,7 @@ spec:
             summary: etcd/PKI backup is stale
             description: >-
               The etcd-backup CronJob last succeeded
-              {{ $value | humanizeDuration }} ago (schedule: every 6h). etcd
+              {{ $value | humanizeDuration }} ago (schedule: daily). etcd
               snapshots and the kubeadm PKI in RGW may be out of date.
         - alert: EtcdBackupJobFailing
           expr: kube_job_failed{namespace="kube-system", job_name=~"etcd-backup-.+"} > 0
