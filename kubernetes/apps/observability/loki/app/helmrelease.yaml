@@ -89,13 +89,29 @@ spec:
           rule_path: /rules/fake
     monitoring:
       # Scrape Loki's own metrics (loki_s3_*, ingester, compactor, etc.) into
-      # Prometheus. dashboards/rules stay off (default); metricsInstance is the
-      # deprecated Grafana-Agent CR path and must be disabled or it templates a
-      # MetricsInstance CRD we don't have.
+      # Prometheus. metricsInstance is the deprecated Grafana-Agent CR path and
+      # must be disabled or it templates a MetricsInstance CRD we don't have.
       serviceMonitor:
         enabled: true
         metricsInstance:
           enabled: false
+      # Loki mixin Grafana dashboards. The sidecar discovers the ConfigMap by
+      # its grafana_dashboard label; the dashboards use a templated `datasource`
+      # var (resolves to the default Prometheus DS) and a `logs` var (our Loki
+      # DS) — no ${DS_PROMETHEUS}/__inputs, so they load clean. They filter by
+      # cluster/namespace; we have no cluster label so that dropdown is empty,
+      # but cluster=~"$cluster" degrades to =~"" which matches our series.
+      dashboards:
+        enabled: true
+      # Recording rules (18, grouped by job/route/namespace — all labels we have)
+      # + alerting rules. Prometheus selects them via ruleSelectorNilUsesHelmValues=false.
+      rules:
+        enabled: true
+        # Loki canary is disabled (lokiCanary.enabled: false), so loki_canary_*
+        # never exists and this alert is permanently no-data — turn it off.
+        configs:
+          LokiCanaryLatency:
+            enabled: false
     singleBinary:
       replicas: 1
       # -config.expand-env lets the S3 storage config above read the RGW
