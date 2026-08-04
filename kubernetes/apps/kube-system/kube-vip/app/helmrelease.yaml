@@ -31,7 +31,12 @@ spec:
       vip_arp: "false"
       vip_ddns: "false"
       vip_interface: ""
-      vip_subnet: "16"
+      # /32 host routes (correct for BGP mode). "16" bound each VIP as a /16 on
+      # the node NIC, so the node holding the VIPs picked a VIP (e.g. the CP VIP
+      # 10.20.254.100) as its source IP for all 10.20.0.0/16 egress — which
+      # blackholed Calico node-mesh BGP and API/typha traffic and partitioned
+      # that node's pod network after a reboot.
+      vip_subnet: "32"
       bgp_enable: "true"
       bgp_as: "65001"
       bgp_peeraddress: "10.20.0.1"
