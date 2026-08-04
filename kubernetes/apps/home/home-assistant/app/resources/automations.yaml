@@ -1,0 +1,35 @@
+- id: "garage_door_state_changed"
+  alias: "Garage door state changed"
+  description: "Notify on real open/closed transitions, ignoring blips from unavailable/unknown"
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.garage_door
+      to: "on"
+    - trigger: state
+      entity_id: binary_sensor.garage_door
+      to: "off"
+  conditions:
+    - condition: template
+      value_template: >
+        {{ trigger.from_state.state not in ['unavailable', 'unknown', 'none'] }}
+  actions:
+    - action: rest_command.slack_notify
+      data:
+        message: >
+          Garage door is now {{ 'OPEN' if trigger.to_state.state == 'on' else 'CLOSED' }}
+  mode: single
+
+- id: "garage_door_open_too_long"
+  alias: "Garage door open too long"
+  description: "Alert if the garage has been continuously open for 30+ minutes"
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.garage_door
+      to: "on"
+      for:
+        minutes: 30
+  actions:
+    - action: rest_command.slack_notify
+      data:
+        message: "Garage door has been open for over 30 minutes!"
+  mode: single
