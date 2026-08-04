@@ -97,6 +97,8 @@ spec:
         globalMounts:
           - path: /config/configuration.yaml
             subPath: config.yaml
+          - path: /config/automations.yaml
+            subPath: automations.yaml
       config-cache:
         suffix: cache
         storageClass: "ceph-block"
