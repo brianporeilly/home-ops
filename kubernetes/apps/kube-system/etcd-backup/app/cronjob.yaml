@@ -13,7 +13,12 @@ metadata:
   name: etcd-backup
   namespace: kube-system
 spec:
-  schedule: "0 */6 * * *"        # every 6h
+  # Daily, not 6-hourly: `etcdctl snapshot save` reads the whole DB and is an
+  # I/O burst on the control-plane node's disk. On the slow Patriot etcd disk
+  # (cp-gurloes) the 6h cadence contributed to etcd fsync latency / leader
+  # overload. Daily is ample for a GitOps cluster (workloads re-appliable; this
+  # covers etcd corruption / CP rebuild). Revisit cadence once the PLP S3610s land.
+  schedule: "0 4 * * *"          # daily 04:00 (staggered off the 03:00 DB backups)
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
