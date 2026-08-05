@@ -33,8 +33,28 @@ spec:
     # Control-plane API VIP only: pinned to control-plane nodes and leader-elected,
     # so exactly one node ever binds/advertises 10.20.254.100. The all-node
     # `kube-vip` release (svc_enable) handles LoadBalancer service VIPs.
+    priorityClassName: system-cluster-critical
     nodeSelector:
       node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      # Keep the API VIP advertised while a control-plane node is flapping: once
+      # the lifecycle controller taints a NotReady node with
+      # node.kubernetes.io/unreachable:NoSchedule, the DaemonSet controller
+      # excludes it (desired=0) and deletes its kube-vip-cp pod -> VIP goes dark
+      # exactly when you need it. Leader election (vip_leaderelection) still
+      # guarantees only one instance binds the VIP.
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/unschedulable
+        operator: Exists
+        effect: NoSchedule
     env:
       cp_enable: "true"
       cp_namespace: "kube-system"
