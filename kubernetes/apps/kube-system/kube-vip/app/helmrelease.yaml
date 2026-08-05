@@ -26,13 +26,26 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
-  # LoadBalancer service VIPs only (all nodes, via kube-vip-cloud-provider).
+  # LoadBalancer service VIPs only (worker nodes only, via kube-vip-cloud-provider).
   # The control-plane API VIP (10.20.254.100) is NOT managed here - see the
   # kube-vip-cp release, which is nodeSelector'd to control-plane nodes and uses
-  # leader election so workers never bind/advertise the API VIP (doing so made
-  # API traffic to the VIP land on workers and get "connection refused", and
-  # crash-looped kube-vip on workers).
+  # leader election so exactly one node binds/advertises the API VIP.
+  #
+  # Pinned to worker nodes (affinity: DoesNotExist control-plane) so the two
+  # kube-vip releases never peer with the router from the same source IP: when
+  # both ran on control-plane nodes the router kept only one BGP session per
+  # neighbor, the services release always won, and kube-vip-cp could never
+  # establish BGP (verified live - API VIP was never advertised). The workers
+  # must be registered as BGP peers on the router (10.20.0.1, AS 65001) so the
+  # LoadBalancer VIPs stay announced once the CP-node sessions are gone.
   values:
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
     env:
       cp_enable: "false"
       svc_enable: "true"
