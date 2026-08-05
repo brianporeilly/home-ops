@@ -102,6 +102,14 @@ spec:
         size: "20Gi"
         globalMounts:
           - path: /downloads
+      # s6-overlay (linuxserver base image) needs a writable /run to create its
+      # socket/pid dirs; /var/run is a symlink to /run on the Debian base, so
+      # this emptyDir satisfies the readOnlyRootFilesystem s6-overlay-preinit
+      # "unable to mkdir /var/run/s6" failure.
+      run:
+        type: emptyDir
+        globalMounts:
+          - path: /run
       tmp:
         type: emptyDir
         globalMounts:
