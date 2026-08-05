@@ -18,6 +18,11 @@ spec:
     remediation:
       retries: -1
   upgrade:
+    # Don't gate the reconcile on the DaemonSet rollout: kube-vip is network-critical
+    # and a NotReady node would wedge the upgrade (timeout -> rollback -> Stalled),
+    # blocking the very component that fixes API VIP connectivity. Apply and let the
+    # DaemonSet roll in the background.
+    disableWait: true
     cleanupOnFail: true
     remediation:
       retries: 3
