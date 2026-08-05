@@ -1,0 +1,108 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: lazylibrarian
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: lazylibrarian
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      lazylibrarian:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/linuxserver/lazylibrarian
+              tag: 36c919aa-ls1@sha256:5164e0c5819e38f2a7b2bb979658266084a28045131943e7f0f4de9a42cdad59
+            env:
+              PUID: "1000"
+              PGID: "1000"
+              TZ: America/Anchorage
+              # Optional: uncomment to pull in calibredb for the metadata-embed
+              # hook (Settings > Processing > Calibredb import program:
+              # /usr/bin/calibredb). Leave unset to do that step manually.
+              # DOCKER_MODS: linuxserver/mods:universal-calibre
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 5299
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 512Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: lazylibrarian
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - lazylibrarian.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        globalMounts:
+          - path: /config
+      # Where LazyLibrarian post-processes/renames completed grabs to.
+      # Point Settings > Processing > Destination/eBook folder here.
+      # For now this is a standalone PVC - move/rsync into grimmory's
+      # bookdrop manually until shared (RWX/NFS) storage is available.
+      downloads:
+        suffix: downloads
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /downloads
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
