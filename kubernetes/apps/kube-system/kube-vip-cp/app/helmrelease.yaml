@@ -3,7 +3,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: kube-vip
+  name: kube-vip-cp
 spec:
   interval: 1h
   chart:
@@ -26,25 +26,26 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
-  # LoadBalancer service VIPs only (all nodes, via kube-vip-cloud-provider).
-  # The control-plane API VIP (10.20.254.100) is NOT managed here - see the
-  # kube-vip-cp release, which is nodeSelector'd to control-plane nodes and uses
-  # leader election so workers never bind/advertise the API VIP (doing so made
-  # API traffic to the VIP land on workers and get "connection refused", and
-  # crash-looped kube-vip on workers).
   values:
+    nameOverride: "kube-vip-cp"
+    config:
+      address: "10.20.254.100"
+    # Control-plane API VIP only: pinned to control-plane nodes and leader-elected,
+    # so exactly one node ever binds/advertises 10.20.254.100. The all-node
+    # `kube-vip` release (svc_enable) handles LoadBalancer service VIPs.
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
     env:
-      cp_enable: "false"
-      svc_enable: "true"
+      cp_enable: "true"
+      cp_namespace: "kube-system"
+      svc_enable: "false"
       svc_election: "false"
-      lb_enable: "false"
+      vip_leaderelection: "true"
+      lb_enable: "true"
+      lb_port: "6443"
       vip_arp: "false"
       vip_ddns: "false"
       vip_interface: ""
-      # /32 host routes (correct for BGP mode). "16" bound each VIP as a /16 on
-      # the node NIC, so the node holding the VIPs picked a VIP as its source IP
-      # for all 10.20.0.0/16 egress - which blackholed Calico node-mesh BGP and
-      # API/typha traffic and partitioned that node's pod network after a reboot.
       vip_subnet: "32"
       bgp_enable: "true"
       bgp_as: "65001"
