@@ -27,6 +27,12 @@ spec:
               repository: ghcr.io/linuxserver/lazylibrarian
               tag: 36c919aa-ls1@sha256:5164e0c5819e38f2a7b2bb979658266084a28045131943e7f0f4de9a42cdad59
             env:
+              # linuxserver s6-overlay v2: makes init-stage2 hiercopy the
+              # cont-init.d/services.d scripts into /var/run/s6 (writable
+              # emptyDir) instead of symlinking them onto the read-only rootfs.
+              # Without this, fix-attrs can't chmod the scripts (EROFS) and
+              # s6-supervise fails with "unable to exec run: Permission denied".
+              S6_READ_ONLY_ROOT: "1"
               PUID: "1000"
               PGID: "1000"
               TZ: America/Anchorage
@@ -47,10 +53,16 @@ spec:
                   timeoutSeconds: 1
                   failureThreshold: 3
               readiness: *probes
+            # linuxserver images are designed to start as root (s6 init chowns to
+            # PUID/PGID and fix-attrs chmods the service scripts); the app itself
+            # drops to abc (1000) via s6-setuidgid. The s6-overlay preinit/fix-attrs
+            # steps need CHOWN/DAC_OVERRIDE/FOWNER/SETUID/SETGID to do that work.
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
             resources:
               requests:
                 cpu: 100m
@@ -60,9 +72,10 @@ spec:
 
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        # linuxserver s6-overlay images must start as root; PUID/PGID drops the
+        # app to 1000. fsGroup 1000 keeps /config owned 1000:1000 like other apps.
+        runAsUser: 0
+        runAsGroup: 0
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
@@ -103,9 +116,9 @@ spec:
         globalMounts:
           - path: /downloads
       # s6-overlay (linuxserver base image) needs a writable /run to create its
-      # socket/pid dirs; /var/run is a symlink to /run on the Debian base, so
-      # this emptyDir satisfies the readOnlyRootFilesystem s6-overlay-preinit
-      # "unable to mkdir /var/run/s6" failure.
+      # socket/pid dirs; /var/run is a symlink to /run on the Debian base. With
+      # readOnlyRootFilesystem + S6_READ_ONLY_ROOT=1, this emptyDir receives the
+      # hiercopied cont-init.d/services.d scripts that init-stage2 then chmods.
       run:
         type: emptyDir
         globalMounts:
