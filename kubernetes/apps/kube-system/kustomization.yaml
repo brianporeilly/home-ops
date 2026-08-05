@@ -9,6 +9,7 @@ resources:
   - ./metrics-server/ks.yaml
   - ./kured/ks.yaml
   - ./kube-vip/ks.yaml
+  - ./kube-vip-cp/ks.yaml
   - ./kube-vip-cloud-provider/ks.yaml
   - ./reloader/ks.yaml
   - ./snapshot-controller/ks.yaml
