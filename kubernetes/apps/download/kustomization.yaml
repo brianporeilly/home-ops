@@ -17,6 +17,7 @@ resources:
   - ./prowlarr/bootstrap/ks.yaml
   - ./recyclarr/ks.yaml
   - ./lidarr/ks.yaml
+  - ./lazylibrarian/ks.yaml
   - ./bazarr/ks.yaml
   - ./configarr/ks.yaml
   - ./arr-notifications/ks.yaml
