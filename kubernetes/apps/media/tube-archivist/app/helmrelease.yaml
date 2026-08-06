@@ -44,8 +44,7 @@ spec:
               HOST_UID: "1000"
               HOST_GID: "1000"
               TA_HOST: "https://tubearchivist.internal.oreillys.io"
-              TA_USERNAME: tubearchivist
-              TZ: America/New_York
+              TA_USERNAME: root
             envFrom:
               - secretRef:
                   name: tube-archivist-secret
