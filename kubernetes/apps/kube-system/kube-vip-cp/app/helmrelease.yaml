@@ -61,8 +61,13 @@ spec:
       svc_enable: "false"
       svc_election: "false"
       vip_leaderelection: "true"
-      lb_enable: "true"
-      lb_port: "6443"
+      # IPVS load balancing is disabled: with a DR-style VIP, only the leader's
+      # own apiserver can serve VIP connections (remote backends don't have the
+      # VIP bound, so DR-forwarded SYNs loop back to the leader and stall in
+      # SYN_RECV, flooding conntrack with invalid entries). Bind the VIP directly
+      # and let the leader's apiserver (listening on *:6443) answer; this is the
+      # same mechanism the manual bootstrap pod used to recover the cluster.
+      lb_enable: "false"
       vip_arp: "false"
       vip_ddns: "false"
       vip_interface: ""
