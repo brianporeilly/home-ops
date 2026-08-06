@@ -21,3 +21,4 @@ resources:
   - ./bazarr/ks.yaml
   - ./configarr/ks.yaml
   - ./arr-notifications/ks.yaml
+  - ./slskd/ks.yaml
