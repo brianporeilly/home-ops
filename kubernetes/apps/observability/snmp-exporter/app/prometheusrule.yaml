@@ -1,0 +1,90 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: snmp-exporter-rules
+spec:
+  groups:
+    - name: snmp-exporter.rules
+      rules:
+        - alert: SnmpTargetDown
+          expr: |-
+            up{job="snmp-exporter"} == 0
+          for: 5m
+          annotations:
+            summary: >-
+              SNMP scrape of {{ $labels.instance }} is failing
+          labels:
+            severity: critical
+
+        - alert: SnmpInterfaceDown
+          expr: |-
+            ifOperStatus == 2 and on(instance, ifDescr) ifAdminStatus == 1
+          for: 5m
+          annotations:
+            summary: >-
+              Interface {{ $labels.ifDescr }} on {{ $labels.instance }} is admin-up but oper-down
+          labels:
+            severity: warning
+
+        - alert: SnmpInterfaceHighErrorRate
+          expr: |-
+            rate(ifInErrors[5m]) > 10 or rate(ifOutErrors[5m]) > 10
+          for: 10m
+          annotations:
+            summary: >-
+              Interface {{ $labels.ifDescr }} on {{ $labels.instance }} has a high error rate
+          labels:
+            severity: warning
+
+        - alert: SnmpHighCpuLoad
+          expr: |-
+            ssCpuIdle < 20
+          for: 15m
+          annotations:
+            summary: >-
+              CPU idle on {{ $labels.instance }} is critically low ({{ $value | printf "%.0f" }}% idle)
+          labels:
+            severity: warning
+
+        - alert: SnmpLowMemory
+          expr: |-
+            (memAvailReal / memTotalReal) * 100 < 10
+          for: 15m
+          annotations:
+            summary: >-
+              Available memory on {{ $labels.instance }} is below 10%
+          labels:
+            severity: warning
+
+        - alert: SnmpDiskSpaceHigh
+          expr: |-
+            (hrStorageUsed{hrStorageDescr=~"/.*"} / hrStorageSize{hrStorageDescr=~"/.*"}) * 100 > 85
+          for: 15m
+          annotations:
+            summary: >-
+              Filesystem {{ $labels.hrStorageDescr }} on {{ $labels.instance }} is over 85% full
+          labels:
+            severity: warning
+
+        - alert: MikrotikHighTemperature
+          expr: |-
+            mtxrHlProcessorTemperature > 700
+          for: 10m
+          annotations:
+            summary: >-
+              Processor temperature on {{ $labels.instance }} is above 70°C ({{ $value | printf "%.1f" }}°C).
+              Threshold is a conservative default for the CRS305 - tune once normal operating range is known.
+          labels:
+            severity: warning
+
+        - alert: MikrotikOpticalLinkLoss
+          expr: |-
+            mtxrOpticalRxLoss != 0
+          for: 5m
+          annotations:
+            summary: >-
+              Optical RX loss on {{ $labels.mtxrOpticalName }} ({{ $labels.instance }}) - check the SFP module/cable
+          labels:
+            severity: critical

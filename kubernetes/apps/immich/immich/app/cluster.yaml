@@ -9,7 +9,7 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:17.6-standard-trixie
   storage:
     size: 10Gi
-    storageClass: ceph-block
+    storageClass: ceph-block-ssd
   bootstrap:
     initdb:
       database: immich
@@ -20,3 +20,8 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS vector CASCADE
   monitoring:
     enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: immich-postgres-backup

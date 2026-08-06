@@ -1,0 +1,28 @@
+---
+# Minimal stub for the operator.tigera.io/v1 Istio CRD. The tigera-operator
+# (v1.40.x) registers an istio-controller whose informer needs this CRD to
+# exist, or the manager fails to start ("failed to wait for istio-controller
+# caches to sync: no matches for kind Istio") and the operator crash-loops.
+# The chart ships no CRDs (the operator creates its own at runtime), but it
+# crashes before it can create this one — a chicken-and-egg. We don't use the
+# Calico/Istio integration, so a permissive stub is enough to unblock startup.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: istios.operator.tigera.io
+spec:
+  group: operator.tigera.io
+  scope: Cluster
+  names:
+    kind: Istio
+    listKind: IstioList
+    plural: istios
+    singular: istio
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true

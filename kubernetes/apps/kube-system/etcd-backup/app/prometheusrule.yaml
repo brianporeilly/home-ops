@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+spec:
+  groups:
+    - name: etcd-backup
+      rules:
+        - alert: EtcdBackupStale
+          # No successful etcd-backup Job in >30h (schedule is daily, so this
+          # means a run was missed/failing with ~6h of slack past the 24h cadence).
+          expr: |
+            time() - max(kube_cronjob_status_last_successful_time{cronjob="etcd-backup", namespace="kube-system"}) > 60 * 60 * 30
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: etcd/PKI backup is stale
+            description: >-
+              The etcd-backup CronJob last succeeded
+              {{ $value | humanizeDuration }} ago (schedule: daily). etcd
+              snapshots and the kubeadm PKI in RGW may be out of date.
+        - alert: EtcdBackupJobFailing
+          expr: kube_job_failed{namespace="kube-system", job_name=~"etcd-backup-.+"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: etcd/PKI backup job is failing
+            description: Job {{ $labels.job_name }} in kube-system has failed.

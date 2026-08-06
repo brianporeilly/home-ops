@@ -6,3 +6,6 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./cluster.yaml
+  - ./obc.yaml
+  - ./objectstore.yaml
+  - ./scheduledbackup.yaml

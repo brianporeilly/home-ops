@@ -8,6 +8,7 @@ components:
 resources:
   - ./audiobookshelf/ks.yaml
   - ./jellyfin/ks.yaml
+  - ./podfetch/ks.yaml
   - ./ersatztv/ks.yaml
   - ./grimmory/ks.yaml
   - ./tube-archivist/ks.yaml

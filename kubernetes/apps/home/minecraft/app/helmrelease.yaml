@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: itzg/minecraft-server
-              tag: latest@sha256:9e96d969466dedc8434ebf8e700097903eecf3af940afaa6a28ad8610ea7906d
+              tag: latest@sha256:b996565e8dd0a58366ac33d58374a4d13576aaaca14d6a4de029ec341e0009cc
             env:
               EULA: "TRUE"
               TYPE: PAPER
@@ -83,7 +83,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kubevip.io/loadbalancerIPs: "10.20.250.10"
+          kube-vip.io/loadbalancerIPs: "10.20.250.10"
         ports:
           minecraft:
             port: 25565

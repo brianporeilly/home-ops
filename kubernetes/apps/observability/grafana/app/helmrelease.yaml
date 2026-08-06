@@ -68,6 +68,7 @@ spec:
             url: http://alertmanager-operated.observability.svc.cluster.local:9093
             jsonData:
               implementation: prometheus
+              handleGrafanaManagedAlerts: true
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1
@@ -155,6 +156,11 @@ spec:
           revision: 2
           datasource:
             - { name: DS_PROMETHEUS, value: Prometheus }
+        snmp-stats:
+          # renovate: depName="SNMP Stats"
+          gnetId: 11169
+          revision: 1
+          datasource: Prometheus
         zfs:
           # renovate: depName="ZFS"
           gnetId: 7845
@@ -164,7 +170,7 @@ spec:
       image:
         registry: ghcr.io
         repository: home-operations/k8s-sidecar
-        tag: 2.8.1@sha256:4412aa14803b57733cbe791b9f15bccaf44dcd4bb654de6f64b838d4f7c1058f
+        tag: 2.10.1@sha256:9d9338eba4dbf0ae8151e772ef96d3806d56115acf5521d615e31694e046fe47
       dashboards:
         enabled: true
         searchNamespace: ALL
@@ -177,6 +183,10 @@ spec:
         enabled: true
         searchNamespace: ALL
         labelValue: ""
+      alerts:
+        enabled: true
+        searchNamespace: ALL
+        labelValue: ""
     plugins:
       - grafana-clock-panel
       - grafana-piechart-panel
@@ -184,6 +194,7 @@ spec:
       - natel-discrete-panel
       - pr0ps-trackmap-panel
       - vonage-status-panel
+      - grafana-clickhouse-datasource
     serviceMonitor:
       enabled: true
     route:

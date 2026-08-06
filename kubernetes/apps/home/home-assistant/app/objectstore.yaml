@@ -1,0 +1,22 @@
+---
+# Barman Cloud Plugin backup target (Ceph RGW S3). See docs/backup-dr-plan.md.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: home-assistant-postgres-backup
+spec:
+  retentionPolicy: 14d
+  configuration:
+    destinationPath: s3://cnpg-home-assistant/
+    endpointURL: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc
+    s3Credentials:
+      accessKeyId:
+        name: home-assistant-postgres-backup
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: home-assistant-postgres-backup
+        key: AWS_SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip

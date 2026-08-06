@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: akvorado-clickhouse-grafana-datasource
+    labels:
+        grafana_datasource: "1"
+stringData:
+    datasource.yaml: ENC[AES256_GCM,data:cHn3khr3d72zLzGJ7o7KINmi1B7gBhYXs7CAsw7WbiJ2JzzrxdXxSpcuMy7pvf64OH7c6lWeRq4PxaIBavnfLm8RtB62F5atkAuRl8WIfDpWzYDtT4tCjDCuqyoMySDLvvMZzPBFKwGV3H3JdUOI9JxBFFpbVhlI/81FeVLf22Kew8N9ckcEgc1xvLbftfvjmGgqVCuy2VZxwSKCK3RTHbce0XglFEg1Hb10nSNb8O3FoN66lSWdSpCtSFA0MQz1TCpkYa4wm/Q4unXU5nzRVan+3ADkPcWGW4h05UV/av7YEjj3STqwKITmDOpZ12IrUrsKa/WD2KtIAzCqRWcQsbj33qHXaHi95eixbVfh1vZSz29bUxmjCJ1mtOJUg7UcHagCWLqXYSRILSKldHZ4Nlcu4GSCOrPzwEOEP6XVBSwrAaVnrO2gNpvyszV0XLNz2dXoeh4c2Muvd7hANnUc765psgt8mgHS4kAC2S08miTmdOUW4jKQuhNmhGwN0p7/HDoBwUae8WGwVNF0cyPxPjhGoqI7VnXT5RooDfR4RpLvBJttp2sYt1ieLsoxrZBbo1+zWwm6RmIifvVDMsh697/SRMi+m+9t8t/oA8C4/634cH4pwcs=,iv:/6cQOVMDoogFjZhKc7/NEqNV6xxWp/1T3rx9hb0VF4E=,tag:Zv9jkK4XT/YwbKeQ8sNmow==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvelErN1JYNUhZOFpJdDhP
+            UEFjdUVRbDNmMzcyUncxeUhlcm9laFdKb0NRCnM3ZXRXeDBEeWpsUWhSeWVMZEpl
+            c1FlaWc3SVNXeStTQUZMd3NYY2t3SlkKLS0tIHBlcGhEUTlta3g0My9QUittVG5o
+            dmFSeXhjR29JeUpEdXJLR1F0Skl5cFkKqS4Pr2MXYXoQN8NbsTmcPr4OeUZNaCXN
+            VRRk5jp8iISQPujxkdQEHYMWzCXMGkIphXwFxK5PONjwgZyMWcHPMQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age16l2td9xa5h64qq804f7xmqmus7v6hzqdycfay30e6heylesuws3sf0a4xc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-20T19:59:54Z"
+    mac: ENC[AES256_GCM,data:YDDtTQ7qjkEL/NMU0yywwJQWzcuRCm8HK4DaJbSeaQxxJZ+Vrs+7S89xHPX4NpecraX8idRVOI6n87Lwa+uR7ledIyOCmVCd6NCNlDiDlfqL6o4geDlyANR2280mrbzwE48PxsAqwlR/YNIURlxixIv42utXDWdQkFJUzMvO0qw=,iv:3uHKeKewLZ7VLUlDvps5y99CK2HC0AL2xH5m0MWjnUI=,tag:zUEIUHQ5eINFJqnn/VBR7A==,type:str]
+    version: 3.13.1

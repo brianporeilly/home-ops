@@ -28,7 +28,7 @@ spec:
           app:
             image:
               repository: docker.io/ollama/ollama
-              tag: 0.32.0@sha256:57f573b47f1f71ebb445789f279fe3e596a8beab182f7cf486db9205bad87c5a
+              tag: 0.32.6@sha256:b88c73ace3e115f8ec53dc8761ae1c0aabfa675406e3681786b98757ce050f42
             env:
               HOME: /data
               OLLAMA_MODELS: /data/models
@@ -76,6 +76,12 @@ spec:
 
     route:
       app:
+        annotations:
+          # Scaled to 0 (see gpu-operator-investigation-state.md) — silence Slack
+          # alerts inherited from the envoy-internal Gateway rather than paging on an
+          # app that's intentionally stopped.
+          gatus.home-operations.com/endpoint: |
+            alerts: []
         hostnames:
           - ollama.internal.oreillys.io
         parentRefs:

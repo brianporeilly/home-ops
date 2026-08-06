@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: plugin-barman-cloud
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: plugin-barman-cloud
+      version: 0.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg # shared with the operator (operator/helmrepository.yaml)
+      interval: 5m
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Self-contained: chart creates its own cert-manager Issuer + client/server
+    # certs and the ObjectStore CRD. Runs in the operator's namespace (database)
+    # so the CNPG operator discovers the plugin's barman-cloud service.
+    crds:
+      create: true

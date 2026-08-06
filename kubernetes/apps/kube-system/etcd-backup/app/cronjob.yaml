@@ -1,0 +1,115 @@
+---
+# Scheduled kubeadm etcd snapshot + PKI backup -> Ceph RGW.
+#
+# kubeadm's stacked etcd has no first-party scheduled-backup mechanism, so this
+# is the idiomatic pattern: run `etcdctl snapshot save` against the local etcd
+# static pod (pinned to a control-plane node via nodeSelector + toleration,
+# hostNetwork to reach 127.0.0.1:2379) and tar /etc/kubernetes/pki (the cluster
+# CA + sa keys — required to rebuild a control plane). Both objects are pushed
+# to a date-stamped prefix in the etcd-backup RGW bucket.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+spec:
+  # Daily, not 6-hourly: `etcdctl snapshot save` reads the whole DB and is an
+  # I/O burst on the control-plane node's disk. On the slow Patriot etcd disk
+  # (cp-gurloes) the 6h cadence contributed to etcd fsync latency / leader
+  # overload. Daily is ample for a GitOps cluster (workloads re-appliable; this
+  # covers etcd corruption / CP rebuild). Revisit cadence once the PLP S3610s land.
+  schedule: "0 4 * * *"          # daily 04:00 (staggered off the 03:00 DB backups)
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          hostNetwork: true                    # reach etcd on 127.0.0.1:2379
+          dnsPolicy: ClusterFirstWithHostNet   # ...while keeping cluster DNS for the RGW Service
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          securityContext:
+            runAsUser: 0                        # /etc/kubernetes/pki is root-owned 0600
+          priorityClassName: system-cluster-critical
+          volumes:
+            - name: pki
+              hostPath:
+                path: /etc/kubernetes/pki
+                type: Directory
+            - name: work
+              emptyDir: {}
+          initContainers:
+            - name: etcd-snapshot
+              image: registry.k8s.io/etcd:3.6.8-0
+              command:
+                - etcdctl
+                - --endpoints=https://127.0.0.1:2379
+                - --cacert=/pki/etcd/ca.crt
+                - --cert=/pki/etcd/server.crt
+                - --key=/pki/etcd/server.key
+                - snapshot
+                - save
+                - /work/etcd-snapshot.db
+              volumeMounts:
+                - { name: pki, mountPath: /pki, readOnly: true }
+                - { name: work, mountPath: /work }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { memory: 512Mi }
+            - name: pki-tar
+              image: public.ecr.aws/docker/library/busybox:1.37
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  tar czf /work/pki.tgz -C /pki .
+                  ls -lh /work
+              volumeMounts:
+                - { name: pki, mountPath: /pki, readOnly: true }
+                - { name: work, mountPath: /work }
+              resources:
+                requests: { cpu: 50m, memory: 32Mi }
+                limits: { memory: 128Mi }
+          containers:
+            - name: upload
+              image: rclone/rclone:1.69.1
+              env:
+                - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
+                - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }
+                - name: RCLONE_CONFIG_RGW_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: etcd-backup, key: AWS_ACCESS_KEY_ID } }
+                - name: RCLONE_CONFIG_RGW_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: etcd-backup, key: AWS_SECRET_ACCESS_KEY } }
+                - name: BUCKET_HOST
+                  valueFrom: { configMapKeyRef: { name: etcd-backup, key: BUCKET_HOST } }
+                - name: BUCKET_PORT
+                  valueFrom: { configMapKeyRef: { name: etcd-backup, key: BUCKET_PORT } }
+                - name: BUCKET_NAME
+                  valueFrom: { configMapKeyRef: { name: etcd-backup, key: BUCKET_NAME } }
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+                  export RCLONE_CONFIG_RGW_ENDPOINT="http://${BUCKET_HOST}:${BUCKET_PORT}"
+                  echo "[etcd-backup] uploading snapshot + pki to rgw:${BUCKET_NAME}/${ts}/"
+                  rclone copyto /work/etcd-snapshot.db "rgw:${BUCKET_NAME}/${ts}/etcd-snapshot.db" --s3-no-check-bucket -v
+                  rclone copyto /work/pki.tgz          "rgw:${BUCKET_NAME}/${ts}/pki.tgz"          --s3-no-check-bucket -v
+                  echo "[etcd-backup] pruning snapshots older than 14d"
+                  rclone delete "rgw:${BUCKET_NAME}/" --min-age 14d -v || true
+                  rclone size "rgw:${BUCKET_NAME}/"
+              volumeMounts:
+                - { name: work, mountPath: /work }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }

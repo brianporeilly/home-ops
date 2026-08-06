@@ -1,0 +1,120 @@
+# disk inventory
+
+output from `== $(hostname) =="; lsblk -d -I 8,259 -o NAME,SIZE,ROTA,TRAN,TYPE,MODEL,SERIAL,REV`
+
+
+## inventory
+
+
+== k8s-cp-01 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL              SERIAL                  REV
+sda  119.2G    0 sata   disk Patriot P210 128GB P210IBBB23092514822 W0417A0
+sdb  465.8G    1 sata   disk ST500LM000-1EJ162  W764YSGE               DEMM
+== k8s-cp-02 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL                SERIAL                   REV
+sda    1.8T    1 sata   disk WDC WD20EARX-00PASB0 WD-WMAZA9814688     51.0AB51
+sdb  119.2G    0 sata   disk Patriot P210 128GB   P210IBBB23092510462  W0417A0
+== k8s-cp-03 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL                     SERIAL               REV
+sda    1.8T    1 sata   disk WDC WD20EARX-00PASB0      WD-WMAZA9060657 51.0AB51
+sdb  465.8G    0 sata   disk Samsung SSD 870 EVO 500GB S6PXNZ0T314312Y SVT02B6Q
+== k8s-wk-01 ==
+NAME      SIZE ROTA TRAN   TYPE MODEL                     SERIAL            REV
+sda     119.2G    0 sata   disk SanDisk SD8SB8U-128G-1006 172109424601 X4120006
+nvme0n1 931.5G    0 nvme   disk WD_BLACK SN770M 1TB       24464L800085 731100WD
+== k8s-wk-02 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL                SERIAL                    REV
+sda    1.8T    1 sata   disk WDC WD20EARX-00PASB0 WD-WMAZA9814706      51.0AB51
+sdb  119.2G    0 sata   disk Patriot P210 128GB   P210HHBB241205002056 HDFED3.2
+== k8s-wk-03 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL              SERIAL                    REV
+sda  465.8G    1 sata   disk ST500DM002-1BD142  W2ARLWVH                 KC45
+sdb  119.2G    0 sata   disk Patriot P210 128GB P210HHBB241205001808 HDFED3.2
+sdc      0B    0 usb    disk Compact Flash      20100818841300000        1.00
+sdd      0B    0 usb    disk SM/xD-Picture      20100818841300000        1.00
+sde      0B    0 usb    disk SD/MMC             20100818841300000        1.00
+sdf      0B    0 usb    disk M.S./M.S.Pro/HG    20100818841300000        1.00
+== ubuntu-01 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL            SERIAL                            REV
+sda   59.6G    0 sata   disk M4-CT064M4SSD2   0000000012030906E4D2             0309
+sdb    5.5T    1 sata   disk WDC_WD60EFAX-68J WD-WX22D412ZP3X                  0A83
+sdc    5.5T    1 sata   disk WDC_WD60EFAX-68J WD-WX22D81DSCZZ                  0A83
+sdd    5.5T    1 sata   disk WDC_WD60EFAX-68J WD-WX22D81L6NPA                  0A83
+sde    5.5T    1 sata   disk WDC_WD60EFAX-68J WD-WX92DA12TU1V                  0A83
+sdf    5.5T    1 sata   disk HUS726060ALE611  NAGRKHKX                         0001
+sdg  931.5G    0 sata   disk WDC_WDBNCE0010P  214263800292                     20RL
+sdh  119.2G    0 sata   disk SanDisk_SD8SB8U1 161108806637                     0000
+sdi      1G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000010001 0001
+sdj      1G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000020001 0001
+sdk      1G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000030001 0001
+sdl      1G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000040001 0001
+sdm      5G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000050001 0001
+sdn     10G    1 iscsi  disk VIRTUAL-DISK     60000000000000000e00000000060001 0001
+==bazzite-desktop==
+NAME      SIZE ROTA TRAN   TYPE MODEL                     SERIAL                REV
+sda       2.7T    1 sata   disk Hitachi HUS724030ALE641   P8HW0E3R         MJ8OA5F0
+sdb     232.9G    0 sata   disk Samsung SSD 850 EVO 250GB S21NNXAGA96289J  EMT02B6Q
+sdc     931.5G    0 sata   disk Samsung SSD 850 EVO 1TB   S2RENX0J610560Z  EMT02B6Q
+sdd       1.8T    1 sata   disk ST2000DM008-2FR102        ZFL23VLK             0001
+nvme0n1 465.8G    0 nvme   disk KINGSTON SNVS500G         50026B7685BA5F97 S8542105
+nvme1n1 931.5G    0 nvme   disk KINGSTON SNV2S1000G       50026B7686A41207 SBM02103
+
+
+k3os-master-3 [~]$ ls -l /dev/disk/by-id/ | grep -vE 'part[0-9]+$'
+total 0
+lrwxrwxrwx 1 root root  9 Jul  5 08:57 ata-CHN-mSATAM3-128_AA000000000000022754 -> ../../sda
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 ata-CHN-mSATAM3-128_AA000000000000022754-part1 -> ../../sda1
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 ata-CHN-mSATAM3-128_AA000000000000022754-part2 -> ../../sda2
+lrwxrwxrwx 1 root root  9 Jul  5 08:57 ata-Samsung_SSD_840_EVO_1TB_mSATA_S1KRNEAFA00559A -> ../../sdb
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 ata-Samsung_SSD_840_EVO_1TB_mSATA_S1KRNEAFA00559A-part1 -> ../../sdb1
+lrwxrwxrwx 1 root root  9 Jul  5 08:57 wwn-0x5002538844584d30 -> ../../sdb
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 wwn-0x5002538844584d30-part1 -> ../../sdb1
+
+
+k3os-master-2 [~]$ ls -l /dev/disk/by-id/ | grep -vE 'part[0-9]+$'
+total 0
+lrwxrwxrwx 1 root root  9 Jul  5 08:57 ata-SAMSUNG_MZ7TE512HMHP-000L2_S1NYNSAFB07069 -> ../../sda
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 ata-SAMSUNG_MZ7TE512HMHP-000L2_S1NYNSAFB07069-part1 -> ../../sda1
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 ata-SAMSUNG_MZ7TE512HMHP-000L2_S1NYNSAFB07069-part2 -> ../../sda2
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000010001 -> ../../sdb
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000020001 -> ../../sdc
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e00000000030001 -> ../../sdd
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e00000000040001 -> ../../sde
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000050001 -> ../../sdf
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e00000000060001 -> ../../sdg
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000070001 -> ../../sdh
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000080001 -> ../../sdi
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e00000000090001 -> ../../sdj
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e000000000a0001 -> ../../sdk
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e000000000b0001 -> ../../sdl
+lrwxrwxrwx 1 root root  9 Jul 19 00:57 scsi-360000000000000000e000000000c0001 -> ../../sdm
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e000000000d0001 -> ../../sdn
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 scsi-360000000000000000e000000000e0001 -> ../../sdo
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 scsi-360000000000000000e000000000f0001 -> ../../sdp
+lrwxrwxrwx 1 root root  9 Jul  5 08:57 wwn-0x5002538844584d30 -> ../../sda
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 wwn-0x5002538844584d30-part1 -> ../../sda1
+lrwxrwxrwx 1 root root 10 Jul  5 08:57 wwn-0x5002538844584d30-part2 -> ../../sda2
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000010001 -> ../../sdb
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000020001 -> ../../sdc
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e00000000030001 -> ../../sdd
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e00000000040001 -> ../../sde
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000050001 -> ../../sdf
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e00000000060001 -> ../../sdg
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000070001 -> ../../sdh
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000080001 -> ../../sdi
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e00000000090001 -> ../../sdj
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e000000000a0001 -> ../../sdk
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e000000000b0001 -> ../../sdl
+lrwxrwxrwx 1 root root  9 Jul 19 00:57 wwn-0x60000000000000000e000000000c0001 -> ../../sdm
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e000000000d0001 -> ../../sdn
+lrwxrwxrwx 1 root root  9 Jul  5 09:00 wwn-0x60000000000000000e000000000e0001 -> ../../sdo
+lrwxrwxrwx 1 root root  9 Jul  5 09:01 wwn-0x60000000000000000e000000000f0001 -> ../../sdp
+
+
+== localhost ==
+NAME      SIZE ROTA TRAN   TYPE MODEL                            SERIAL            REV
+nvme0n1 238.5G    0 nvme   disk THNSN5256GPUK NVMe TOSHIBA 256GB 57BB6004KSGU 5KDA4103
+== k8s-test-01 ==
+NAME   SIZE ROTA TRAN   TYPE MODEL               SERIAL                  REV
+sda    1.8T    1 sata   disk HUA723020ALA640     YGJX703A           MK7OAA30
+sdb  223.6G    0 sata   disk INTEL SSDSC2CW240A3 CVCV308000B3240CGN     400i

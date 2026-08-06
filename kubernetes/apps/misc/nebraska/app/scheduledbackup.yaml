@@ -1,0 +1,13 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: nebraska-postgres-backup
+spec:
+  schedule: "0 0 3 * * *" # 6-field cron (sec min hour dom mon dow) = 03:00 daily
+  immediate: true
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  cluster:
+    name: nebraska-postgres

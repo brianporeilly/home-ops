@@ -21,11 +21,29 @@ spec:
       changedetection:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /datastore/changedetection.json ]; then
+                  echo "Seeding changedetection.json (Slack notification target pre-configured, first run)"
+                  cp /seed/changedetection.json /datastore/changedetection.json
+                else
+                  echo "changedetection.json already exists, leaving it alone"
+                fi
         containers:
           app:
             image:
               repository: ghcr.io/dgtlmoon/changedetection.io
               tag: 0.55.8@sha256:fab18103da4995c98df9529752848ccb061b4ecf8bd24c307936af0656f8ba16
+            env:
+              PLAYWRIGHT_DRIVER_URL: ws://changedetection-sockpuppetbrowser:3000
             probes:
               liveness: &probes
                 enabled: true
@@ -48,6 +66,31 @@ spec:
                 memory: 100Mi
               limits:
                 memory: 512Mi
+      sockpuppetbrowser:
+        containers:
+          app:
+            image:
+              repository: docker.io/dgtlmoon/sockpuppetbrowser
+              tag: 0.0.3@sha256:23a7be698216407648b6c78fc55de0411bde550635edc30347373c86a5176fad
+            env:
+              SCREEN_WIDTH: "1920"
+              SCREEN_HEIGHT: "1024"
+              SCREEN_DEPTH: "16"
+              MAX_CONCURRENT_CHROME_PROCESSES: "10"
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Chrome's own sandbox needs this to set up its namespaces/seccomp
+              # inside the container - upstream's own docs/Dockerfile call this
+              # out explicitly (--cap-add=SYS_ADMIN). The alternative is a custom
+              # seccomp profile distributed to every node, which is a lot of
+              # node-level plumbing for one browser sidecar.
+              capabilities: { add: [ "SYS_ADMIN" ], drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
 
     defaultPodOptions:
       securityContext:
@@ -64,6 +107,11 @@ spec:
         ports:
           http:
             port: 5000
+      sockpuppetbrowser:
+        controller: sockpuppetbrowser
+        ports:
+          ws:
+            port: 3000
 
     route:
       app:
@@ -73,6 +121,10 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 5000
 
     persistence:
       data:
@@ -80,11 +132,38 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
-        globalMounts:
-          - path: /datastore
+        advancedMounts:
+          changedetection:
+            app:
+              - path: /datastore
+            init-config:
+              - path: /datastore
+      config-seed:
+        type: secret
+        name: changedetection-config-seed
+        advancedMounts:
+          changedetection:
+            init-config:
+              - path: /seed/changedetection.json
+                subPath: changedetection.json
+                readOnly: true
       tmpfs:
         type: emptyDir
         advancedMounts:
           changedetection:
             app:
               - path: /tmp
+      sockpuppet-tmp:
+        type: emptyDir
+        advancedMounts:
+          sockpuppetbrowser:
+            app:
+              - path: /tmp
+      sockpuppet-shm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 1Gi
+        advancedMounts:
+          sockpuppetbrowser:
+            app:
+              - path: /dev/shm

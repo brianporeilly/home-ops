@@ -1,0 +1,55 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kromgo
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: kromgo
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    deploymentAnnotations:
+      reloader.stakater.com/auto: "true"
+
+    config:
+      prometheus: http://prometheus-operated.observability.svc.cluster.local:9090
+      badges:
+        - id: nodes
+          title: Nodes
+          query: count(kube_node_info)
+          valueExpr: string(int(result))
+          icon: mdi:kubernetes
+
+        - id: pods_running
+          title: Pods Running
+          query: sum(kube_pod_status_phase{phase="Running"})
+          valueExpr: string(int(result))
+          icon: mdi:cube-outline
+
+        - id: netflow_flows_per_sec
+          title: Flows/s
+          query: sum(rate(akvorado_outlet_core_received_flows_total[5m]))
+          valueExpr: string(int(result))
+          icon: mdi:swap-horizontal
+
+    httpRoute:
+      enabled: true
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+          sectionName: https
+      hostnames:
+        - kromgo.internal.oreillys.io
+
+    monitoring:
+      serviceMonitor:
+        enabled: true

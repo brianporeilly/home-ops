@@ -31,6 +31,10 @@ spec:
           http_listen 0.0.0.0
           http_port {{ .Values.metricsPort }}
           health_check on
+          storage.path /var/log/flb-storage/
+          storage.sync normal
+          storage.checksum off
+          storage.backlog.mem_limit 5M
 
       inputs: |-
         [INPUT]
@@ -41,6 +45,27 @@ spec:
           tag kubernetes.*
           skip_empty_lines on
           skip_long_lines on
+          storage.type filesystem
+
+        [INPUT]
+          name syslog
+          alias syslog_opnsense
+          mode udp
+          listen 0.0.0.0
+          port 5514
+          parser syslog-rfc3164
+          tag syslog.opnsense
+          storage.type filesystem
+
+        [INPUT]
+          name syslog
+          alias syslog_mikrotik
+          mode udp
+          listen 0.0.0.0
+          port 5515
+          parser syslog-rfc3164
+          tag syslog.mikrotik
+          storage.type filesystem
 
       filters: |-
         [FILTER]
@@ -90,7 +115,51 @@ spec:
           labels job=fluent-bit, namespace=$k_namespace_name, app=$app
           structured_metadata container=$k_container_name, pod=$k_pod_name, host=$k_host
           compress gzip
+          storage.total_limit_size 2G
+
+        [OUTPUT]
+          name loki
+          match syslog.opnsense
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          labels job=syslog, device=opnsense
+          compress gzip
+          storage.total_limit_size 512M
+
+        [OUTPUT]
+          name loki
+          match syslog.mikrotik
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          labels job=syslog, device=mikrotik
+          compress gzip
+          storage.total_limit_size 512M
     dashboards:
       enabled: true
     serviceMonitor:
       enabled: true
+    extraVolumes:
+      - name: flb-storage
+        hostPath:
+          path: /var/log/flb-storage
+          type: DirectoryOrCreate
+    extraVolumeMounts:
+      - name: flb-storage
+        mountPath: /var/log/flb-storage
+    service:
+      type: LoadBalancer
+      annotations:
+        kube-vip.io/loadbalancerIPs: "10.20.250.4"
+    extraPorts:
+      - port: 5514
+        containerPort: 5514
+        protocol: UDP
+        name: syslog-opnsense
+      - port: 5515
+        containerPort: 5515
+        protocol: UDP
+        name: syslog-mikrotik

@@ -1,0 +1,97 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/raydak-labs/configarr/main/config.schema.json
+sonarr:
+  sonarr:
+    base_url: http://sonarr.download.svc.cluster.local:8989
+    api_key: !env SONARR_API_KEY
+    download_clients:
+      data:
+        - name: qbittorrent
+          type: qbittorrent
+          enable: true
+          priority: 1
+          remove_completed_downloads: false
+          remove_failed_downloads: true
+          fields:
+            host: qbittorrent.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env QBT_API_KEY
+            tv_category: tv-sonarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
+            tv_category: tv-sonarr
+      update_password: true
+
+radarr:
+  radarr:
+    base_url: http://radarr.download.svc.cluster.local:7878
+    api_key: !env RADARR_API_KEY
+    download_clients:
+      data:
+        - name: qbittorrent
+          type: qbittorrent
+          enable: true
+          priority: 1
+          remove_completed_downloads: false
+          remove_failed_downloads: true
+          fields:
+            host: qbittorrent.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env QBT_API_KEY
+            movie_category: radarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
+            movie_category: radarr
+      update_password: true
+
+lidarr:
+  lidarr:
+    base_url: http://lidarr.download.svc.cluster.local:8686
+    api_key: !env LIDARR_API_KEY
+    download_clients:
+      data:
+        - name: qbittorrent
+          type: qbittorrent
+          enable: true
+          priority: 1
+          remove_completed_downloads: false
+          remove_failed_downloads: true
+          fields:
+            host: qbittorrent.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env QBT_API_KEY
+            music_category: lidarr
+        - name: sabnzbd
+          type: sabnzbd
+          enable: true
+          priority: 1
+          fields:
+            host: sabnzbd.download.svc.cluster.local
+            port: 8080
+            use_ssl: false
+            url_base: /
+            api_key: !env SABNZBD_API_KEY
+            music_category: lidarr
+      update_password: true

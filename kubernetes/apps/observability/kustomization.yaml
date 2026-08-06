@@ -12,3 +12,7 @@ resources:
   - ./loki/ks.yaml
   - ./smartctl-exporter/ks.yaml
   - ./gatus-sidecar/ks.yaml
+  - ./snmp-exporter/ks.yaml
+  - ./akvorado/ks.yaml
+  - ./kromgo/ks.yaml
+  - ./kubernetes-event-exporter/ks.yaml

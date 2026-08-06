@@ -17,6 +17,9 @@ spec:
       delayStartSeconds: "5"
       env:
         TZ: America/Los_Angeles
+      envFrom:
+        - secretRef:
+            name: gatus-sidecar-secret
 
     sidecar:
       kinds:

@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nebraska-postgres
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6-standard-trixie
+  storage:
+    size: 2Gi
+    storageClass: ceph-block-ssd
+  bootstrap:
+    initdb:
+      database: nebraska
+      owner: nebraska
+      secret:
+        name: nebraska-postgres-creds
+  monitoring:
+    enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: nebraska-postgres-backup
