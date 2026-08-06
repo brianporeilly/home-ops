@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: kube-vip
-      version: 0.9.9
+      version: 0.11.0
       sourceRef:
         kind: HelmRepository
         name: kube-vip
@@ -18,24 +18,46 @@ spec:
     remediation:
       retries: -1
   upgrade:
+    # Don't gate the reconcile on the DaemonSet rollout: kube-vip is network-critical
+    # and a NotReady node would wedge the upgrade (timeout -> rollback -> Stalled),
+    # blocking the very component that fixes API VIP connectivity. Apply and let the
+    # DaemonSet roll in the background.
+    disableWait: true
     cleanupOnFail: true
     remediation:
       retries: 3
+  # LoadBalancer service VIPs only (worker nodes only, via kube-vip-cloud-provider).
+  # The control-plane API VIP (10.20.254.100) is NOT managed here - see the
+  # kube-vip-cp release, which is nodeSelector'd to control-plane nodes and uses
+  # leader election so exactly one node binds/advertises the API VIP.
+  #
+  # Pinned to worker nodes (affinity: DoesNotExist control-plane) so the two
+  # kube-vip releases never peer with the router from the same source IP: when
+  # both ran on control-plane nodes the router kept only one BGP session per
+  # neighbor, the services release always won, and kube-vip-cp could never
+  # establish BGP (verified live - API VIP was never advertised). The workers
+  # must be registered as BGP peers on the router (10.20.0.1, AS 65001) so the
+  # LoadBalancer VIPs stay announced once the CP-node sessions are gone.
   values:
-    config:
-      address: "10.20.254.100"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
     env:
-      cp_enable: "true"
-      cp_namespace: "kube-system"
+      cp_enable: "false"
       svc_enable: "true"
+      svc_election: "false"
+      lb_enable: "false"
       vip_arp: "false"
       vip_ddns: "false"
       vip_interface: ""
       # /32 host routes (correct for BGP mode). "16" bound each VIP as a /16 on
-      # the node NIC, so the node holding the VIPs picked a VIP (e.g. the CP VIP
-      # 10.20.254.100) as its source IP for all 10.20.0.0/16 egress — which
-      # blackholed Calico node-mesh BGP and API/typha traffic and partitioned
-      # that node's pod network after a reboot.
+      # the node NIC, so the node holding the VIPs picked a VIP as its source IP
+      # for all 10.20.0.0/16 egress - which blackholed Calico node-mesh BGP and
+      # API/typha traffic and partitioned that node's pod network after a reboot.
       vip_subnet: "32"
       bgp_enable: "true"
       bgp_as: "65001"
@@ -43,7 +65,6 @@ spec:
       bgp_peeras: "65000"
       bgp_holdtimer: "30"
       bgp_keepalive: "10"
-
     envValueFrom:
       bgp_routerid:
         fieldRef:

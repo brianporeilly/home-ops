@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: esphome
+  name: copyparty
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: esphome
+    name: copyparty
   install:
     remediation:
       retries: -1
@@ -18,82 +18,79 @@ spec:
       retries: 3
   values:
     controllers:
-      esphome:
+      copyparty:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/esphome/esphome
-              tag: 2026.7.4@sha256:40362a75781229a363ed4a09ef5812cff7217022fbf8b46e8ec7ecd639fc6a7c
+              repository: ghcr.io/9001/copyparty-ac
+              tag: 1.20.20
             env:
-              PLATFORMIO_CORE_DIR: /config/.platformio
-              ESPHOME_DASHBOARD_USE_PING: "true"
-            probes:
-              liveness: &probes
+              LD_PRELOAD: /usr/lib/libmimalloc-secure.so.2
+              PYTHONUNBUFFERED: 1
+            probes: &probes
+              liveness:
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
-                    path: /login
-                    port: &port 6052
-                  initialDelaySeconds: 0
-                  periodSeconds: 10
-                  timeoutSeconds: 1
+                    path: /?reset=/._
+                    port: &port 3923
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
                   failureThreshold: 3
-              readiness: *probes
-              startup:
+              readiness:
                 enabled: true
+                custom: true
                 spec:
-                  failureThreshold: 30
+                  httpGet:
+                    path: /?reset=/._
+                    port: *port
+                  initialDelaySeconds: 10
                   periodSeconds: 10
+                  failureThreshold: 3
             securityContext:
               allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
+              readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
-                add: ["CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID"]
             resources:
               requests:
-                cpu: 100m
-                memory: 200Mi
+                cpu: 10m
               limits:
-                memory: 1Gi
-
+                memory: 256Mi
     defaultPodOptions:
       securityContext:
-        runAsNonRoot: false
-        runAsUser: 0
-        runAsGroup: 0
-        fsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-
     service:
       app:
-        primary: true
-        controller: esphome
         ports:
           http:
-            port: 6052
-
+            port: *port
     route:
       app:
         hostnames:
-          - esphome.internal.oreillys.io
+          - copyparty.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
-
     persistence:
-      config:
-        suffix: config
+      data:
+        suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
-        size: "1Gi"
+        size: "5Gi"
         globalMounts:
-          - path: /config
+          - path: /w
       tmp:
         type: emptyDir
-        globalMounts:
-          - path: /tmp
+        advancedMounts:
+          copyparty:
+            app:
+              - path: /tmp

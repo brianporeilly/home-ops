@@ -3,25 +3,19 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app prowlarr-bootstrap
-  namespace: &namespace download
+  name: &app tube-archivist
+  namespace: &namespace media
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
-    - name: prowlarr
-      namespace: download
-    - name: sonarr
-      namespace: download
-    - name: radarr
-      namespace: download
-    - name: lidarr
-      namespace: download
-    - name: lazylibrarian
-      namespace: download
+    - name: envoy-gateway-config
+      namespace: network
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
   interval: 1h
-  path: ./kubernetes/apps/download/prowlarr/bootstrap/app
+  path: ./kubernetes/apps/media/tube-archivist/app
   prune: true
   retryInterval: 2m
   sourceRef:

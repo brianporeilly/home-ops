@@ -24,14 +24,28 @@ spec:
   values:
     replicaCount: 1
 
+    podSecurityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+
     config:
       syncer:
         enabled: true
-      # We only use Nebraska for Omaha update-check/channel/group management;
-      # clients still fetch the actual OS payloads from Flatcar's public mirrors.
+      # Nebraska mirrors the Flatcar OS update payloads locally: the syncer
+      # pre-fetches the latest release for every tracked channel/arch (stable,
+      # beta, alpha, edge, lts-*; amd64 + arm64) into the PVC below and rewrites
+      # Omaha payload URLs to nebraskaURL, so nodes pull updates over the LAN
+      # instead of Flatcar's public mirrors. No automatic GC — payloads
+      # accumulate as channels advance, so prune /mnt/packages or grow the PVC.
       hostFlatcarPackages:
-        enabled: false
+        enabled: true
         nebraskaURL: https://nebraska.internal.oreillys.io
+        packagesPath: /mnt/packages
+        persistence:
+          enabled: true
+          storageClass: ceph-block
+          size: 30Gi
       auth:
         mode: noop
       database:

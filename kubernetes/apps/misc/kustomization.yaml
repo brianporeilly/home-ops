@@ -6,9 +6,10 @@ namespace: misc
 components:
   - ../../components/common
 resources:
-  - ./linkwarden/ks.yaml
-  - ./tuwunel/ks.yaml
-  - ./thelounge/ks.yaml
   - ./atuin/ks.yaml
-  - ./nebraska/ks.yaml
+  - ./copyparty/ks.yaml
+  - ./linkwarden/ks.yaml
   - ./maddy/ks.yaml
+  - ./nebraska/ks.yaml
+  - ./thelounge/ks.yaml
+  - ./tuwunel/ks.yaml
