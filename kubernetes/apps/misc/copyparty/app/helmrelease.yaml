@@ -94,6 +94,6 @@ spec:
       tmp:
         type: emptyDir
         advancedMounts:
-          microbin:
+          copyparty:
             app:
               - path: /tmp
