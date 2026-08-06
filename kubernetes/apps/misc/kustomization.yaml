@@ -9,6 +9,7 @@ resources:
   - ./atuin/ks.yaml
   - ./copyparty/ks.yaml
   - ./linkwarden/ks.yaml
+  - ./maddy/ks.yaml
   - ./nebraska/ks.yaml
   - ./thelounge/ks.yaml
   - ./tuwunel/ks.yaml
