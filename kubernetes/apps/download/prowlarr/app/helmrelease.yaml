@@ -60,6 +60,14 @@ spec:
                 cpu: 100m
               limits:
                 memory: 1Gi
+            volumeMounts:
+              - name: custom-definitions
+                mountPath: /config/Definitions/Custom
+                readOnly: true
+        volumes:
+          - name: custom-definitions
+            secret:
+              secretName: prowlarr-custom-definitions
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
