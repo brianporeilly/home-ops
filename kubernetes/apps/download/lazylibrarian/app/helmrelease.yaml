@@ -21,6 +21,22 @@ spec:
       lazylibrarian:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /config/config.ini ]; then
+                  echo "Seeding config.ini (SABnzbd + qBittorrent downloaders, NZBPlanet via Prowlarr indexer, first run)"
+                  cp /seed/config.ini /config/config.ini
+                else
+                  echo "config.ini already exists, leaving it alone"
+                fi
         containers:
           app:
             image:
@@ -104,6 +120,17 @@ spec:
         size: "2Gi"
         globalMounts:
           - path: /config
+      # Seeded on first run only (mirrors the sabnzbd-config-seed pattern):
+      # downloaders (SABnzbd/qBittorrent) + NZBPlanet (via Prowlarr) indexer.
+      config-seed:
+        type: secret
+        name: lazylibrarian-config-seed
+        advancedMounts:
+          lazylibrarian:
+            init-config:
+              - path: /seed/config.ini
+                subPath: config.ini
+                readOnly: true
       # Where LazyLibrarian post-processes/renames completed grabs to.
       # Point Settings > Processing > Destination/eBook folder here.
       # For now this is a standalone PVC - move/rsync into grimmory's
