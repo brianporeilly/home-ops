@@ -15,7 +15,7 @@ spec:
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
-  path: ./kubernetes/apps/home/copyparty/app
+  path: ./kubernetes/apps/misc/copyparty/app
   prune: true
   retryInterval: 2m
   sourceRef:
