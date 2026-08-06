@@ -29,9 +29,6 @@ spec:
             env:
               LD_PRELOAD: /usr/lib/libmimalloc-secure.so.2
               PYTHONUNBUFFERED: 1
-            envFrom:
-              - secretRef:
-                  name: copyparty-secret
             probes: &probes
               liveness:
                 enabled: true
