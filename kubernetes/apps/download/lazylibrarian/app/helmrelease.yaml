@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/lazylibrarian
-              tag: 36c919aa-ls1@sha256:5164e0c5819e38f2a7b2bb979658266084a28045131943e7f0f4de9a42cdad59
+              tag: 0ab151c8-ls326@sha256:598f730b725f0b9aded4bf762c167a260f847510a6da493365d2fa8137a9dd52
             env:
               # linuxserver s6-overlay v2: makes init-stage2 hiercopy the
               # cont-init.d/services.d scripts into /var/run/s6 (writable
