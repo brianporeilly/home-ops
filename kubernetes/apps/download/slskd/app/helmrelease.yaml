@@ -79,8 +79,7 @@ spec:
       soulseek:
         type: LoadBalancer
         annotations:
-          kube-vip:
-            io/loadbalancerIPs: "10.20.250.12"
+          kube-vip.io/loadbalancerIPs: "10.20.250.12"
         externalTrafficPolicy: Local
         ports:
           soulseek-tcp:
