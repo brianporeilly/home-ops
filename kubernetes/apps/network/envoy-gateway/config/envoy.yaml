@@ -21,7 +21,7 @@ spec:
             limits:
               memory: 1Gi
       envoyService:
-        externalTrafficPolicy: Cluster
+        externalTrafficPolicy: Local
   shutdown:
     drainTimeout: 180s
   telemetry:
@@ -184,9 +184,6 @@ kind: ClientTrafficPolicy
 metadata:
   name: envoy
 spec:
-  clientIPDetection:
-    xForwardedFor:
-      numTrustedHops: 1
   # http3: {}
   targetSelectors:
     - group: gateway.networking.k8s.io
