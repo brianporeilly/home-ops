@@ -1,0 +1,258 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tube-archivist
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: tube-archivist
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      # ----------------------------------------------------------------------
+      # Main TubeArchivist app (Django + nginx + celery). Runs as root: the
+      # image sets nginx `user root`, pip-installs yt-dlp into /root/.local and
+      # never drops privileges (HOST_UID/HOST_GID only chown downloaded media).
+      # ----------------------------------------------------------------------
+      tubearchivist:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+        containers:
+          app:
+            image:
+              repository: docker.io/bbilly1/tubearchivist
+              tag: v0.5.10@sha256:dfe723cf008520e1758ecc3e59e6ea8761dd10d5bb099cd87289e80f5bd66567
+            env:
+              ES_URL: "http://{{ .Release.Name }}-elasticsearch:9200"
+              REDIS_CON: "redis://{{ .Release.Name }}-redis:6379"
+              HOST_UID: "1000"
+              HOST_GID: "1000"
+              TA_HOST: "https://tubearchivist.internal.oreillys.io"
+              TA_USERNAME: root
+            envFrom:
+              - secretRef:
+                  name: tube-archivist-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: &port 8000
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *port
+                  # migrations + collectstatic + ES connection can be slow on
+                  # first boot; allow up to ~5 minutes before giving up.
+                  initialDelaySeconds: 15
+                  periodSeconds: 10
+                  failureThreshold: 30
+            securityContext:
+              readOnlyRootFilesystem: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      # ----------------------------------------------------------------------
+      # Elasticsearch (TubeArchivist's primary datastore). Uses the vendor
+      # image which runs ES 8 with security over plain HTTP (no TLS), unlike
+      # the official image.
+      # ----------------------------------------------------------------------
+      elasticsearch:
+        initContainers:
+          # ES needs vm.max_map_count=262144 (node default 65530). vm.* sysctls
+          # are non-namespaced, so a privileged init container sets it on the
+          # node. Remove if vm.max_map_count is configured on the nodes instead.
+          init-sysctl:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.37"
+            command:
+              - sh
+              - -c
+              - "sysctl -w vm.max_map_count=262144"
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsNonRoot: false
+              readOnlyRootFilesystem: false
+              allowPrivilegeEscalation: true
+        containers:
+          app:
+            image:
+              repository: docker.io/bbilly1/tubearchivist-es
+              tag: 8.19.0@sha256:9da63fb1973ec3d57daf6916be948eddd0d8a404cc8e447c938480c85fe2c554
+            env:
+              ELASTIC_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: tube-archivist-secret
+                    key: ELASTIC_PASSWORD
+              ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+              "discovery.type": single-node
+              "xpack.security.enabled": "true"
+              "path.repo": /usr/share/elasticsearch/data/snapshot
+            probes:
+              liveness: &esProbes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 9200
+                  initialDelaySeconds: 30
+                  periodSeconds: 15
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+              readiness: *esProbes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1536Mi
+              limits:
+                memory: 2560Mi
+
+      # ----------------------------------------------------------------------
+      # Redis (task queue + app config). Redis 8 CE bundles RedisJSON, which
+      # TubeArchivist requires.
+      # ----------------------------------------------------------------------
+      redis:
+        containers:
+          app:
+            image:
+              repository: docker.io/library/redis
+              tag: 8@sha256:234c902a2db49461a129e2d4aeff85b28cf20187ed274a67f6e50995fa713c7b
+            args:
+              - redis-server
+              - --appendonly
+              - "yes"
+            probes:
+              liveness: &redisProbes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 6379
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+                  failureThreshold: 3
+              readiness: *redisProbes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: tubearchivist
+        ports:
+          http:
+            port: *port
+      elasticsearch:
+        controller: elasticsearch
+        ports:
+          http:
+            port: 9200
+      redis:
+        controller: redis
+        ports:
+          tcp:
+            port: 6379
+
+    route:
+      app:
+        hostnames:
+          - tubearchivist.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: *port
+
+    persistence:
+      # TEMPORARY test volume — to be removed and repointed at NAS-backed
+      # storage once that is available.
+      media:
+        suffix: media
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        advancedMounts:
+          tubearchivist:
+            app:
+              - path: /youtube
+      cache:
+        suffix: cache
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        advancedMounts:
+          tubearchivist:
+            app:
+              - path: /cache
+      es-data:
+        suffix: es-data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "15Gi"
+        advancedMounts:
+          elasticsearch:
+            app:
+              - path: /usr/share/elasticsearch/data
+      redis-data:
+        suffix: redis-data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        advancedMounts:
+          redis:
+            app:
+              - path: /data
