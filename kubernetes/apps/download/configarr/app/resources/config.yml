@@ -29,7 +29,7 @@ sonarr:
             use_ssl: false
             url_base: /
             api_key: !env SABNZBD_API_KEY
-            tv_category: tv-sonarr
+            tv_category: tv
       update_password: true
 
 radarr:
@@ -61,7 +61,7 @@ radarr:
             use_ssl: false
             url_base: /
             api_key: !env SABNZBD_API_KEY
-            movie_category: radarr
+            movie_category: movies
       update_password: true
 
 lidarr:
@@ -93,5 +93,5 @@ lidarr:
             use_ssl: false
             url_base: /
             api_key: !env SABNZBD_API_KEY
-            music_category: lidarr
+            music_category: audio
       update_password: true
