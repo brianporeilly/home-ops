@@ -93,8 +93,8 @@ spec:
         type: secret
         name: copyparty-secret
         globalMounts:
-          - path: /cfg/config.json
-            subPath: config.json
+          - path: /cfg/config.conf
+            subPath: config.conf
             readOnly: true
       tmp:
         type: emptyDir
