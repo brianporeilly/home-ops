@@ -88,6 +88,14 @@ spec:
         size: "5Gi"
         globalMounts:
           - path: /w
+      config:
+        enabled: true
+        type: secret
+        name: copyparty-secret
+        globalMounts:
+          - path: /cfg/config.conf
+            subPath: config.conf
+            readOnly: true
       tmp:
         type: emptyDir
         advancedMounts:
