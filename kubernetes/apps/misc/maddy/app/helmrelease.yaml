@@ -1,0 +1,111 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: maddy
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: maddy
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      maddy:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/foxcpp/maddy
+              tag: 0.9.5@sha256:de42151adff6388edb5e4ee88f60334fa1ab85e309485193ecb1c2db20203315
+            # Entrypoint is `/bin/maddy -config /data/maddy.conf run`; do not
+            # override command/args — the config path is baked into the image.
+            env:
+              MADDY_HOSTNAME: relay.internal.oreillys.io
+              MADDY_DOMAIN: oreillys.io
+            envFrom:
+              - secretRef:
+                  name: maddy-secret
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              runAsGroup: 65534
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+                add:
+                  # Bind the privileged SMTP port 25 as a non-root user.
+                  - NET_BIND_SERVICE
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 25
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  tcpSocket:
+                    port: 25
+                  failureThreshold: 30
+                  periodSeconds: 5
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: maddy
+        ports:
+          smtp:
+            port: 25
+            targetPort: 25
+            protocol: TCP
+
+    persistence:
+      # maddy state_dir (outbound queue) — must survive restarts.
+      data:
+        suffix: data
+        storageClass: ceph-block
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        globalMounts:
+          - path: /data
+      # Rendered maddy.conf from the configMapGenerator in kustomization.yaml.
+      config-file:
+        type: configMap
+        name: maddy-configmap
+        globalMounts:
+          - path: /data/maddy.conf
+            subPath: maddy.conf
+            readOnly: true
+      # runtime_dir on tmpfs so root filesystem can stay read-only.
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
