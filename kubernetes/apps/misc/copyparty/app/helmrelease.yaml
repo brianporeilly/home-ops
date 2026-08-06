@@ -1,0 +1,99 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: copyparty
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: copyparty
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      copyparty:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/9001/copyparty-ac
+              tag: 1.20.20
+            env:
+              LD_PRELOAD: /usr/lib/libmimalloc-secure.so.2
+              PYTHONUNBUFFERED: 1
+            envFrom:
+              - secretRef:
+                  name: copyparty-secret
+            probes: &probes
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /?reset=/._
+                    port: &port 3923
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /?reset=/._
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  failureThreshold: 3
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 256Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        hostnames:
+          - copyparty.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+    persistence:
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        globalMounts:
+          - path: /w
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          microbin:
+            app:
+              - path: /tmp
