@@ -11,12 +11,19 @@ Devices:
 
 ---
 
-## Status as of 2026-07-19 — start here for a fresh session
+## Status as of 2026-08-01 — start here for a fresh session
 
-The three pillars below (SNMP, syslog, goflow2 NetFlow) are **all done and
-merged**. A fourth pillar not in the original plan — **Akvorado**, a
-purpose-built NetFlow analyzer — was added afterward and is also done and
-merged, running alongside goflow2.
+SNMP, syslog, and **Akvorado** NetFlow are all done, merged, and confirmed
+working. **goflow2 has been retired** (removed from git) — Akvorado is now the
+sole NetFlow collector, on `10.20.250.6`. (The goflow2 how-to sections further
+down are kept as historical reference only.)
+
+**Akvorado confirmed working end-to-end (2026-08):** flows land in ClickHouse
+with the correct exporter IPs — both OPNsense (`10.2.0.1`, the larger source)
+and MikroTik (`10.10.0.1`). Getting there took
+fixing three non-obvious bugs during the cluster rebuild — see the debugging
+notes below (kube-vip LB-IP annotation typo, missing ClickHouse database,
+inlet traffic policy). Related memories: `akvorado-clickhouse-database-missing`.
 
 ### Done
 - **SNMP** (Pillar 1): metrics flowing for OPNsense + primary MikroTik switch,
@@ -37,10 +44,8 @@ merged, running alongside goflow2.
   switched to disk-backed chunk buffering (was memory-only, caused dropped
   logs on a Loki restart), Prometheus bumped to 2 replicas, Loki
   `max_query_series` raised (500 → 5000, was blocking per-host queries).
-- **Akvorado** (new 4th pillar): full NetFlow analyzer with GeoIP/ASN/SNMP
-  enrichment and its own UI, run **alongside** goflow2 (not replacing it —
-  intent is to retire goflow2 once Akvorado is proven out, deliberately not
-  done yet). New infra this required:
+- **Akvorado** (now the sole NetFlow collector — goflow2 retired): full NetFlow
+  analyzer with GeoIP/ASN/SNMP enrichment and its own UI. New infra this required:
   - `kubernetes/apps/data/` (new top-level category) — Redpanda Operator +
     single-broker `Redpanda` CR, positioned as a **shared/reusable**
     Kafka-compatible bus, not Akvorado-exclusive. TLS disabled (internal-only
@@ -92,22 +97,34 @@ the order hit — useful if something regresses or this gets redeployed fresh:
    orchestrator/outlet were **temporarily removed** (commit in PR #186) since
    the non-zero exit on a 429 was blocking pod readiness even after every
    other bug was fixed. `geoip.optional: true` means Akvorado runs fine
-   without them. **Re-add once the quota resets** (roughly 24h from
-   2026-07-19 ~22:00 UTC) — restore the `geoipupdate` container blocks and
-   their `persistence.geoip-*.advancedMounts.*.geoipupdate` entries that were
-   removed from `helmrelease.yaml`.
+   without them. **(Since re-added** once the quota reset — the `geoipupdate`
+   container blocks and their `persistence.geoip-*.advancedMounts.*.geoipupdate`
+   entries are back in `helmrelease.yaml`.**)**
+10. **kube-vip LB-IP annotation typo (2026-08).** The inlet-flows Service (and
+    every LB service) used `kubevip.io/loadbalancerIPs` — the real key is
+    `kube-vip.io/loadbalancerIPs` (hyphen). kube-vip ignored the mis-keyed value
+    and assigned the first *free* IP; the inlet ended up on `.5` (goflow2's freed
+    address) instead of `.6`, so device exports to `.6` hit no listener. Fixed
+    repo-wide (PR #290). `spec.loadBalancerIP` is immutable, so the Service had
+    to be deleted + recreated to actually move to `.6`.
+11. **ClickHouse `akvorado` database is NOT auto-created.** The orchestrator
+    manages the schema (tables/views) but never issues `CREATE DATABASE`; on a
+    fresh cluster / DB wipe it crashloops `Database akvorado does not exist` and
+    never recovers (verified by dropping it). Fixed with an idempotent
+    orchestrator initContainer that runs `CREATE DATABASE IF NOT EXISTS akvorado`
+    via the ClickHouse HTTP interface before the app starts. See
+    `akvorado-clickhouse-database-missing` memory.
+12. **Inlet needs `externalTrafficPolicy: Local` (source IP = exporter identity)
+    but that dropped flows with a single Deployment replica** — kube-vip/BGP
+    delivered the `.6` VIP to nodes without the inlet endpoint. Switching to
+    `Cluster` "fixed" delivery but SNATs the source (exporters would all look
+    like cluster nodes). Real fix: run the **inlet as a DaemonSet** so every
+    worker has a local endpoint, keeping `Local` + the correct source IP.
 
 ### Not yet done — pick up here
-- **Device-side: add Akvorado as a second NetFlow export target.** OPNsense
-  and the MikroTik switch are still only exporting to goflow2
-  (`10.20.250.5:2055`). Need to add Akvorado's inlet
-  (`10.20.250.6:2055`) as an additional target on both, per the device
-  commands already in Pillar 3 above (swap the IP).
-- Re-add `geoipupdate` sidecars once MaxMind's quota resets (see above).
-- Haven't yet browsed `akvorado.internal.oreillys.io` to confirm the console
-  UI itself works end-to-end and is showing real flow data — cluster-side
-  health is confirmed (`HelmRelease Ready`, all 4 pods `1/1 Running`), but
-  the actual UI/data-in-ClickHouse hasn't been eyeballed.
+- (NetFlow ingestion is fully working — both OPNsense `10.2.0.1` and MikroTik
+  `10.10.0.1` export to Akvorado's inlet `10.20.250.6:2055` and their flows
+  land in ClickHouse. Nothing outstanding on the collector side.)
 - Second MikroTik switch (`10.10.0.2`) still not provisioned — nothing
   (SNMP/syslog/netflow) covers it yet.
 - MikroTik RouterBOARD firmware is behind (`mtxrFirmwareVersion` 7.18.2 vs
@@ -134,20 +151,6 @@ the order hit — useful if something regresses or this gets redeployed fresh:
 - **DIY hostname/GeoIP enrichment on goflow2's own dashboards** — this is what
   prompted evaluating Akvorado in the first place; superseded by just running
   a purpose-built tool instead of hand-building the enrichment.
-
----
-
-## Current state (found while scoping this)
-
-`kubernetes/apps/observability/snmp-exporter/` already exists on this branch but
-is incomplete and has two copy/paste bugs from `smartctl-exporter`:
-
-- `app/secret.yaml` contains the **grafana-admin-secret** (wrong secret, unrelated to SNMP)
-- `app/prometheusrule.yaml` contains **smartctl alert rules**, not SNMP ones
-- The app's `ks.yaml` is **not referenced** in `kubernetes/apps/observability/kustomization.yaml`, so Flux isn't reconciling it at all yet
-- `helmrelease.yaml` has one target wired up (`opnsense` / `10.2.0.1` / module `if_mib` / auth `public_v2`) — auth `public_v2` means SNMPv2c with community string `public`, the well-known default. Should be changed before exposing this to real devices.
-
-These need to be cleaned up as step zero regardless of the rest of this plan.
 
 ---
 

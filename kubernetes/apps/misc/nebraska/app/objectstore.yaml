@@ -1,0 +1,23 @@
+---
+# Barman Cloud Plugin backup target (Ceph RGW S3). Credentials come from the
+# ObjectBucketClaim secret (obc.yaml). See docs/backup-dr-plan.md.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: nebraska-postgres-backup
+spec:
+  retentionPolicy: 14d
+  configuration:
+    destinationPath: s3://cnpg-nebraska/
+    endpointURL: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc
+    s3Credentials:
+      accessKeyId:
+        name: nebraska-postgres-backup
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: nebraska-postgres-backup
+        key: AWS_SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip

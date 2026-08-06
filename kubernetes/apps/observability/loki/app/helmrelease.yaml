@@ -33,7 +33,10 @@ spec:
         replication_factor: 1
       compactor:
         working_directory: /var/loki/compactor/retention
-        delete_request_store: filesystem
+        # Must match the object store (s3): with the filesystem object store gone,
+        # delete_request_store:filesystem has no directory and fails to persist its
+        # boltdb ("mkdir index: read-only file system"). Keep delete requests in RGW.
+        delete_request_store: s3
         retention_enabled: true
       ingester:
         chunk_encoding: snappy
@@ -46,13 +49,30 @@ spec:
         grpc_server_max_recv_msg_size: 10485760 # 10 MiB
         grpc_server_max_send_msg_size: 10485760 # 10 MiB
         log_level: info
+      # Chunks + shipped tsdb index live in the Ceph RGW `loki` bucket (S3).
+      # Clean break from the old filesystem store — pre-switch chunks on the PVC
+      # are no longer queryable, but 14d retention ages them out. Credentials come
+      # from the loki-bucket OBC Secret via env expansion (see singleBinary below).
+      # RGW shares fate with Ceph; this is durable chunk storage + retention, not
+      # off-Ceph DR. See docs/backup-dr-plan.md §4.
       storage:
-        type: filesystem
+        type: s3
+        bucketNames:
+          chunks: loki
+          ruler: loki
+          admin: loki
+        s3:
+          endpoint: rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+          region: us-east-1
+          accessKeyId: ${AWS_ACCESS_KEY_ID}
+          secretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+          s3ForcePathStyle: true
+          insecure: true # plain-HTTP in-cluster RGW endpoint
       schemaConfig:
         configs:
           - from: "2024-04-01" # quote
             store: tsdb
-            object_store: filesystem
+            object_store: s3
             schema: v13
             index:
               prefix: loki_index_
@@ -67,8 +87,58 @@ spec:
             local:
               directory: /rules
           rule_path: /rules/fake
+    monitoring:
+      # Scrape Loki's own metrics (loki_s3_*, ingester, compactor, etc.) into
+      # Prometheus. metricsInstance is the deprecated Grafana-Agent CR path and
+      # must be disabled or it templates a MetricsInstance CRD we don't have.
+      serviceMonitor:
+        enabled: true
+        metricsInstance:
+          enabled: false
+      # Loki mixin Grafana dashboards. The sidecar discovers the ConfigMap by
+      # its grafana_dashboard label; the dashboards use a templated `datasource`
+      # var (resolves to the default Prometheus DS) and a `logs` var (our Loki
+      # DS) — no ${DS_PROMETHEUS}/__inputs, so they load clean. They filter by
+      # cluster/namespace; we have no cluster label so that dropdown is empty,
+      # but cluster=~"$cluster" degrades to =~"" which matches our series.
+      dashboards:
+        enabled: true
+      # Recording rules (18, grouped by job/route/namespace — all labels we have)
+      # + alerting rules. Prometheus selects them via ruleSelectorNilUsesHelmValues=false.
+      # LokiCanaryLatency is now meaningful (canary enabled below). The chart ships
+      # no data-loss alert, so add one on the canary's missing-entries counter —
+      # the whole point of running the canary (write→flush→S3→read verification).
+      rules:
+        enabled: true
+        additionalGroups:
+          - name: loki-canary-dataloss
+            rules:
+              - alert: LokiCanaryMissingEntries
+                # The canary writes log lines then reads them back; a non-zero
+                # missing count = entries that never became queryable, i.e. real
+                # ingest→store→query data loss. Expected to blip during Loki
+                # restarts (those writes genuinely were lost); the 15m `for`
+                # rides over a single reconcile.
+                expr: |
+                  sum(increase(loki_canary_missing_entries_total[15m])) > 0
+                for: 15m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "Loki canary detected missing log entries"
+                  description: >-
+                    The Loki canary wrote log lines that were not returned on
+                    read-back in the last 15m — Loki's ingest→object-store→query
+                    path is dropping data.
     singleBinary:
       replicas: 1
+      # -config.expand-env lets the S3 storage config above read the RGW
+      # credentials from the loki-bucket OBC Secret as ${AWS_*} env vars.
+      extraArgs:
+        - "-config.expand-env=true"
+      extraEnvFrom:
+        - secretRef:
+            name: loki-bucket
       persistence:
         enabled: true
         storageClass: ceph-block
@@ -86,13 +156,24 @@ spec:
     resultsCache:
       enabled: false
     lokiCanary:
-      enabled: false
+      # End-to-end probe: writes log lines and reads them back, exposing
+      # loki_canary_* (latency + missing/spot-check entries) — the only true
+      # write→flush→S3→read signal, valuable now chunks live in RGW.
+      enabled: true
+      # Single Deployment, not the default per-node DaemonSet: SingleBinary with
+      # replication_factor 1 is one ingest path, so per-node canaries add pods +
+      # streams for no extra coverage.
+      kind: Deployment
+      push: true
+      # The default target is loki-gateway, which we run at 0 replicas (no
+      # endpoints) — point directly at the loki service instead.
+      lokiurl: loki.observability.svc.cluster.local:3100
     test:
       enabled: false
     sidecar:
       image:
         repository: ghcr.io/home-operations/k8s-sidecar
-        tag: 2.8.1@sha256:4412aa14803b57733cbe791b9f15bccaf44dcd4bb654de6f64b838d4f7c1058f
+        tag: 2.10.1@sha256:9d9338eba4dbf0ae8151e772ef96d3806d56115acf5521d615e31694e046fe47
       enableUniqueFilenames: true
       rules:
         searchNamespace: ALL

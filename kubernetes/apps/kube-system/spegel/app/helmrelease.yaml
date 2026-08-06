@@ -20,10 +20,10 @@ spec:
     serviceMonitor:
       enabled: true
     grafanaDashboard:
-      enabled: true
-      mode: Sidecar
-      labels:
-        grafana_dashboard: "1"
+      # Chart dashboard hardcodes ${DS_PROMETHEUS} (an export input the sidecar
+      # can't bind), so panels + $pod/$registry vars error out. We ship a
+      # corrected copy in ./dashboard.yaml instead.
+      enabled: false
     spegel:
       containerdSock: /run/containerd/containerd.sock
       containerdRegistryConfigPath: /etc/containerd/certs.d

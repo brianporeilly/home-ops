@@ -47,6 +47,11 @@ spec:
                     secretKeyRef:
                       name: lidarr-secret
                       key: LIDARR__AUTH__APIKEY
+                - name: LAZYLIBRARIAN_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: prowlarr-bootstrap-creds
+                      key: LAZYLIBRARIAN_API_KEY
                 - name: NZBPLANET_API_KEY
                   valueFrom:
                     secretKeyRef:

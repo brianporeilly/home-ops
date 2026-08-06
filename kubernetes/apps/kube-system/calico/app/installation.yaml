@@ -16,8 +16,14 @@ spec:
         encapsulation: VXLANCrossSubnet
         natOutgoing: Enabled
         nodeSelector: all()
+    # Use the node's Kubernetes InternalIP (the kubelet node IP) rather than
+    # "first-found": on nodes currently holding kube-vip VIPs (10.20.250.0/24
+    # LoadBalancer VIPs, 10.20.254.100 control-plane VIP) bound to the primary
+    # NIC, first-found can select a VIP as the node's Calico address, which
+    # mis-sources BGP and leaves BIRD sessions stuck in Connect (cluster-wide
+    # pod-network partition after such a node reboots).
     nodeAddressAutodetectionV4:
-      firstFound: true
+      kubernetes: NodeInternalIP
     linuxDataplane: Iptables
   cni:
     type: Calico

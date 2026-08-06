@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/samtv12345/podfetch
-              tag: v5.2.2@sha256:550e6e229165867adadb557c193e3b5416fad11bf2837b84088e89aa749a9933
+              tag: v5.2.2@sha256:98d9306f6cfdf16bfbf3492fa915af2ce0bad3e19bc1d39d6d9d7dfe84604f41
             env:
               PORT: &port 8000
               POLLING_INTERVAL: 300
@@ -89,7 +89,7 @@ spec:
     persistence:
       db:
         suffix: db
-        storageClass: "ceph-block"
+        storageClass: "ceph-block-ssd"
         accessMode: ReadWriteOnce
         size: "1Gi"
         globalMounts:

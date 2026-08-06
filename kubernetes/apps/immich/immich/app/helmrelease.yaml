@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-server
-              tag: v3.0.3@sha256:118946756b2274f741be9d301428401be8716024c407b019cd424fa1e6f518e6
+              tag: v3.1.0@sha256:079cc990b26a88d71f96027341c67329cb11829d4c341ce33b3718fe0f84cbfa
             env:
               DB_HOSTNAME: immich-postgres-rw
               DB_PORT: "5432"
@@ -80,7 +80,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v3.0.3@sha256:fbb2485a6ec1877697d003a7d81d445bd8aea3248a866aa1c3d75b9e134787d0
+              tag: v3.1.0@sha256:a25ddad7d6d2ab18a161176731dc171bb7e39c0e9dd3884fb1ec629dab535d05
             env:
               TRANSFORMERS_CACHE: /cache
               MACHINE_LEARNING_CACHE_FOLDER: /cache
@@ -107,7 +107,7 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 9.1-alpine@sha256:1da6597cc08f09748b05f7a845492581c9442ea240be8e7bbfeb5f83ad1bcec8
+              tag: 9.1-alpine@sha256:3fe38a705227d29534a199e876b38d5474dec4d3baca980ac6894df539416562
             args:
               - valkey-server
               - --appendonly
@@ -163,11 +163,17 @@ spec:
                 port: 2283
 
     persistence:
+      # retain the media volume across helm uninstall/remediation. Without this,
+      # a failed install (retries: -1) uninstalls the release and DELETES this
+      # PVC, while the CNPG Postgres DB persists — the empty new volume then
+      # fails immich's folder-integrity check (DB says folders are initialized,
+      # disk has no .immich markers) and the release crash-loops forever.
       data:
         suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "100Gi"
+        retain: true
         advancedMounts:
           server:
             app:

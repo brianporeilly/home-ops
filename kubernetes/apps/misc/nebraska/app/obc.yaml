@@ -1,0 +1,11 @@
+---
+# Bucket + S3 credentials for this cluster's Barman backups (Ceph RGW).
+# Provisions bucket `cnpg-nebraska` and a Secret/ConfigMap named
+# `nebraska-postgres-backup` (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: nebraska-postgres-backup
+spec:
+  bucketName: cnpg-nebraska
+  storageClassName: ceph-bucket

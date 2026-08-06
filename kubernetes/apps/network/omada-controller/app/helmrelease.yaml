@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: mbentley/omada-controller
-              tag: 6.2.14.11@sha256:f2d3e1ed41e68b6cf81225f27bf6f7f2f4ca8c512b9ac7727aeef51358bf5db9
+              tag: 6.2.14.11@sha256:d281c115461bd5969e6e1864483e7bf57ca966bddde69d6a3b9a770f3289e273
             env:
               MANAGE_HTTP_PORT: "8088"
               MANAGE_HTTPS_PORT: "8043"
@@ -63,7 +63,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kubevip.io/loadbalancerIPs: "10.20.250.3"
+          kube-vip.io/loadbalancerIPs: "10.20.250.3"
         ipFamilies: [ IPv4 ]
         ipFamilyPolicy: PreferDualStack
         ports:

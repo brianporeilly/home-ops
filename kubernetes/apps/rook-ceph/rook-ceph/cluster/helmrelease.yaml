@@ -24,14 +24,26 @@ spec:
       enabled: true
       createPrometheusRules: true
       prometheusRuleOverrides:
-        CephPoolGrowthWarning:
-          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
         # Bare predict_linear on host filesystems with no usage threshold and
         # for: 0s — fires on any transient 2d dip (image pulls, pod churn).
         # kube-prometheus-stack's NodeFilesystemSpaceFillingUp covers host
         # disks properly (usage gate + prediction + 1h duration).
         CephNodeDiskspaceWarning:
           disabled: true
+        CephNodeNetworkPacketDrops:
+          expr: |
+            (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) / (
+              rate(node_network_receive_packets_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_packets_total{device!="lo"}[10m])
+            ) >= 0.005 and (
+              rate(node_network_receive_drop_total{device!="lo"}[10m]) +
+              rate(node_network_transmit_drop_total{device!="lo"}[10m])
+            ) >= 100
+        CephPoolGrowthWarning:
+          expr: max by (pool_id) (predict_linear(ceph_pool_percent_used[2d], 3600 * 24 * 5)) * on(pool_id) group_right() ceph_pool_metadata >= 95
     route:
       dashboard:
         host:
@@ -48,8 +60,27 @@ spec:
         global:
           bdev_enable_discard: "true" # quote
           bdev_async_discard_threads: "1" # quote
-          osd_class_update_on_start: "false" # quote
+          osd_class_update_on_start: "true" # quote; auto-class new OSDs by media (hdd/ssd) for device-class pools
           device_failure_prediction_mode: local # requires mgr module
+        osd:
+          # The old WD Green / SMR HDDs top out at ~250 IOPS, so BlueStore
+          # observes the occasional slow read. The default warn threshold of 1
+          # slow op + a 24h (86400s) lifetime turns that into a permanent
+          # HEALTH_WARN (BLUESTORE_SLOW_OP_ALERT). While these disks stay in
+          # service for bulk capacity, relax it: warn only on a sustained
+          # handful, and let it clear within the hour.
+          bluestore_slow_ops_warn_threshold: "5" # quote (default 1)
+          bluestore_slow_ops_warn_lifetime: "3600" # quote (default 86400 = 24h)
+          # Prioritise client I/O over recovery/backfill/scrub so latency stays
+          # smooth on the ~250 IOPS HDDs. Trade-off: backfill (e.g. during the
+          # future SSD-DB migration) runs slower - fine for a homelab.
+          osd_mclock_profile: high_client_ops # was 'balanced'
+          # Deep scrubs are a major slow-op source on spinning disks. Stretch
+          # the interval and confine scrubs to an off-peak window; 81 PGs /
+          # ~66 GiB scrub comfortably inside a nightly window.
+          osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
+          osd_scrub_begin_hour: "1" # quote, 01:00 local
+          osd_scrub_end_hour: "6" # quote, 06:00 local
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:
@@ -83,15 +114,55 @@ spec:
         useAllDevices: true
 
     cephBlockPools:
+      # Bulk / default tier — pinned to the HDD device class so spinning disks
+      # carry general-purpose PVCs and the SSD OSDs stay reserved for the fast
+      # pool below. failureDomain host + size 3 = one copy per HDD host.
       - name: ceph-blockpool
         spec:
           failureDomain: host
+          deviceClass: hdd
           replicated:
             size: 3
         storageClass:
           enabled: true
           name: ceph-block
           isDefault: true
+          reclaimPolicy: Delete
+          allowVolumeExpansion: true
+          volumeBindingMode: Immediate
+          mountOptions:
+            - discard
+          parameters:
+            compression_mode: aggressive
+            compression_algorithm: zstd
+            imageFormat: "2"
+            imageFeatures: layering,fast-diff,object-map,deep-flatten,exclusive-lock
+            csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+            csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+            csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+            csi.storage.k8s.io/fstype: ext4
+      # Fast tier — SSD device class for latency-sensitive PVCs (databases).
+      # Only 2 SSD hosts exist today (wk-jonas, wk-severian), so this pool runs
+      # size 2 until the 3rd SSD OSD (WD Blue -> wk-drotte) lands, then bump to
+      # size 3. See docs/disk-hardware-plan.md §2. min_size 2 = no single-copy
+      # writes; trade-off is a single SSD-host reboot pauses writes to this pool
+      # (acceptable: the DBs here replicate at the app layer across instances).
+      - name: ceph-blockpool-ssd
+        spec:
+          failureDomain: host
+          deviceClass: ssd
+          replicated:
+            size: 2
+            requireSafeReplicaSize: true
+          parameters:
+            min_size: "2"
+        storageClass:
+          enabled: true
+          name: ceph-block-ssd
+          isDefault: false
           reclaimPolicy: Delete
           allowVolumeExpansion: true
           volumeBindingMode: Immediate
@@ -128,9 +199,11 @@ spec:
           dataPools:
             - failureDomain: host
               name: data0
+              deviceClass: hdd
               replicated:
                 size: 3
           metadataPool:
+            deviceClass: hdd
             replicated:
               size: 3
           metadataServer:
@@ -143,4 +216,40 @@ spec:
       isDefault: false
       deletionPolicy: Delete
 
-    cephObjectStores: []
+    # S3-compatible object store (RGW) — the in-cluster backup target for CNPG
+    # Barman / MariaDB-native backups (and later Loki chunk storage). Pools are
+    # HDD-backed (bulk backup data belongs on spinning disk, not the SSD tier)
+    # and size 3 across the 3 HDD hosts. See docs/backup-dr-plan.md.
+    # NOTE: RGW lives on Ceph, so it shares fate with the cluster it backs up —
+    # it serves fast same-cluster restores/PITR; the durable DR copies must be
+    # synced off-Ceph (NAS + off-site) per the plan.
+    cephObjectStores:
+      - name: ceph-objectstore
+        spec:
+          metadataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          dataPool:
+            failureDomain: host
+            deviceClass: hdd
+            replicated:
+              size: 3
+          preservePoolsOnDelete: true
+          gateway:
+            port: 80
+            instances: 1
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+        storageClass:
+          enabled: true
+          name: ceph-bucket
+          reclaimPolicy: Retain
+          volumeBindingMode: Immediate
+          parameters:
+            region: us-east-1

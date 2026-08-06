@@ -18,6 +18,8 @@ spec:
       namespace: download
     - name: lidarr
       namespace: download
+    - name: lazylibrarian
+      namespace: download
   interval: 1h
   path: ./kubernetes/apps/download/prowlarr/bootstrap/app
   prune: true

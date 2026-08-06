@@ -1,0 +1,84 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-vip-cp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-vip
+      version: 0.11.0
+      sourceRef:
+        kind: HelmRepository
+        name: kube-vip
+      interval: 5m
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    # Don't gate the reconcile on the DaemonSet rollout: kube-vip is network-critical
+    # and a NotReady node would wedge the upgrade (timeout -> rollback -> Stalled),
+    # blocking the very component that fixes API VIP connectivity. Apply and let the
+    # DaemonSet roll in the background.
+    disableWait: true
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    nameOverride: "kube-vip-cp"
+    config:
+      address: "10.20.254.100"
+    # Control-plane API VIP only: pinned to control-plane nodes and leader-elected,
+    # so exactly one node ever binds/advertises 10.20.254.100. The all-node
+    # `kube-vip` release (svc_enable) handles LoadBalancer service VIPs.
+    priorityClassName: system-cluster-critical
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+      # Keep the API VIP advertised while a control-plane node is flapping: once
+      # the lifecycle controller taints a NotReady node with
+      # node.kubernetes.io/unreachable:NoSchedule, the DaemonSet controller
+      # excludes it (desired=0) and deletes its kube-vip-cp pod -> VIP goes dark
+      # exactly when you need it. Leader election (vip_leaderelection) still
+      # guarantees only one instance binds the VIP.
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/unschedulable
+        operator: Exists
+        effect: NoSchedule
+    env:
+      cp_enable: "true"
+      cp_namespace: "kube-system"
+      svc_enable: "false"
+      svc_election: "false"
+      vip_leaderelection: "true"
+      # IPVS load balancing is disabled: with a DR-style VIP, only the leader's
+      # own apiserver can serve VIP connections (remote backends don't have the
+      # VIP bound, so DR-forwarded SYNs loop back to the leader and stall in
+      # SYN_RECV, flooding conntrack with invalid entries). Bind the VIP directly
+      # and let the leader's apiserver (listening on *:6443) answer; this is the
+      # same mechanism the manual bootstrap pod used to recover the cluster.
+      lb_enable: "false"
+      vip_arp: "false"
+      vip_ddns: "false"
+      vip_interface: ""
+      vip_subnet: "32"
+      bgp_enable: "true"
+      bgp_as: "65001"
+      bgp_peeraddress: "10.20.0.1"
+      bgp_peeras: "65000"
+      bgp_holdtimer: "30"
+      bgp_keepalive: "10"
+    envValueFrom:
+      bgp_routerid:
+        fieldRef:
+          fieldPath: status.podIP
