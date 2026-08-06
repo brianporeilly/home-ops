@@ -53,7 +53,7 @@ spec:
       lb_enable: "false"
       vip_arp: "false"
       vip_ddns: "false"
-      vip_interface: ""
+      vip_interface: "eth0"
       # /32 host routes (correct for BGP mode). "16" bound each VIP as a /16 on
       # the node NIC, so the node holding the VIPs picked a VIP as its source IP
       # for all 10.20.0.0/16 egress - which blackholed Calico node-mesh BGP and
