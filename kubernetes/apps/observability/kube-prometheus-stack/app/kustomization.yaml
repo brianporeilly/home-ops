@@ -13,3 +13,5 @@ resources:
   - ./kured-prometheusrules.yaml
   - ./prometheusrule-volumes.yaml
   - ./backup-prometheusrules.yaml
+  - ./nas-scrapeconfig.yaml
+  - ./nas-prometheusrules.yaml
