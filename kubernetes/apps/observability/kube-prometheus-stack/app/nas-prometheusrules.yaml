@@ -1,0 +1,31 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nas-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    - name: nas
+      rules:
+        # nas-ultan isn't a cluster member, so kured never sees or acts on
+        # this - it's flatcar-ignition's reboot-required-check.sh (03-nas-node.yaml)
+        # writing node_reboot_required via the node_exporter textfile collector.
+        # Reboot is a manual scale-down/reboot/scale-up (see flatcar-ignition repo).
+        - alert: NASRebootRequired
+          annotations:
+            summary: "{{ $labels.instance }} has a pending update requiring reboot"
+            description: >-
+              node_reboot_required is 1 on {{ $labels.instance }}. This node
+              isn't part of the k8s cluster, so nothing reboots it
+              automatically - run the scale-down/reboot/scale-up scripts in
+              the flatcar-ignition repo.
+          expr: |
+            node_reboot_required{instance="nas-ultan"} == 1
+          for: 1h
+          labels:
+            severity: warning

@@ -136,6 +136,17 @@ spec:
       # credentials from the loki-bucket OBC Secret as ${AWS_*} env vars.
       extraArgs:
         - "-config.expand-env=true"
+      # Exposes the same `loki` Service (still gets its ClusterIP too - this
+      # only adds an external IP) so nas-ultan's Alloy agent can push journal
+      # logs in from outside the cluster (see flatcar-ignition repo). Same
+      # kube-vip LB-IP technique fluent-bit already uses for external syslog
+      # input. NB: auth_enabled is false, so this puts Loki's full push+query
+      # HTTP API on the LAN at 10.20.250.5:3100, same trust model as the rest
+      # of 10.20.250.0/24 - not scoped down to push-only.
+      service:
+        type: LoadBalancer
+        annotations:
+          kube-vip.io/loadbalancerIPs: "10.20.250.5"
       extraEnvFrom:
         - secretRef:
             name: loki-bucket
