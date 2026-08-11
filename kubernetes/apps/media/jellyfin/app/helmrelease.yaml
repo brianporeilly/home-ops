@@ -96,11 +96,12 @@ spec:
         size: "5Gi"
         globalMounts:
           - path: /config/metadata
+      # NAS static NFS mount - whole export, matches library layout
+      # (tv/movies/music) directly.
       media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media
         globalMounts:
           - path: /media
       tmpfs:

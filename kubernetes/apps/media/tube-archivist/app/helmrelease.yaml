@@ -218,13 +218,11 @@ spec:
                 port: *port
 
     persistence:
-      # TEMPORARY test volume — to be removed and repointed at NAS-backed
-      # storage once that is available.
+      # NAS static NFS mount - dedicated youtube export subdirectory.
       media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "50Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/youtube
         advancedMounts:
           tubearchivist:
             app:
