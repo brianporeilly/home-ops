@@ -119,6 +119,13 @@ spec:
         path: /media/comics
         globalMounts:
           - path: /books
+      # NAS static NFS mount - dedicated ebooks export subdirectory.
+      ebooks:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/books
+        globalMounts:
+          - path: /ebooks
       bookdrop:
         suffix: bookdrop
         storageClass: "ceph-block"
