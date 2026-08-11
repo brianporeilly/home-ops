@@ -95,18 +95,7 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /metadata
-      # Retained (not deleted) while we pilot the NAS NFS mount below.
-      # Remounted at a harmless path instead of left un-mounted, so the PVC
-      # stays live without relying on undocumented chart behavior. Once the
-      # NFS mount is confirmed good, remove this entry (and the PVC).
-      media-ceph-legacy:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
-        globalMounts:
-          - path: /media-ceph-legacy
-      # NAS static NFS mount pilot. Server exports /media with an
+      # NAS static NFS mount. Server exports /media with an
       # `audiobooks` subdirectory dedicated to this app.
       media:
         type: nfs

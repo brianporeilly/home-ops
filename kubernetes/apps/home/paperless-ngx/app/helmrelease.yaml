@@ -153,11 +153,11 @@ spec:
           paperless-ngx:
             app:
               - path: /usr/src/paperless/data
+      # NAS static NFS mount - dedicated paperless export.
       media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "10Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /paperless
         advancedMounts:
           paperless-ngx:
             app:

@@ -94,11 +94,11 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /app/db
+      # NAS static NFS mount - dedicated podcasts export subdirectory.
       podcasts:
-        suffix: podcasts
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "50Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/podcasts
         globalMounts:
           - path: /app/podcasts
       tmp:
