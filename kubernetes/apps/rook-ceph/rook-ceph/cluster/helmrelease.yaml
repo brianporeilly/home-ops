@@ -145,20 +145,15 @@ spec:
             csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
             csi.storage.k8s.io/fstype: ext4
       # Fast tier — SSD device class for latency-sensitive PVCs (databases).
-      # Only 2 SSD hosts exist today (wk-jonas, wk-severian), so this pool runs
-      # size 2 until the 3rd SSD OSD (WD Blue -> wk-drotte) lands, then bump to
-      # size 3. See docs/disk-hardware-plan.md §2. min_size 2 = no single-copy
-      # writes; trade-off is a single SSD-host reboot pauses writes to this pool
-      # (acceptable: the DBs here replicate at the app layer across instances).
+      # 3 SSD hosts (jonas, severian, drotte) as of the WD Blue -> wk-drotte
+      # OSD. failureDomain host + size 3 = one copy per SSD host, matching the
+      # HDD tier. See docs/disk-hardware-plan.md §2.
       - name: ceph-blockpool-ssd
         spec:
           failureDomain: host
           deviceClass: ssd
           replicated:
-            size: 2
-            requireSafeReplicaSize: true
-          parameters:
-            min_size: "2"
+            size: 3
         storageClass:
           enabled: true
           name: ceph-block-ssd
