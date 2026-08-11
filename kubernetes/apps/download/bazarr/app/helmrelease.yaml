@@ -122,6 +122,14 @@ spec:
               - path: /seed/config.yaml
                 subPath: config.yaml
                 readOnly: true
+      # NAS static NFS mount - whole export, so subtitle files land next to
+      # the tv/movies files Sonarr/Radarr report at matching paths.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmpfs:
         type: emptyDir
         advancedMounts:

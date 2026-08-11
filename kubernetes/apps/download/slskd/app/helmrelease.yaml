@@ -101,8 +101,8 @@ spec:
         data:
           slskd.yml: |-
             directories:
-              downloads: /media/Downloads/soulseek/complete
-              incomplete: /media/Downloads/soulseek/incomplete
+              downloads: /media/downloads/soulseek/complete
+              incomplete: /media/downloads/soulseek/incomplete
             transfers:
               download:
                 destination:
@@ -115,7 +115,7 @@ spec:
                   max_delay: 60000
             shares:
               directories:
-                - /media/Downloads/soulseek/shared
+                - /media/downloads/soulseek/shared
               filters:
                 - \.ini$
                 - Thumbs.db$
@@ -133,11 +133,18 @@ spec:
 #        globalMounts:
 #          - path: /config/slskd.yml
 #            subPath: slskd.yml
-#      media:
-#        type: nfs
-#        server: expanse.internal
-#        path: /mnt/eros/Media
-#        globalMounts:
-#          - path: /media
+      # NAS static NFS mount - soulseek downloads only (incomplete/complete/
+      # shared share this mount so a finished download is an atomic rename).
+      # NOTE: config-file below is still disabled, so slskd.yml's directory
+      # paths aren't actually applied yet - set them to match this mount
+      # (/media/downloads/soulseek/{complete,incomplete,shared}) via the
+      # slskd UI, or enable config-file once you've confirmed it won't
+      # clobber any settings you've configured live.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/downloads/soulseek
+        globalMounts:
+          - path: /media/downloads/soulseek
       tmp:
         type: emptyDir
