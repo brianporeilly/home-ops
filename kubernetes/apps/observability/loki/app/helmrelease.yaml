@@ -145,11 +145,14 @@ spec:
       # non-cluster hosts' own local /16, which made it unreachable via ARP
       # for a genuinely external host like nas-ultan (confirmed live). NB:
       # auth_enabled is false, so this puts Loki's full push+query HTTP API
-      # on the LAN at 10.21.0.1:3100 - not scoped down to push-only.
+      # on the LAN at 10.21.0.5:3100 - not scoped down to push-only. .5 to
+      # match Loki's old 10.20.250.5 slot - .1-.4 are reserved for the other
+      # 10.20.250.0/24 services (envoy-gateway x2, omada, fluent-bit) when
+      # they migrate to this pool later.
       service:
         type: LoadBalancer
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.21.0.1"
+          kube-vip.io/loadbalancerIPs: "10.21.0.5"
       extraEnvFrom:
         - secretRef:
             name: loki-bucket
