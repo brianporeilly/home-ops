@@ -6,7 +6,6 @@ namespace: download
 components:
   - ../../components/common
 resources:
-#  - ./nzbget/ks.yaml
   - ./qbittorrent/ks.yaml
   - ./qui/ks.yaml
   - ./qui/bootstrap/ks.yaml
