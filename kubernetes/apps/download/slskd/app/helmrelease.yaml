@@ -79,7 +79,14 @@ spec:
       soulseek:
         type: LoadBalancer
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.12"
+          # Was 10.20.250.12 - migrating to the routed 10.21.0.0/16 pool
+          # (see kube-vip-cloud-provider HelmRelease). HIGH
+          # external-dependency risk: Soulseek needs inbound NAT traversal
+          # to work well - there's almost certainly an OPNsense WAN
+          # port-forward for the soulseek TCP port pinned to the old IP.
+          # Repoint it before merging or slskd effectively goes into
+          # NAT'd/passive mode for peers.
+          kube-vip.io/loadbalancerIPs: "10.21.0.12"
         externalTrafficPolicy: Local
         ports:
           soulseek-tcp:
