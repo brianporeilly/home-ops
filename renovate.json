@@ -1,6 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "github>home-operations/renovate-presets#7.0.0",
+    "github>home-operations/renovate-presets//apps/cnpg.json5#7.0.0",
+    "github>home-operations/renovate-presets//apps/searxng.json5#7.0.0"
+  ],
   "labels": ["dependencies"],
   "flux": {
     "managerFilePatterns": [
@@ -41,9 +45,9 @@
       "automerge": false
     },
     {
-      "description": "Auto-merge patch updates for non-critical dependencies",
+      "description": "Auto-merge patch updates for non-critical dependencies. matchManagers includes 'regex' (not just 'flux') for the customManagers above - both our own kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex, so without this they'd be detected but never auto-merged, unlike everything else at this update level.",
       "matchUpdateTypes": ["patch", "pin", "digest"],
-      "matchManagers": ["flux"],
+      "matchManagers": ["flux", "regex"],
       "automerge": true
     }
   ]
