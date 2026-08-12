@@ -51,7 +51,12 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.11"
+          # Was 10.20.250.11 - migrating to the routed 10.21.0.0/16 pool
+          # (see kube-vip-cloud-provider HelmRelease). Check before merging
+          # for anything pointed at this IP directly rather than through a
+          # hostname/route (e.g. camera go2rtc restream URLs, a Home
+          # Assistant integration configured with the raw IP).
+          kube-vip.io/loadbalancerIPs: "10.21.0.11"
         ports:
           http:
             appProtocol: kubernetes.io/wss
