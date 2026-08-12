@@ -16,6 +16,8 @@ spec:
       namespace: rook-ceph
     - name: postgres-operator
       namespace: database
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/home/home-assistant/app
   prune: true

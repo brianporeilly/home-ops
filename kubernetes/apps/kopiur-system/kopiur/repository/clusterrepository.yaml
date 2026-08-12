@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/clusterrepository_v1alpha1.json
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: ClusterRepository
+metadata:
+  name: nas-backups
+spec:
+  allowedNamespaces:
+    all: true
+  # Inline NFS, not a PVC - kopiur's own docs recommend this for an on-prem
+  # NAS you'd rather name directly than wrap in a PVC. Dedicated export,
+  # separate from the nfs-csi-driver (nfs-slow) export used by forgejo/frigate
+  # and the static NFS export used by media - a single known path, not a
+  # CSI-generated subdirectory.
+  backend:
+    filesystem:
+      path: /repo
+      volume:
+        nfs:
+          server: 10.20.30.11
+          path: /backups
+  encryption:
+    passwordSecretRef:
+      name: kopiur-repository-secret
+      namespace: kopiur-system
+      key: KOPIA_PASSWORD
+  create:
+    enabled: true
+  # /backups on the NAS is already chowned to 1000:1000, which is also the
+  # runAsUser/runAsGroup/fsGroup every app in this cluster uses by convention
+  # (vaultwarden, home-assistant, paperless-ngx, forgejo, etc.) - so movers run
+  # as 1000 to match both the NAS export's ownership and every source PVC's
+  # ownership, no NAS change or per-policy override needed for now. A future
+  # app on a different UID would need its own SnapshotPolicy-level
+  # mover.inheritSecurityContextFrom override (see kopiur's nfs-shared-group
+  # backend example) rather than changing this cluster-wide default.
+  moverDefaults:
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+  maintenance:
+    namespace: kopiur-system
+  scheduleDefaults:
+    timezone: America/Los_Angeles
