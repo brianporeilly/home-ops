@@ -44,4 +44,4 @@ spec:
   maintenance:
     namespace: kopiur-system
   scheduleDefaults:
-    timezone: America/Los_Angeles
+    timezone: UTC
