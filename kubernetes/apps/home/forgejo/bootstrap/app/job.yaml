@@ -47,6 +47,12 @@ spec:
             - --password=$(ADMIN_PASSWORD)
             - --must-change-password=false
           env:
+            # docker-setup.sh only auto-sets this to true when $SECRET_KEY is
+            # non-empty; we don't set one here (throwaway config, DB is all
+            # that matters), so it must be forced explicitly or
+            # MustInstalled() refuses to run any admin command.
+            - name: FORGEJO__security__INSTALL_LOCK
+              value: "true"
             - name: FORGEJO__database__DB_TYPE
               value: postgres
             - name: FORGEJO__database__HOST
