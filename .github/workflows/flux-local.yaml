@@ -112,7 +112,7 @@ jobs:
 
       - name: Post Comment
         if: ${{ steps.diff.outputs.diff != '' }}
-        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           message-id: ${{ github.event.pull_request.number }}/${{ matrix.resource }}
