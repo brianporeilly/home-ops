@@ -21,8 +21,8 @@ spec:
       create: true
       name: nfs-slow
       parameters:
-        server: nas.oreillys.lan
-        share: /hecate/kubernetes
+        server: 10.20.30.11
+        share: /nfs-pvc
       mountOptions:
         - nfsvers=4.2
         - nconnect=16

@@ -13,7 +13,7 @@ resources:
   - ./kube-vip-cloud-provider/ks.yaml
   - ./reloader/ks.yaml
   - ./snapshot-controller/ks.yaml
-  #- ./csi-driver-nfs/ks.yaml
+  - ./csi-driver-nfs/ks.yaml
   - ./calico/ks.yaml
   - ./spegel/ks.yaml
   - ./etcd-backup/ks.yaml
