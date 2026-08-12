@@ -119,15 +119,18 @@ spec:
       # NAS static NFS mount - usenet downloads only (incomplete/complete
       # share this mount so a finished download is an atomic rename, and
       # Sonarr/Radarr can hardlink out of complete/ into the library).
+      # Mounted at the same absolute path Sonarr/Radarr see it at (via their
+      # own whole-/media mount) so no Remote Path Mapping is needed - both
+      # sides agree on the literal path string for the same files.
       # In sabnzbd's own Folders settings, set:
-      #   Temporary Download Folder = /downloads/incomplete
-      #   Completed Download Folder = /downloads/complete
+      #   Temporary Download Folder = /media/downloads/usenet/incomplete
+      #   Completed Download Folder = /media/downloads/usenet/complete
       downloads:
         type: nfs
         server: 10.20.30.11
         path: /media/downloads/usenet
         globalMounts:
-          - path: /downloads
+          - path: /media/downloads/usenet
       tmpfs:
         type: emptyDir
         advancedMounts:
