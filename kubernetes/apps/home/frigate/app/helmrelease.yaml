@@ -90,9 +90,12 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      # Dynamically-provisioned NFS PVC (nfs-csi-driver) - lets Kubernetes own the
+      # recordings volume's lifecycle instead of a hand-managed static export;
+      # space is capped via a quota on the NAS-side parent dataset, not per-PVC.
       media:
         suffix: media
-        storageClass: "ceph-block"
+        storageClass: "nfs-slow"
         accessMode: ReadWriteOnce
         size: "100Gi"
         globalMounts:
