@@ -10,6 +10,11 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: forgejo-bootstrap
+  annotations:
+    # Job's pod template is immutable - without this, a future edit to this
+    # spec (e.g. changing the admin username) would fail to apply instead of
+    # recreating the Job. Lets Flux delete+recreate on conflict instead.
+    kustomize.toolkit.fluxcd.io/force: "true"
 spec:
   backoffLimit: 3
   ttlSecondsAfterFinished: 3600
@@ -27,7 +32,12 @@ spec:
       containers:
         - name: forgejo-bootstrap
           image: codeberg.org/forgejo/forgejo:16.0.2-rootless@sha256:23ccc146e6dc2cd1f5c5435909baae64db873201717f1726490dae649283e6cd
+          # docker-entrypoint.sh just execs "$@" - it only auto-prepends the
+          # `forgejo` binary when the first arg is a bare flag (starts with
+          # `-`). Since `admin` isn't a flag, it must be spelled out here or
+          # the entrypoint tries (and fails) to exec a program named `admin`.
           args:
+            - forgejo
             - admin
             - user
             - create
