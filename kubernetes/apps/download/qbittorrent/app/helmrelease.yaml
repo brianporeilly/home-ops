@@ -127,10 +127,14 @@ spec:
       # NAS static NFS mount - torrent downloads only (incomplete/complete
       # share this mount so a finished torrent is an atomic rename, and
       # Sonarr/Radarr can hardlink out of complete/ into the library).
+      # Mounted at the same absolute path Sonarr/Radarr see it at (via their
+      # own whole-/media mount) so no Remote Path Mapping is needed - both
+      # sides agree on the literal path string for the same files.
       # In qBittorrent's own settings, set:
-      #   Default Save Path = /downloads/complete (with categories enabled
-      #     so per-category subfolders get created automatically)
-      #   Keep incomplete torrents in = /downloads/incomplete
+      #   Default Save Path = /media/downloads/torrents/complete (with
+      #     categories enabled so per-category subfolders get created
+      #     automatically)
+      #   Keep incomplete torrents in = /media/downloads/torrents/incomplete
       #   Disable "Copy .torrent files for finished downloads to" / any
       #     move-on-completion so seeding continues from complete/ in place.
       downloads:
@@ -138,7 +142,7 @@ spec:
         server: 10.20.30.11
         path: /media/downloads/torrents
         globalMounts:
-          - path: /downloads
+          - path: /media/downloads/torrents
       tmp:
         type: emptyDir
         globalMounts:

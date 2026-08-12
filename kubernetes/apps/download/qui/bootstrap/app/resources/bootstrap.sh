@@ -32,7 +32,20 @@ if [ "$LOGIN_STATUS" != "200" ]; then
 fi
 
 echo "Checking for an existing qbittorrent instance..."
-EXISTING="$(curl -s -b "$COOKIES" "$QUI_URL/api/instances" | jq -r --arg host "$QBT_HOST" '.[]? | select(.host==$host) | .id' | head -n1)"
+MATCHES="$(curl -s -b "$COOKIES" "$QUI_URL/api/instances" | jq -r --arg host "$QBT_HOST" '.[]? | select(.host==$host) | .id')"
+EXISTING="$(echo "$MATCHES" | head -n1)"
+
+# A prior bug (one-shot Job manually rerun against a fresh qui DB, before
+# this became a self-healing CronJob) left duplicate instances registered.
+# Clean up any extras beyond the one we're about to sync, so this stays
+# self-healing if it ever happens again.
+DUPLICATES="$(echo "$MATCHES" | tail -n +2)"
+if [ -n "${DUPLICATES:-}" ]; then
+  for dup_id in $DUPLICATES; do
+    echo "Removing duplicate qbittorrent instance (id=$dup_id)..."
+    curl -s -o /dev/null -b "$COOKIES" -X DELETE "$QUI_URL/api/instances/${dup_id}"
+  done
+fi
 
 response_file=$(mktemp)
 if [ -n "${EXISTING:-}" ]; then
