@@ -12,6 +12,8 @@ resources:
   # minecraft: uncomment when ready to play
   # - ./minecraft/ks.yaml
   - ./esphome/ks.yaml
+  - ./forgejo/ks.yaml
+  - ./forgejo/bootstrap/ks.yaml
   - ./frigate/ks.yaml
 # - ./grocy/ks.yaml
   - ./changedetection/ks.yaml
