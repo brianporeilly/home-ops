@@ -4,7 +4,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app forgejo
-  namespace: &namespace home
+  namespace: &namespace misc
 spec:
   commonMetadata:
     labels:
@@ -19,7 +19,7 @@ spec:
     - name: csi-driver-nfs
       namespace: kube-system
   interval: 1h
-  path: ./kubernetes/apps/home/forgejo/app
+  path: ./kubernetes/apps/misc/forgejo/app
   prune: true
   retryInterval: 2m
   sourceRef:
