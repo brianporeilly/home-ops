@@ -45,9 +45,9 @@
       "automerge": false
     },
     {
-      "description": "Auto-merge patch updates for non-critical dependencies. matchManagers includes 'regex' (not just 'flux') for the customManagers above - both our own kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex, so without this they'd be detected but never auto-merged, unlike everything else at this update level.",
+      "description": "Auto-merge patch updates for non-critical dependencies. matchManagers covers three managers, not just 'flux': 'regex' for the customManagers above (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex), and 'kubernetes' because that manager does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what actually catches images embedded in raw CRDs the flux manager doesn't parse (e.g. the ClickHouseInstallation CR, PR #421). Without all three, matching deps get detected but never auto-merged, unlike everything else at this update level.",
       "matchUpdateTypes": ["patch", "pin", "digest"],
-      "matchManagers": ["flux", "regex"],
+      "matchManagers": ["flux", "regex", "kubernetes"],
       "automerge": true
     }
   ]
