@@ -1,12 +1,14 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Partially implemented** (updated 2026-08-02). Companion to `disk-hardware-plan.md`,
+Status: **Partially implemented** (updated 2026-08-12). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
 target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
 snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
-(§5), Loki chunk storage → RGW (§4). **Still open and NAS-gated:** RGW→NAS sync, Volsync/Kopia for
-non-DB PVCs, off-site (§2 L2/L3). **Open, no NAS needed:** confirm the sops age-key backup ×2 (§6,
-owner task), restore runbook + testing (§6). See the checklist in §8 for per-item status.
+(§5), Loki chunk storage → RGW (§4). **In progress:** L2 non-DB PVC backups via `kopiur`
+(Kopia-native operator, §2 L2) — NAS is up and the design is settled, PR open (draft) covering
+vaultwarden + home-assistant as a first wave, not yet merged. **Still open:** off-site from NAS to
+B2 (§2 L3, deliberately deferred until the NAS tier is proven), confirm the sops age-key backup ×2
+(§6, owner task), restore runbook + testing (§6). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -183,9 +185,11 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
 5. ✅ **MariaDB native backup** → RGW. (§1)
-6. ⬜ **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. **NAS-gated.** (§3)
-7. ⬜ **Volsync/Kopia for non-DB PVCs** → NAS. **NAS-gated.** (§2 L2)
-8. ⬜ **Off-site** from NAS (B2/R2). **NAS-gated.** (§2 L3)
+6. ⬜ **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. NAS is up; not started.
+7. 🟡 **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. PR open (draft, first
+   wave vaultwarden + home-assistant), not yet merged. (§2 L2)
+8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Deliberately
+   deferred until item 7's NAS tier is proven, not NAS-gated in the old sense. (§2 L3)
 9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
 10. ✅ **Loki → RGW** storage. (§4)
 11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
@@ -193,8 +197,8 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 12. ⬜ **Restore testing + runbook** — periodic, documented. *(no NAS needed for the runbook)*
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up, no NAS required:** (2) age-key confirmation [owner] and the (12) restore runbook.
-Everything else waits on the NAS.
+**Next up:** (2) age-key confirmation [owner] and (12) restore runbook need no NAS and aren't
+started. (7) is in progress (PR open). (6) and (8) are next once (7) is proven live.
 
 ## 9. Open questions
 - Volsync vs standalone Kopia for L2 (leaning Volsync — ecosystem fit).
