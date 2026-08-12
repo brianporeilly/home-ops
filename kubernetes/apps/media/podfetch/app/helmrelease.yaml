@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/samtv12345/podfetch
-              tag: v5.2.2@sha256:98d9306f6cfdf16bfbf3492fa915af2ce0bad3e19bc1d39d6d9d7dfe84604f41
+              tag: v5.2.3@sha256:6163ec4cdb6083ef1cad3d49ebbdf13757331b5c87273b6a647eddd372a5f196
             env:
               PORT: &port 8000
               POLLING_INTERVAL: 300
@@ -94,11 +94,11 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /app/db
+      # NAS static NFS mount - dedicated podcasts export subdirectory.
       podcasts:
-        suffix: podcasts
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "50Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/podcasts
         globalMounts:
           - path: /app/podcasts
       tmp:

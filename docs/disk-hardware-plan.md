@@ -1,12 +1,14 @@
 # Disk / Storage Hardware Plan
 
-Status: **in progress** (updated 2026-07-30). Source inventory: `disk-inventory` (root of repo).
+Status: **in progress** (updated 2026-08-11). Source inventory: `disk-inventory` (root of repo).
 
-**Done:** 5 OSDs deployed and auto-classed (3× HDD, 2× SSD); Ceph split into device-class
-tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block` (see `ceph-device-class-tiering` memory);
-CephObjectStore/RGW being added as the backup S3 target (`backup-dr-plan.md`).
-**Pending:** WD Blue 3rd SSD OSD (→ bump SSD pool size 2→3), block.db SSDs (roche/eata), etcd
-S3610 PLP swap, `wk-eata` 10GbE NIC, NAS build. Backups (`backup-dr-plan.md`) not yet implemented.
+**Done:** 6 OSDs deployed and auto-classed (3× HDD, 3× SSD); WD Blue landed on `wk-drotte` as
+the 3rd SSD OSD, so `ceph-blockpool-ssd` is back to `size: 3` (no longer running degraded at
+`size: 2`); Ceph split into device-class tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block`
+(see `ceph-device-class-tiering` memory); CephObjectStore/RGW being added as the backup S3
+target (`backup-dr-plan.md`).
+**Pending:** block.db SSDs (roche/eata), etcd S3610 PLP swap, `wk-eata` 10GbE NIC, NAS build.
+Backups (`backup-dr-plan.md`) not yet implemented.
 
 Goal: assign every usable disk to a role during the cluster + NAS rebuild, fix the
 known pain (etcd fsync latency, Ceph HDD slow-ops), and keep spend near-zero given
@@ -67,13 +69,13 @@ assign as you rack them.
 | hostname | was | RAM | OS disk | Ceph OSDs |
 |----------|-----|-----|---------|-----------|
 | `wk-severian` | cp-01 | 32G, 2-bay | Patriot P210 128GB | **SSD** — 850 EVO 1TB (**placed**) |
-| `wk-drotte`   | cp-02 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** HGST 2TB (placed) **+ SSD** WD Blue (pending); HGST block.db **colocated** |
+| `wk-drotte`   | cp-02 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** HGST 2TB (placed) **+ SSD** WD Blue (**placed**); HGST block.db **colocated** |
 | `wk-roche`    | cp-03 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** WD20EARX 2TB (placed) **+ block.db SSD** (spare conn) |
 | `wk-eata`     | wk-03 | 32G, 3+ conn | Patriot P210 128GB | **HDD** WD20EARX 2TB (placed) **+ block.db SSD** (spare conn) |
 | `wk-jonas`    | wk-01 | 16G (MFF, M.2)  | Patriot P210 128GB | **SSD** SN770M NVMe (placed) |
 
-*Current physical state above.* Required moves are **done** (HGST → drotte, 1× EARX → eata).
-SSD-reclaim from desktop (850) / NAS (WD Blue) not yet pulled.
+*Current physical state above.* Required moves are **done** (HGST → drotte, 1× EARX → eata,
+WD Blue → drotte).
 
 > **Bay constraint (resolved):** these ex-CP boxes are tight but each has **≥1 spare data
 > connector** beyond OS + one OSD. Final placement:
@@ -85,29 +87,20 @@ SSD-reclaim from desktop (850) / NAS (WD Blue) not yet pulled.
 > Net: tiers overlap only on drotte; block.db-on-SSD lands on the EARX drives (where it matters),
 > HGST runs colocated.
 
-### SSD OSD tier — 3 OSDs, **no buy needed**
+### SSD OSD tier — 3 OSDs, **complete**
 | drive | host | status |
 |-------|------|--------|
 | WD_BLACK SN770M 1TB NVMe | `wk-jonas` (MFF, only NVMe-capable worker) | **placed** |
 | Samsung 850 EVO 1TB (SATA) | `wk-severian` | **placed** |
-| WD Blue 1TB SATA SSD (WDBNCE0010P) | `wk-drotte` (3rd connector, alongside HGST) | **blocked** — still live (see below) |
+| WD Blue 1TB SATA SSD (WDBNCE0010P) | `wk-drotte` (3rd connector, alongside HGST) | **placed** |
 
 3 SSD hosts = `jonas` + `severian` + `drotte`. SN770M is NVMe → jonas only; the two SATA SSDs
 (850, WD Blue) go on the SATA-only workers. Because drotte spends its 3rd connector on the SSD
 OSD, its HGST runs block.db colocated (fine — healthiest drive; see block.db below).
 
-**WD Blue reclaim (last SSD-tier piece) — wait for teardown; do NOT reclaim early.** It's live
-as **Longhorn `/data` on the old-cluster remnant**, which still serves a couple tightly-coupled
-services pending migration. Reclaiming early (EARX-swap) would disturb the very Longhorn those
-services need. Instead, break the dependency loop (new SSD pool wants WD Blue ← teardown ←
-service migration ← new-cluster storage) by **migrating the coupled services onto the healthy
-HDD pool** (3 OSDs) and letting the **SSD pool run degraded / `size=2` until teardown**. At
-teardown the WD Blue frees itself → add to drotte → SSD pool heals to `size=3`; optionally
-rebalance select PVCs HDD→SSD after.
-
-**Coupled-service cutover (short window):** pre-stage services on new cluster (scaled 0, PVCs on
-HDD pool) → bulk-copy data while old still serves → one window: quiesce old, final delta sync,
-bring up on new, flip DNS. Migrate the coupled set **together** (half-migrated = broken).
+**WD Blue reclaimed.** The old-cluster Longhorn remnant it served has been migrated/torn down;
+the drive is now the 3rd SSD OSD on `wk-drotte`. `ceph-blockpool-ssd` is back to `size: 3`
+(was temporarily `size: 2` while only 2 SSD hosts existed).
 
 ### HDD OSD tier — 3 OSDs, **placed** — block.db (see gap below)
 | drive | host | status |

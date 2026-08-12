@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.19.2997@sha256:01db3e6a923f6e0f3a217baa94b4660cf2f9b45d4166b2fc8c20c67c5221cb78
+              tag: 4.0.19.3001@sha256:2fef93accb445aeb1773e454825ac903f7d66d9addfe045d56fff69ba8181c82
             env:
               SONARR__APP__INSTANCENAME: Sonarr
               SONARR__APP__THEME: dark
@@ -95,11 +95,14 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /config/MediaCover
-#      media:
-#        type: nfs
-#        server: nfs.oreillys.lan
-#        path: /hecate/media
-#        globalMounts:
-#          - path: /media
+      # NAS static NFS mount - whole export. Needed (not just /media/tv) so
+      # hardlink-import from downloads/complete/ into tv/ works: hardlinks
+      # only work within a single mount, so both sides must be visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmp:
         type: emptyDir

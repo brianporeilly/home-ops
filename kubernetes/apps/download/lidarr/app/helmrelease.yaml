@@ -94,6 +94,16 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      # NAS static NFS mount - whole export. Needed (not just /media/music)
+      # so hardlink-import from downloads/complete/ into music/ works:
+      # hardlinks only work within a single mount, so both sides must be
+      # visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmpfs:
         type: emptyDir
         advancedMounts:

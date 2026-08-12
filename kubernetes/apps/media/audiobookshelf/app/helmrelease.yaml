@@ -95,11 +95,12 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /metadata
+      # NAS static NFS mount. Server exports /media with an
+      # `audiobooks` subdirectory dedicated to this app.
       media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/audiobooks
         globalMounts:
           - path: /media
       tmpfs:

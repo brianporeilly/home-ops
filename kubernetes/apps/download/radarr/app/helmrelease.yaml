@@ -95,11 +95,15 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /config/MediaCover
-      #      media:
-      #        type: nfs
-      #        server: nfs.oreillys.lan
-      #        path: /hecate/media
-      #        globalMounts:
-      #          - path: /media
+      # NAS static NFS mount - whole export. Needed (not just /media/movies)
+      # so hardlink-import from downloads/complete/ into movies/ works:
+      # hardlinks only work within a single mount, so both sides must be
+      # visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmp:
         type: emptyDir

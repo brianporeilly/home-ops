@@ -140,13 +140,19 @@ spec:
       # only adds an external IP) so nas-ultan's Alloy agent can push journal
       # logs in from outside the cluster (see flatcar-ignition repo). Same
       # kube-vip LB-IP technique fluent-bit already uses for external syslog
-      # input. NB: auth_enabled is false, so this puts Loki's full push+query
-      # HTTP API on the LAN at 10.20.250.5:3100, same trust model as the rest
-      # of 10.20.250.0/24 - not scoped down to push-only.
+      # input, but on the routed 10.21.0.0/16 pool (kube-vip-cloud-provider
+      # HelmRelease) rather than 10.20.250.0/24 - that pool overlaps
+      # non-cluster hosts' own local /16, which made it unreachable via ARP
+      # for a genuinely external host like nas-ultan (confirmed live). NB:
+      # auth_enabled is false, so this puts Loki's full push+query HTTP API
+      # on the LAN at 10.21.0.5:3100 - not scoped down to push-only. .5 to
+      # match Loki's old 10.20.250.5 slot - .1-.4 are reserved for the other
+      # 10.20.250.0/24 services (envoy-gateway x2, omada, fluent-bit) when
+      # they migrate to this pool later.
       service:
         type: LoadBalancer
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.5"
+          kube-vip.io/loadbalancerIPs: "10.21.0.5"
       extraEnvFrom:
         - secretRef:
             name: loki-bucket

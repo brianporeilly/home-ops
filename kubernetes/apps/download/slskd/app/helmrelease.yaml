@@ -79,7 +79,14 @@ spec:
       soulseek:
         type: LoadBalancer
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.12"
+          # Was 10.20.250.12 - migrating to the routed 10.21.0.0/16 pool
+          # (see kube-vip-cloud-provider HelmRelease). HIGH
+          # external-dependency risk: Soulseek needs inbound NAT traversal
+          # to work well - there's almost certainly an OPNsense WAN
+          # port-forward for the soulseek TCP port pinned to the old IP.
+          # Repoint it before merging or slskd effectively goes into
+          # NAT'd/passive mode for peers.
+          kube-vip.io/loadbalancerIPs: "10.21.0.12"
         externalTrafficPolicy: Local
         ports:
           soulseek-tcp:
@@ -101,8 +108,8 @@ spec:
         data:
           slskd.yml: |-
             directories:
-              downloads: /media/Downloads/soulseek/complete
-              incomplete: /media/Downloads/soulseek/incomplete
+              downloads: /media/downloads/soulseek/complete
+              incomplete: /media/downloads/soulseek/incomplete
             transfers:
               download:
                 destination:
@@ -115,7 +122,7 @@ spec:
                   max_delay: 60000
             shares:
               directories:
-                - /media/Downloads/soulseek/shared
+                - /media/downloads/soulseek/shared
               filters:
                 - \.ini$
                 - Thumbs.db$
@@ -133,11 +140,18 @@ spec:
 #        globalMounts:
 #          - path: /config/slskd.yml
 #            subPath: slskd.yml
-#      media:
-#        type: nfs
-#        server: expanse.internal
-#        path: /mnt/eros/Media
-#        globalMounts:
-#          - path: /media
+      # NAS static NFS mount - soulseek downloads only (incomplete/complete/
+      # shared share this mount so a finished download is an atomic rename).
+      # NOTE: config-file below is still disabled, so slskd.yml's directory
+      # paths aren't actually applied yet - set them to match this mount
+      # (/media/downloads/soulseek/{complete,incomplete,shared}) via the
+      # slskd UI, or enable config-file once you've confirmed it won't
+      # clobber any settings you've configured live.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/downloads/soulseek
+        globalMounts:
+          - path: /media/downloads/soulseek
       tmp:
         type: emptyDir
