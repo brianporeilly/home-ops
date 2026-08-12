@@ -7,3 +7,4 @@ resources:
   - ./obc.yaml
   - ./ocirepository.yaml
   - ./syslog-rules.yaml
+  - ./nas-journal-rules.yaml

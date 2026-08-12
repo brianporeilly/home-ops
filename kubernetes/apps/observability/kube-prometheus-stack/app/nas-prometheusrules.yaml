@@ -29,3 +29,93 @@ spec:
           for: 1h
           labels:
             severity: warning
+
+        # zfs_pool_health: 0=ONLINE, 1=DEGRADED, 2=FAULTED, 3=OFFLINE,
+        # 4=UNAVAIL, 5=REMOVED, 6=SUSPENDED (see zfs-exporter's own HELP text).
+        - alert: NASZFSPoolNotOnline
+          annotations:
+            summary: "ZFS pool {{ $labels.pool }} on nas-ultan is not ONLINE"
+            description: >-
+              zfs_pool_health is {{ $value }} for pool {{ $labels.pool }}
+              (0=ONLINE, 1=DEGRADED, 2=FAULTED, 3=OFFLINE, 4=UNAVAIL,
+              5=REMOVED, 6=SUSPENDED). 5 of 6 disks in this pool are the
+              SMR WD Reds from the 2020 controversy (see
+              disk-hardware-plan.md) - treat any non-ONLINE state as
+              urgent, resilvers on these drives are slow and the window of
+              reduced redundancy is longer than normal.
+          expr: |
+            zfs_pool_health{instance="nas-ultan"} != 0
+          for: 5m
+          labels:
+            severity: critical
+
+        # disk-hardware-plan.md documents <80% full as an SMR-specific
+        # requirement (the drives degrade hard when nearly full), not just
+        # general good practice - this alert is that threshold made real.
+        - alert: NASZFSPoolCapacityHigh
+          annotations:
+            summary: "ZFS pool {{ $labels.pool }} on nas-ultan is over 80% full"
+            description: >-
+              {{ $value | humanizePercentage }} used. disk-hardware-plan.md
+              documents keeping this pool under 80% as an SMR-specific
+              requirement, not just general headroom.
+          expr: |
+            (zfs_pool_allocated_bytes{instance="nas-ultan"} / zfs_pool_size_bytes{instance="nas-ultan"}) > 0.80
+          for: 15m
+          labels:
+            severity: warning
+
+        - alert: NASSmartCheckFailed
+          annotations:
+            summary: "SMART overall-health self-check FAILED for {{ $labels.device }} on nas-ultan"
+            description: >-
+              smartctl_device_smart_status is 0 (smartctl's own
+              smart_status.passed field is false) for {{ $labels.device }}.
+          expr: |
+            smartctl_device_smart_status{instance="nas-ultan"} == 0
+          for: 5m
+          labels:
+            severity: critical
+
+        # Raw attribute value (not the normalized value/worst/thresh scores) -
+        # baseline on this fleet is 0 across the board, so >0 is a clean
+        # starting threshold. Reallocated sectors = physical wear already
+        # occurred; not necessarily imminent failure, but worth watching.
+        - alert: NASSmartReallocatedSectors
+          annotations:
+            summary: "{{ $labels.device }} on nas-ultan has reallocated sectors"
+            description: >-
+              Reallocated_Sector_Ct raw value is {{ $value }} (fleet
+              baseline is 0) - early sign of physical media wear.
+          expr: |
+            smartctl_device_attribute{instance="nas-ultan",attribute_id="5",attribute_value_type="raw"} > 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: NASSmartPendingSectors
+          annotations:
+            summary: "{{ $labels.device }} on nas-ultan has pending sectors"
+            description: >-
+              Current_Pending_Sector raw value is {{ $value }} (fleet
+              baseline is 0) - the drive has found sectors it hasn't given
+              up on yet; these often convert to reallocated or
+              uncorrectable next.
+          expr: |
+            smartctl_device_attribute{instance="nas-ultan",attribute_id="197",attribute_value_type="raw"} > 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: NASSmartUncorrectableSectors
+          annotations:
+            summary: "{{ $labels.device }} on nas-ultan has uncorrectable sectors"
+            description: >-
+              Offline_Uncorrectable raw value is {{ $value }} (fleet
+              baseline is 0) - confirmed unrecoverable data on this
+              sector, more urgent than reallocated/pending counts alone.
+          expr: |
+            smartctl_device_attribute{instance="nas-ultan",attribute_id="198",attribute_value_type="raw"} > 0
+          for: 5m
+          labels:
+            severity: critical
