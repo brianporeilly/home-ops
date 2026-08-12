@@ -51,7 +51,7 @@ spec:
               S6_READ_ONLY_ROOT: "1"
               PUID: "1000"
               PGID: "1000"
-              TZ: America/Anchorage
+              TZ: UTC
               # Optional: uncomment to pull in calibredb for the metadata-embed
               # hook (Settings > Processing > Calibredb import program:
               # /usr/bin/calibredb). Leave unset to do that step manually.
