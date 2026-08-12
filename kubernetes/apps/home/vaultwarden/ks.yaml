@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -18,6 +20,10 @@ spec:
       namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/home/vaultwarden/app
+  postBuild:
+    substitute:
+      APP: vaultwarden
+      PVC: vaultwarden-config
   prune: true
   retryInterval: 2m
   sourceRef:

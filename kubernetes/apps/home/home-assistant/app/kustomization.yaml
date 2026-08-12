@@ -10,8 +10,6 @@ resources:
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
-  - ./snapshotpolicy.yaml
-  - ./snapshotschedule.yaml
 configMapGenerator:
   - name: home-assistant-configmap
     files:
