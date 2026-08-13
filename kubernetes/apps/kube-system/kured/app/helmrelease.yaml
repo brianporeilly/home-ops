@@ -18,49 +18,27 @@ spec:
       retries: 3
   values:
     configuration:
-      # Stamps weave.works/kured-reboot-in-progress on a node for the exact
-      # span of drain -> reboot -> uncordon, so Prometheus/Alertmanager can
-      # inhibit the alerts that are an expected side effect of a reboot.
-      # Note this only suppresses Slack notifications (Alertmanager
-      # inhibition) - it does NOT affect whether an alert is still `firing`
-      # in Prometheus, which is what extraArgs.prometheus-url below checks.
-      # The two are intentionally decoupled: this keeps your phone quiet
-      # during expected reboot noise, while kured itself still correctly
-      # waits for that same noise to clear before touching the next node.
+      # Annotates a node with weave.works/kured-reboot-in-progress for the
+      # drain->reboot->uncordon span, so Alertmanager can inhibit expected
+      # reboot-noise notifications. Notification-layer only - doesn't affect
+      # Prometheus ALERTS state, which extraArgs.prometheus-url below checks.
       annotateNodes: true
-    # Gates each node's reboot on Prometheus alert state (source verified
-    # directly: kubereboot/kured pkg/blockers/prometheus.go + cmd/kured/
-    # main.go - queries Prometheus's raw ALERTS metric, independent of any
-    # Alertmanager inhibition/routing).
+    # Gates each node's reboot on live Prometheus alert state (kured
+    # pkg/blockers/prometheus.go), independent of Alertmanager inhibition.
     extraArgs:
       prometheus-url: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
-      # Only block on confirmed `firing` alerts, not merely `pending` ones
-      # still inside their `for:` window.
+      # Only block on confirmed `firing`, not `pending`.
       alert-firing-only: "true"
-      # Exclude mode (alert-filter-match-only left at its default false):
-      # names matching this regex are ignored; everything else - including
-      # the Ceph/etcd/node-readiness alerts a reboot predictably causes -
-      # still blocks, which is the point: wait for THIS node's fallout to
-      # clear before cordoning the next one.
-      #   - Watchdog: fires permanently by design (dead-man's switch,
-      #     severity=none, routed to null) - without this kured could never
-      #     reboot anything, ever.
-      #   - SmartDeviceTestFailed: TEMPORARY, added 2026-08-13 for a known
-      #     failing drive being replaced same-day. Remove this line once
-      #     that replacement is done - don't let a real disk failure
-      #     silently stop blocking reboots indefinitely.
-      #   - NASRebootRequired / NodeFilesystemAlmostOutOfSpace: both on
-      #     nas-ultan, unrelated to k8s node reboots.
+      # Exclude mode: these names never block a reboot; everything else does.
+      #   - Watchdog: dead-man's-switch, fires permanently by design.
+      #   - SmartDeviceTestFailed: TEMPORARY exclusion for a known failing
+      #     drive pending replacement - remove once replaced.
+      #   - NASRebootRequired / NodeFilesystemAlmostOutOfSpace: nas-ultan,
+      #     unrelated to k8s node reboots.
       alert-filter-regexp: "^(Watchdog|SmartDeviceTestFailed|NASRebootRequired|NodeFilesystemAlmostOutOfSpace)$"
-      # Kured releases its cluster-wide lock (and starts the next node) as
-      # soon as the just-rebooted node reports kubelet-Ready - not once its
-      # workloads have actually finished recovering. This delay closes that
-      # gap: gives things like CNPG standbys real time to come up healthy
-      # before the next node gets cordoned, instead of stacking two nodes'
-      # worth of disruption at once (which is what happened on 2026-08-13:
-      # wk-drotte rebooted, kured moved on to wk-roche while wk-drotte's
-      # containerd was still stuck, and wk-roche's drain got blocked by
-      # PDBs with nowhere healthy to switch over to).
+      # kured releases its lock on kubelet-Ready, before workloads (e.g. CNPG
+      # standbys) actually finish recovering. Delay gives them real time
+      # before the next node is cordoned.
       lock-release-delay: 10m
     extraEnvVars:
      - name: KURED_NOTIFY_URL

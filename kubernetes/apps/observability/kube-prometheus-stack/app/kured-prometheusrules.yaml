@@ -26,14 +26,10 @@ spec:
             severity: info
 
         # Failsafe for a stuck drain (e.g. PDB-blocked eviction with nowhere
-        # healthy to fail over to, as happened 2026-08-13) - kured itself
-        # just retries forever with no time limit, so this is what actually
-        # surfaces it instead of only being noticed via user-visible
-        # symptoms. 25m is comfortably above a normal drain/reboot/uncordon
-        # cycle; not using the same metric as KuredRebootInProgress above
-        # since that requires kured's own annotation, and a stuck-before-
-        # cordon-even-starts case (or a manually cordoned node) wouldn't
-        # necessarily carry it.
+        # healthy to fail over to) - kured retries forever with no time
+        # limit. Uses node unschedulable state rather than kured's own
+        # annotation so it also catches a stuck-before-cordon or manually
+        # cordoned node. 25m is comfortably above a normal reboot cycle.
         - alert: KuredNodeCordonedTooLong
           annotations:
             summary: "Node {{ $labels.node }} has been cordoned for over 25m"
