@@ -8,6 +8,8 @@ components:
 resources:
   - ./atuin/ks.yaml
   - ./copyparty/ks.yaml
+  - ./forgejo/ks.yaml
+  - ./forgejo/bootstrap/ks.yaml
   - ./linkwarden/ks.yaml
   - ./maddy/ks.yaml
   - ./nebraska/ks.yaml
