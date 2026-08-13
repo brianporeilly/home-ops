@@ -9,13 +9,21 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/download/qbittorrent/app
+  postBuild:
+    substitute:
+      APP: qbittorrent
+      PVC: qbittorrent-config
   prune: true
   retryInterval: 2m
   sourceRef:
