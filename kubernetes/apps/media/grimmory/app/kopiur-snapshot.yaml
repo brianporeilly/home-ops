@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
+# Written directly rather than via components/kopiur/backup - that component
+# only wires up a single ${PVC}, but grimmory has two PVCs worth backing up
+# (library data + the bookdrop ingest dir). Same repository/mover/retention
+# shape as the shared component, just with both sources in one policy.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: grimmory
+spec:
+  repository:
+    kind: ClusterRepository
+    name: nas-backups
+  sources:
+    - pvc:
+        name: grimmory-data
+    - pvc:
+        name: grimmory-bookdrop
+  mover:
+    cache:
+      mode: Persistent
+      capacity: 2Gi
+      storageClassName: nfs-slow
+  retention:
+    keepLatest: 3
+    keepHourly: 24
+    keepDaily: 7
+    keepWeekly: 4
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotschedule_v1alpha1.json
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotSchedule
+metadata:
+  name: grimmory
+spec:
+  policyRef:
+    name: grimmory
+  schedule:
+    cron: "H * * * *"
+    runOnCreate: false

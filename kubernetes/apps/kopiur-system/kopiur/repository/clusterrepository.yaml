@@ -45,3 +45,14 @@ spec:
     namespace: kopiur-system
   scheduleDefaults:
     timezone: UTC
+  # Ad hoc browse/restore UI - "pick a snapshot, mount it, pull a file" per
+  # kopiur's own docs, without needing a full Restore CR for casual use.
+  # readOnly blocks create/delete/alter of snapshots/policies/maintenance
+  # from the UI - browsing and restoring individual files still works, but
+  # it can't touch the backup config itself. auth.generate creates a
+  # per-repo Secret (<name>-kopia-ui-auth) with a random password rather
+  # than reusing/exposing the repository password anywhere.
+  server:
+    auth:
+      generate: {}
+    readOnly: true
