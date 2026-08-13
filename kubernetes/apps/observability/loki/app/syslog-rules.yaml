@@ -12,14 +12,14 @@ data:
         rules:
           - alert: SyslogDeviceSilent
             expr: |
-              absent_over_time({job="syslog", device="opnsense"}[30m])
+              absent_over_time({job="syslog", device="opnsense"}[2h])
             for: 5m
             labels:
               severity: warning
               device: opnsense
             annotations:
               summary: >-
-                No syslog messages received from OPNsense in the last 30 minutes
+                No syslog messages received from OPNsense in the last 2 hours
 
           - alert: SyslogErrorRateHigh
             expr: |

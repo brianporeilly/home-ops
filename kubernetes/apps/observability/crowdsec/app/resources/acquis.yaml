@@ -1,0 +1,23 @@
+# Loki datasource - reads Envoy's JSON access logs directly out of Loki
+# instead of tailing a file, matching how everything else in this cluster
+# already centralizes logs. loki-headless:3100 is the real Loki HTTP
+# server (single-binary mode in this cluster) - the chart also ships a
+# loki-gateway Service/Deployment but it's scaled to 0 replicas here
+# (unused, distributed-mode-only component), so pointing at it just gets
+# connection refused.
+#
+# Scoped to envoy-external only (internet-facing) via the pod name filter -
+# envoy-internal is LAN-only/trusted, not what we're watching for scanning.
+#
+# labels.type: envoy is what the envoy-logs custom parser
+# (parsers/s01-parse/envoy-logs.yaml) filters on to claim these events -
+# see that file's header comment for the one part of this whole setup that
+# needs live verification (cscli explain) rather than being confirmed
+# against docs.
+source: loki
+url: http://loki-headless.observability.svc.cluster.local:3100
+query: |
+  {job="fluent-bit", namespace="network", app="envoy"} | pod=~"envoy-external-.*"
+no_ready_check: true
+labels:
+  type: envoy

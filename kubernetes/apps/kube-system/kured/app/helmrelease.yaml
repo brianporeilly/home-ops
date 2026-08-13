@@ -18,10 +18,28 @@ spec:
       retries: 3
   values:
     configuration:
-      # Stamps weave.works/kured-reboot-in-progress on a node for the exact
-      # span of drain -> reboot -> uncordon, so Prometheus/Alertmanager can
-      # inhibit the alerts that are an expected side effect of a reboot.
+      # Annotates a node with weave.works/kured-reboot-in-progress for the
+      # drain->reboot->uncordon span, so Alertmanager can inhibit expected
+      # reboot-noise notifications. Notification-layer only - doesn't affect
+      # Prometheus ALERTS state, which extraArgs.prometheus-url below checks.
       annotateNodes: true
+    # Gates each node's reboot on live Prometheus alert state (kured
+    # pkg/blockers/prometheus.go), independent of Alertmanager inhibition.
+    extraArgs:
+      prometheus-url: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+      # Only block on confirmed `firing`, not `pending`.
+      alert-firing-only: "true"
+      # Exclude mode: these names never block a reboot; everything else does.
+      #   - Watchdog: dead-man's-switch, fires permanently by design.
+      #   - SmartDeviceTestFailed: TEMPORARY exclusion for a known failing
+      #     drive pending replacement - remove once replaced.
+      #   - NASRebootRequired / NodeFilesystemAlmostOutOfSpace: nas-ultan,
+      #     unrelated to k8s node reboots.
+      alert-filter-regexp: "^(Watchdog|SmartDeviceTestFailed|NASRebootRequired|NodeFilesystemAlmostOutOfSpace)$"
+      # kured releases its lock on kubelet-Ready, before workloads (e.g. CNPG
+      # standbys) actually finish recovering. Delay gives them real time
+      # before the next node is cordoned.
+      lock-release-delay: 10m
     extraEnvVars:
      - name: KURED_NOTIFY_URL
        valueFrom:

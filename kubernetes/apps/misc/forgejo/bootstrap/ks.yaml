@@ -4,16 +4,16 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: &app forgejo-bootstrap
-  namespace: &namespace home
+  namespace: &namespace misc
 spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: forgejo
-      namespace: home
+      namespace: misc
   interval: 1h
-  path: ./kubernetes/apps/home/forgejo/bootstrap/app
+  path: ./kubernetes/apps/misc/forgejo/bootstrap/app
   prune: true
   retryInterval: 2m
   sourceRef:

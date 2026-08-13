@@ -1,0 +1,69 @@
+# Custom s01-parse stage parser - no official CrowdSec hub parser exists for
+# Envoy Gateway's JSON access log format, so this maps our fields (from
+# envoy-gateway's EnvoyProxy accessLog JSON format + the fluent-bit
+# msg_* lift filter, see network+observability PR fixing Loki queryability)
+# into the meta/parsed fields crowdsecurity/http-logs (s02-enrich,
+# installed via the PARSERS env var) and crowdsecurity/http-probing
+# (scenario) expect. Modeled directly on crowdsecurity/caddy-logs.yaml,
+# the closest official example of a native-JSON access log parser.
+#
+# UNVERIFIED, flagging explicitly: the filter's source-matching condition
+# (evt.Line.Labels.type vs evt.Parsed.program) - checked two official
+# hub parsers (nginx-logs, apache2-logs) and neither confirmed which
+# mechanism the Loki datasource actually populates from acquis.yaml's
+# `labels: type: envoy`, so this ORs both interpretations defensively.
+# If events aren't reaching http-probing after deploy, this filter is the
+# first thing to check - run `cscli explain --type envoy -f <sample-line>`
+# (or check `cscli metrics` for this parser's hit count) to confirm which
+# branch is actually matching, and simplify once known.
+filter: |
+  (evt.Line.Labels.type == 'envoy' || evt.Parsed.program == 'envoy') &&
+  UnmarshalJSON(evt.Line.Raw, evt.Unmarshaled, 'envoy') in ['', nil]
+onsuccess: next_stage
+name: custom/envoy-logs
+description: "Parse Envoy Gateway JSON access logs (envoy-external, via Loki)"
+statics:
+  - meta: log_type
+    value: http_access-log
+  - meta: service
+    value: http
+  - target: evt.StrTime
+    expression: "evt.Unmarshaled.envoy.msg_start_time"
+  # source_ip: msg_client_ip is DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT. Only
+  # the real client IP because envoy-external's ClientTrafficPolicy sets
+  # clientIPDetection.xForwardedFor.numTrustedHops: 1 - OPNsense NATs
+  # internet traffic in front of that Gateway and sets X-Forwarded-For to
+  # the real client, so Envoy resolves through that one trusted hop.
+  # Without that policy this is always OPNsense's own address, not the
+  # attacker - confirmed live via a real scan log line before it was fixed.
+  - meta: source_ip
+    expression: "evt.Unmarshaled.envoy.msg_client_ip"
+  - parsed: source_ip
+    expression: "evt.Unmarshaled.envoy.msg_client_ip"
+  - meta: http_status
+    expression: "evt.Unmarshaled.envoy.msg_response_code"
+  - meta: http_path
+    expression: "evt.Unmarshaled.envoy.msg_path"
+  - parsed: http_path
+    expression: "evt.Unmarshaled.envoy.msg_path"
+  # request: what crowdsecurity/http-logs (s02-enrich) actually grok-splits
+  # into query args + file extension to classify static_ressource - must be
+  # `parsed`, not `meta`, since grok's apply_on targets Parsed fields.
+  - parsed: request
+    expression: "evt.Unmarshaled.envoy.msg_path"
+  - meta: http_verb
+    expression: "evt.Unmarshaled.envoy.msg_method"
+  - parsed: verb
+    expression: "evt.Unmarshaled.envoy.msg_method"
+  # target_fqdn: http-probing's groupby references evt.Parsed.target_fqdn,
+  # but crowdsecurity/caddy-logs.yaml (the reference template) only ever
+  # sets it as `meta`, not `parsed` - setting both here rather than trusting
+  # an unconfirmed cross-stage promotion between the two.
+  - meta: target_fqdn
+    expression: "evt.Unmarshaled.envoy.msg_authority"
+  - parsed: target_fqdn
+    expression: "evt.Unmarshaled.envoy.msg_authority"
+  - meta: http_user_agent
+    expression: "evt.Unmarshaled.envoy.msg_user_agent"
+  - parsed: http_user_agent
+    expression: "evt.Unmarshaled.envoy.msg_user_agent"

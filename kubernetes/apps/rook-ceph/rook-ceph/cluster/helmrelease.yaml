@@ -71,16 +71,37 @@ spec:
           # handful, and let it clear within the hour.
           bluestore_slow_ops_warn_threshold: "5" # quote (default 1)
           bluestore_slow_ops_warn_lifetime: "3600" # quote (default 86400 = 24h)
-          # Prioritise client I/O over recovery/backfill/scrub so latency stays
-          # smooth on the ~250 IOPS HDDs. Trade-off: backfill (e.g. during the
-          # future SSD-DB migration) runs slower - fine for a homelab.
-          osd_mclock_profile: high_client_ops # was 'balanced'
-          # Deep scrubs are a major slow-op source on spinning disks. Stretch
-          # the interval and confine scrubs to an off-peak window; 81 PGs /
-          # ~66 GiB scrub comfortably inside a nightly window.
+          # Every built-in mclock profile (high_client_ops, balanced,
+          # high_recovery_ops) sums client+recovery reservation to 100%,
+          # leaving background_best_effort (scrub/backfill/snaptrim) with a
+          # true reservation of 0 - confirmed via `ceph config show osd.0`.
+          # Result: deep scrubs only run on leftover capacity and stall for
+          # hours at a time (measured: 3 PGs scrubbed in a 5h window, then
+          # nothing). Go custom and carve out a real floor for scrub so it
+          # can't be starved to zero, while still favouring client I/O.
+          osd_mclock_profile: custom
+          osd_mclock_scheduler_client_res: "0.5"
+          osd_mclock_scheduler_client_wgt: "2"
+          osd_mclock_scheduler_client_lim: "0" # 0 = no cap
+          osd_mclock_scheduler_background_recovery_res: "0.3"
+          osd_mclock_scheduler_background_recovery_wgt: "1"
+          osd_mclock_scheduler_background_recovery_lim: "0"
+          osd_mclock_scheduler_background_best_effort_res: "0.2" # was 0 (starved)
+          osd_mclock_scheduler_background_best_effort_wgt: "1"
+          osd_mclock_scheduler_background_best_effort_lim: "0.9"
+          # Deep scrubs are a major slow-op source on spinning disks, and all
+          # 3 hdd OSDs replicate nearly the whole cluster (136/142 PGs), so
+          # stretch the interval and confine scrubs to an off-peak window.
+          # Widened from 5h->10h as extra headroom on top of the reservation
+          # fix above; the 81 PGs / ~66 GiB estimate this was originally
+          # sized on was stale (now 136 hdd PGs / ~232 GiB).
           osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
-          osd_scrub_begin_hour: "1" # quote, 01:00 local
-          osd_scrub_end_hour: "6" # quote, 06:00 local
+          # Cluster runs UTC; these are wall-clock UTC hours, not local. 07:00
+          # UTC = 23:00 AKDT (America/Anchorage, UTC-8, current DST rules).
+          # Note: Ceph has no DST awareness, so this drifts to 22:00 local
+          # once Alaska falls back to AKST (UTC-9) in Nov.
+          osd_scrub_begin_hour: "7" # quote, ~23:00 Alaska (AKDT)
+          osd_scrub_end_hour: "17" # quote, ~09:00 Alaska (AKDT), 10h window
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:

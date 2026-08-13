@@ -48,7 +48,7 @@ spec:
               emptyDir: {}
           initContainers:
             - name: etcd-snapshot
-              image: registry.k8s.io/etcd:3.6.8-0
+              image: registry.k8s.io/etcd:3.7.1-0
               command:
                 - etcdctl
                 - --endpoints=https://127.0.0.1:2379
@@ -65,7 +65,7 @@ spec:
                 requests: { cpu: 100m, memory: 128Mi }
                 limits: { memory: 512Mi }
             - name: pki-tar
-              image: public.ecr.aws/docker/library/busybox:1.37
+              image: public.ecr.aws/docker/library/busybox:1.38
               command:
                 - /bin/sh
                 - -c
@@ -81,7 +81,7 @@ spec:
                 limits: { memory: 128Mi }
           containers:
             - name: upload
-              image: rclone/rclone:1.69.1
+              image: rclone/rclone:1.75.0
               env:
                 - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
                 - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }
