@@ -58,6 +58,21 @@ spec:
               limits:
                 memory: 512Mi
 
+    service:
+      app:
+        controller: crowdsec
+        ports:
+          metrics:
+            port: 6060
+
+    serviceMonitor:
+      app:
+        serviceName: crowdsec
+        endpoints:
+          - port: metrics
+            path: /metrics
+            interval: 30s
+
     persistence:
       # Single-file overlays onto the image's own /etc/crowdsec, not a
       # whole-directory volume - mounting a volume at /etc/crowdsec itself
