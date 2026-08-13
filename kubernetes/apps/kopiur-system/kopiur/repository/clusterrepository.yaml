@@ -57,3 +57,14 @@ spec:
     auth:
       generate: {}
     readOnly: true
+    # Same as moverDefaults.podSecurityContext above - the server pod is a
+    # separate field, doesn't inherit moverDefaults, and defaulted to some
+    # other UID/fsGroup entirely. Without this it can't read anything on
+    # the NAS export (chowned to 1000:1000): "permission denied" opening
+    # /repo/.shards - confirmed live via the server pod's crash logs.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
