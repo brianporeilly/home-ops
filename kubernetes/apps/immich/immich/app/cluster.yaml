@@ -6,7 +6,7 @@ metadata:
   name: immich-postgres
 spec:
   instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.10-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
   storage:
     size: 10Gi
     storageClass: ceph-block-ssd
@@ -18,6 +18,14 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS cube
         - CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE
         - CREATE EXTENSION IF NOT EXISTS vector CASCADE
+        # earthdistance/vector aren't "trusted" extensions, so immich can
+        # never CREATE them itself - but ownership (extowner) is separate
+        # from creation permission. No ALTER EXTENSION OWNER TO exists in
+        # Postgres, so this is the documented workaround: flip ownership
+        # directly while still bootstrap-superuser. Lets immich run its own
+        # ALTER EXTENSION ... UPDATE afterwards without ever needing
+        # superuser again.
+        - UPDATE pg_extension SET extowner = 'immich'::regrole WHERE extname IN ('cube', 'earthdistance', 'vector')
   monitoring:
     enablePodMonitor: true
   plugins:
