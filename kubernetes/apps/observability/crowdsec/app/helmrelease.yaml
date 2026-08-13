@@ -1,0 +1,99 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crowdsec
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: crowdsec
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      crowdsec:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/crowdsecurity/crowdsec
+              tag: v1.7.8@sha256:2f527c9bb8b367120eb08b82890aa912ce96bfa1ada93dda0721700e4b4e0dde
+            env:
+              # Agent-only mode: no local API server here, this instance is
+              # purely a log processor pushing detections to OPNsense's LAPI
+              # (the machine was already registered there directly via
+              # `cscli machines add ... -f -`, not self-registered by this
+              # pod). 10.2.0.1 is OPNsense's transit-VLAN address (MikroTik
+              # handles inter-VLAN routing; OPNsense is the default route
+              # for anything MikroTik doesn't know) - confirmed reachable
+              # from the cluster's VLAN before building this.
+              DISABLE_LOCAL_API: "true"
+              LOCAL_API_URL: http://10.2.0.1:8080
+              # Explicitly empty - overrides the image's default of
+              # auto-installing crowdsecurity/linux (sshd/sudo/etc parsers
+              # for local log files we don't have; irrelevant and possibly
+              # noisy here). PARSERS/SCENARIOS below are the only hub items
+              # actually needed for Envoy log scanning-detection.
+              COLLECTIONS: ""
+              PARSERS: crowdsecurity/http-logs
+              SCENARIOS: crowdsecurity/http-probing
+            envFrom:
+              - secretRef:
+                  name: crowdsec-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    persistence:
+      # Single-file overlays onto the image's own /etc/crowdsec, not a
+      # whole-directory volume - mounting a volume at /etc/crowdsec itself
+      # would shadow the image's baked-in default config.yaml/profiles.yaml/
+      # hub skeleton entirely, breaking its own bootstrap. Matches the
+      # official docker-compose example's pattern (single-file bind mount
+      # for acquis.yaml, nothing else touched). Root filesystem stays
+      # writable (no readOnlyRootFilesystem) since `cscli install`
+      # (PARSERS/SCENARIOS above) needs to write into that same tree at
+      # startup.
+      acquis:
+        type: configMap
+        name: crowdsec-configmap
+        advancedMounts:
+          crowdsec:
+            app:
+              - path: /etc/crowdsec/acquis.yaml
+                subPath: acquis.yaml
+                readOnly: true
+      envoy-logs-parser:
+        type: configMap
+        name: crowdsec-configmap
+        advancedMounts:
+          crowdsec:
+            app:
+              - path: /etc/crowdsec/parsers/s01-parse/envoy-logs.yaml
+                subPath: envoy-logs-parser.yaml
+                readOnly: true
+      # Real persistent state: leaky-bucket/scenario state and local
+      # alert/decision history. Losing this on a restart wouldn't break
+      # anything long-term (buckets just start fresh) but would lose
+      # in-progress scan-tracking, so still worth keeping.
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        globalMounts:
+          - path: /var/lib/crowdsec/data
