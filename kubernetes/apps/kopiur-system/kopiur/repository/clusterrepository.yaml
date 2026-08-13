@@ -53,6 +53,7 @@ spec:
   # per-repo Secret (<name>-kopia-ui-auth) with a random password rather
   # than reusing/exposing the repository password anywhere.
   server:
+    namespace: kopiur-system
     auth:
       generate: {}
     readOnly: true
