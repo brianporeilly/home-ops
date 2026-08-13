@@ -275,9 +275,21 @@ spec:
   # and envoy-external wasn't internet-exposed yet (kube-proxy SNAT was the
   # only hop then); re-added here now that OPNsense's own separate edge NAT
   # is the actual hop in play.
+  #
+  # trustedCIDRs, not numTrustedHops: confirmed live (inspecting the
+  # rendered Envoy config via admin :19000/config_dump) that Envoy Gateway
+  # v1.8.3 silently drops numTrustedHops - it never makes it into the
+  # XffConfig proto at all, so client_ip stayed OPNsense's own address no
+  # matter what. trustedCIDRs pinned to OPNsense's actual transit address
+  # renders correctly and is arguably the better fit anyway: it explicitly
+  # trusts the one known proxy IP rather than a generic hop-count, and
+  # correctly falls back to the raw peer address (rejecting any injected
+  # XFF) for traffic that didn't actually come from OPNsense - verified
+  # live with a spoofed XFF header sent directly from outside this CIDR.
   clientIPDetection:
     xForwardedFor:
-      numTrustedHops: 1
+      trustedCIDRs:
+        - 10.2.0.1/32
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
