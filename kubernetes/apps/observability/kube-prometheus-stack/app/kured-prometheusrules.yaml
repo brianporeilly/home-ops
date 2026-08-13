@@ -24,3 +24,26 @@ spec:
             max by (node) (kube_node_annotations{annotation_weave_works_kured_reboot_in_progress!=""})
           labels:
             severity: info
+
+        # Failsafe for a stuck drain (e.g. PDB-blocked eviction with nowhere
+        # healthy to fail over to, as happened 2026-08-13) - kured itself
+        # just retries forever with no time limit, so this is what actually
+        # surfaces it instead of only being noticed via user-visible
+        # symptoms. 25m is comfortably above a normal drain/reboot/uncordon
+        # cycle; not using the same metric as KuredRebootInProgress above
+        # since that requires kured's own annotation, and a stuck-before-
+        # cordon-even-starts case (or a manually cordoned node) wouldn't
+        # necessarily carry it.
+        - alert: KuredNodeCordonedTooLong
+          annotations:
+            summary: "Node {{ $labels.node }} has been cordoned for over 25m"
+            description: >-
+              {{ $labels.node }} has stayed unschedulable for an extended
+              period - likely a stuck drain, not a normal in-progress reboot.
+              Check `kubectl describe node {{ $labels.node }}` for blocked
+              evictions and that node's kured pod logs.
+          expr: |
+            kube_node_spec_unschedulable == 1
+          for: 25m
+          labels:
+            severity: warning
