@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
+# Reusable component. Consume from an app's ks.yaml (not its local
+# kustomization.yaml) - see kubernetes/apps/home/vaultwarden/ks.yaml for a
+# worked example:
+#   spec:
+#     components:
+#       - ../../../components/kopiur/backup
+#     postBuild:
+#       substitute:
+#         APP: vaultwarden
+#         PVC: vaultwarden-config
+# ${APP} and ${PVC} are required (no default - PVC names vary per app, e.g.
+# bjw-s app-template's <app>-<suffix> convention), substituted via Flux's
+# postBuild.substitute.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: SnapshotPolicy
+metadata:
+  name: ${APP}
+spec:
+  repository:
+    kind: ClusterRepository
+    name: nas-backups
+  sources:
+    - pvc:
+        name: ${PVC}
+  # Persistent kopia content/index cache so incremental runs don't re-hash
+  # unchanged data from scratch every time - matters more here than usual
+  # since the schedule below runs hourly. nfs-slow (not ceph-block): this is
+  # disposable/rebuildable cache, not data worth Ceph replication.
+  mover:
+    cache:
+      mode: Persistent
+      capacity: ${KOPIUR_CACHE_CAPACITY:=2Gi}
+      storageClassName: nfs-slow
+  # GFS retention: frequent recent recovery points, pruned further back.
+  # Same shape across every app using this component - override individual
+  # fields in the consuming app only if it genuinely needs something
+  # different, don't reach for that by default.
+  retention:
+    keepLatest: 3
+    keepHourly: 24
+    keepDaily: 7
+    keepWeekly: 4

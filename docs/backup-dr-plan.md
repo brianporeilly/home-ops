@@ -57,12 +57,17 @@ consistent, point-in-time-capable backup instead, targeting S3:
 
 ### L2 — File-level PVC backups (non-DB app data)
 For PVCs that aren't operator-managed databases: immich library, paperless documents,
-vaultwarden vault, arr configs, home-assistant config, etc. Options, both GitOps-native:
-- **Volsync** (`ReplicationSource` per PVC, restic under the hood) — the idiomatic choice in
-  the bjw-s/onedr0p home-ops ecosystem this repo already follows; per-PVC schedules, restic
-  repos on NAS/S3, prune policies. **Recommended.**
-- **Kopia** (standalone) — also fine; one repo, dedup, targets filesystem (NAS) or S3/B2/R2
-  directly. Matches the "kopia/kopiur" tooling already in mind.
+vaultwarden vault, arr configs, home-assistant config, etc.
+
+**Decided: Kopia via `kopiur`** (home-operations' Kopia-native Kubernetes operator,
+`kubernetes/apps/kopiur-system/`, PR #436), not Volsync. One shared `ClusterRepository`
+backed by inline NFS to a dedicated NAS export (`10.20.30.11:/backups`, chowned to the same
+UID/GID every app in this cluster already runs as), with per-app `SnapshotPolicy`/
+`SnapshotSchedule` CRs. **Status: draft, first wave only** (vaultwarden, home-assistant) as a
+proving-ground before the rest of the L2 list. Off-site sync to B2 is a deliberate follow-up
+via kopiur's `RepositoryReplication` CRD (mirrors an existing repo's blobs to a second backend
+on a schedule) — not yet built, but bolts on without touching the NAS-side config once this is
+proven. See `migration-inventory.md`'s backlog for the rollout-to-remaining-apps step.
 
 ### L3 — Off-site (deferred, but not optional long-term)
 NAS is copy #2, **not DR** — the disk plan itself notes the NAS mirror pool "is not a backup."
