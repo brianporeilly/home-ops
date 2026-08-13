@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -16,8 +18,14 @@ spec:
       namespace: rook-ceph
     - name: postgres-operator
       namespace: database
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/misc/linkwarden/app
+  postBuild:
+    substitute:
+      APP: linkwarden
+      PVC: linkwarden-data
   prune: true
   retryInterval: 2m
   sourceRef:

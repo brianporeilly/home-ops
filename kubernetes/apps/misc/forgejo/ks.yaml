@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -18,8 +20,14 @@ spec:
       namespace: database
     - name: csi-driver-nfs
       namespace: kube-system
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/misc/forgejo/app
+  postBuild:
+    substitute:
+      APP: forgejo
+      PVC: forgejo-data
   prune: true
   retryInterval: 2m
   sourceRef:
