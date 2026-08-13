@@ -6,6 +6,7 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./secret.yaml
+  - ./dashboard.yaml
 configMapGenerator:
   - name: crowdsec-configmap
     files:
