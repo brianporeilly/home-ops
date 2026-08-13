@@ -12,6 +12,10 @@ spec:
   repository:
     kind: ClusterRepository
     name: nas-backups
+  # Required for the shared cross-namespace repository - see the
+  # equivalent comment in components/kopiur/backup/snapshotpolicy.yaml.
+  credentialProjection:
+    enabled: true
   sources:
     - pvc:
         name: grimmory-data
