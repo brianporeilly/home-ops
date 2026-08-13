@@ -204,9 +204,19 @@ metadata:
   name: envoy
 spec:
   # http3: {}
-  targetSelectors:
+  # Narrowed from a broad targetSelectors (all Gateways) to envoy-internal
+  # only - Envoy Gateway resolves multiple ClientTrafficPolicies targeting
+  # the same Gateway by creation time (oldest wins, others fully rejected
+  # with status Conflicted), NOT by targetRefs-vs-targetSelectors
+  # specificity as might be assumed. The envoy-external ClientTrafficPolicy
+  # below needs sole ownership of that Gateway for its
+  # clientIPDetection.xForwardedFor.numTrustedHops to actually apply -
+  # confirmed live that it was silently rejected while this policy was
+  # still broad enough to cover both Gateways.
+  targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
+      name: envoy-internal
   tls:
     minVersion: "1.2"
     alpnProtocols:
@@ -230,10 +240,11 @@ kind: ClientTrafficPolicy
 metadata:
   name: envoy-external
 spec:
-  # More specific (targetRefs, named Gateway) than the "envoy" policy above
-  # (targetSelectors, all Gateways) - Envoy Gateway doesn't merge the two,
-  # the more specific one fully replaces it for envoy-external, so tls/
-  # headers are repeated here (same reason envoy-external-ratelimit repeats
+  # Needs sole ownership of this Gateway (see the "envoy" policy above,
+  # narrowed to envoy-internal only for this exact reason) - Envoy Gateway
+  # doesn't merge multiple ClientTrafficPolicies targeting the same
+  # Gateway, so tls/headers are repeated here rather than relying on the
+  # broader policy (same reason envoy-external-ratelimit repeats
   # compression/timeout above).
   targetRefs:
     - group: gateway.networking.k8s.io
