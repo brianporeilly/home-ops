@@ -97,6 +97,22 @@ spec:
           nested_under k_labels
           add_prefix k_labels_
 
+        # The kubernetes filter above (merge_log on) already parses a
+        # container's stdout line as JSON when it validly is one (e.g.
+        # Envoy's JSON access logs) into a nested log_processed object -
+        # correct, but still nested, so Loki still needs a `| json` unwrap
+        # to reach e.g. log_processed.path. Same lift technique as
+        # kubernetes/k_labels above, so JSON-emitting apps' own fields land
+        # as flat top-level msg_* keys instead. No-ops harmlessly for every
+        # pod that just logs plain text (log_processed never gets created
+        # for those).
+        [FILTER]
+          name nest
+          match kubernetes.*
+          operation lift
+          nested_under log_processed
+          add_prefix msg_
+
         [FILTER]
           name modify
           match kubernetes.*

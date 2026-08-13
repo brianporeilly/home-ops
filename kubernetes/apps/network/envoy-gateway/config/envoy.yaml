@@ -44,6 +44,15 @@ spec:
               bytes_sent: "%BYTES_SENT%"
               duration_ms: "%DURATION%"
               upstream_host: "%UPSTREAM_HOST%"
+              # The real client IP for external traffic - OPNsense does plain
+              # L3/L4 NAT (not an HTTP proxy), so nothing ever sets
+              # X-Forwarded-For upstream of Envoy; that field stays blank for
+              # internet-sourced requests. DOWNSTREAM_REMOTE_ADDRESS is
+              # correct here specifically because envoyService.
+              # externalTrafficPolicy is Local (no kube-proxy SNAT before the
+              # pod). Keep x_forwarded_for too - still meaningful for
+              # anything that legitimately sits in front of Envoy later.
+              client_ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
               x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
               user_agent: "%REQ(USER-AGENT)%"
               request_id: "%REQ(X-REQUEST-ID)%"
