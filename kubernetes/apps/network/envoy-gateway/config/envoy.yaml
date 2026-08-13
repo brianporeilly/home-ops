@@ -44,14 +44,16 @@ spec:
               bytes_sent: "%BYTES_SENT%"
               duration_ms: "%DURATION%"
               upstream_host: "%UPSTREAM_HOST%"
-              # The real client IP for external traffic - OPNsense does plain
-              # L3/L4 NAT (not an HTTP proxy), so nothing ever sets
-              # X-Forwarded-For upstream of Envoy; that field stays blank for
-              # internet-sourced requests. DOWNSTREAM_REMOTE_ADDRESS is
-              # correct here specifically because envoyService.
-              # externalTrafficPolicy is Local (no kube-proxy SNAT before the
-              # pod). Keep x_forwarded_for too - still meaningful for
-              # anything that legitimately sits in front of Envoy later.
+              # The real client IP. externalTrafficPolicy: Local (above) only
+              # fixes the in-cluster kube-proxy SNAT hop - OPNsense sits in
+              # front of envoy-external and NATs internet-sourced
+              # connections separately, replacing the real client with its
+              # own transit address. Confirmed live: OPNsense already sets
+              # X-Forwarded-For to the real client (single entry) before
+              # forwarding, so the envoy-external ClientTrafficPolicy's
+              # clientIPDetection.xForwardedFor.numTrustedHops: 1 (below)
+              # makes DOWNSTREAM_REMOTE_ADDRESS resolve through that one
+              # trusted hop correctly, instead of showing OPNsense itself.
               client_ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
               x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
               user_agent: "%REQ(USER-AGENT)%"
@@ -221,6 +223,50 @@ spec:
           value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: envoy-external
+spec:
+  # More specific (targetRefs, named Gateway) than the "envoy" policy above
+  # (targetSelectors, all Gateways) - Envoy Gateway doesn't merge the two,
+  # the more specific one fully replaces it for envoy-external, so tls/
+  # headers are repeated here (same reason envoy-external-ratelimit repeats
+  # compression/timeout above).
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-external
+  tls:
+    minVersion: "1.2"
+    alpnProtocols:
+      - h2
+      - http/1.1
+  headers:
+    lateResponseHeaders:
+      set:
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+        - name: Referrer-Policy
+          value: strict-origin-when-cross-origin
+  # Deliberately NOT on the shared "envoy" policy above - envoy-internal is
+  # direct LAN traffic with no NAT/proxy hop in front of it, so trusting an
+  # XFF hop there would let any LAN client spoof its own source IP.
+  # envoy-external sits behind exactly one trusted hop (OPNsense, which NATs
+  # internet traffic and already sets X-Forwarded-For to the real client) -
+  # #366 removed this same setting when externalTrafficPolicy was Cluster
+  # and envoy-external wasn't internet-exposed yet (kube-proxy SNAT was the
+  # only hop then); re-added here now that OPNsense's own separate edge NAT
+  # is the actual hop in play.
+  clientIPDetection:
+    xForwardedFor:
+      numTrustedHops: 1
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
