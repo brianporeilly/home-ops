@@ -7,6 +7,14 @@ metadata:
 spec:
   allowedNamespaces:
     all: true
+  # Owner-side half of credential projection - each consuming SnapshotPolicy
+  # also opts in (credentialProjection.enabled: true) since mover Jobs run,
+  # and load creds via envFrom, in their own app's namespace, not here.
+  # Without both sides every mover run fails: "credentials Secret
+  # kopiur-repository-secret does not exist in namespace X" - confirmed
+  # live, discovered right after the first apps were wired up.
+  credentialProjection:
+    allowed: true
   # Inline NFS, not a PVC - kopiur's own docs recommend this for an on-prem
   # NAS you'd rather name directly than wrap in a PVC. Dedicated export,
   # separate from the nfs-csi-driver (nfs-slow) export used by forgejo/frigate

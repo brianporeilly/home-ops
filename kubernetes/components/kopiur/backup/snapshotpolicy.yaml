@@ -21,6 +21,17 @@ spec:
   repository:
     kind: ClusterRepository
     name: nas-backups
+  # Required for a shared ClusterRepository consumed across many namespaces:
+  # the credentials Secret lives in kopiur-system, but each mover Job runs
+  # (and loads creds via envFrom) in the app's own namespace - envFrom can't
+  # reach across namespaces. This asks the operator to copy the Secret into
+  # this policy's namespace; nas-backups' credentialProjection.allowed: true
+  # is the matching owner-side permission. Without both sides, movers fail
+  # every run: "credentials Secret kopiur-repository-secret does not exist
+  # in namespace X" - confirmed live, discovered right after the first
+  # apps were wired up.
+  credentialProjection:
+    enabled: true
   sources:
     - pvc:
         name: ${PVC}
