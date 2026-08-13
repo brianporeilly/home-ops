@@ -1,10 +1,10 @@
 # Loki datasource - reads Envoy's JSON access logs directly out of Loki
 # instead of tailing a file, matching how everything else in this cluster
-# already centralizes logs. no_ready_check: true sidesteps a known
-# CrowdSec/Kubernetes gotcha: the default loki-gateway (nginx) in this
-# cluster's Loki chart only proxies /loki/api/v1/*, so CrowdSec's normal
-# /ready healthcheck against Loki fails even though Loki works fine -
-# this is the documented escape hatch, cheaper than patching the gateway.
+# already centralizes logs. loki-headless:3100 is the real Loki HTTP
+# server (single-binary mode in this cluster) - the chart also ships a
+# loki-gateway Service/Deployment but it's scaled to 0 replicas here
+# (unused, distributed-mode-only component), so pointing at it just gets
+# connection refused.
 #
 # Scoped to envoy-external only (internet-facing) via the pod name filter -
 # envoy-internal is LAN-only/trusted, not what we're watching for scanning.
@@ -15,7 +15,7 @@
 # needs live verification (cscli explain) rather than being confirmed
 # against docs.
 source: loki
-url: http://loki-gateway.observability.svc.cluster.local
+url: http://loki-headless.observability.svc.cluster.local:3100
 query: |
   {job="fluent-bit", namespace="network", app="envoy"} | pod=~"envoy-external-.*"
 no_ready_check: true
