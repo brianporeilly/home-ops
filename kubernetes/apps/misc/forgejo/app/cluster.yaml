@@ -6,7 +6,7 @@ metadata:
   name: forgejo-postgres
 spec:
   instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.10-standard-trixie
   storage:
     size: 5Gi
     storageClass: ceph-block-ssd
