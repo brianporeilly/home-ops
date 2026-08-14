@@ -110,15 +110,6 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "10Gi"
-        # CSI volume populator, only takes effect on PVC creation - see
-        # kubernetes/apps/home/esphome/app/helmrelease.yaml for the full
-        # explanation and live validation. grimmory-bookdrop is NOT wired
-        # here - it has no backup history to restore from yet (see the
-        # comment on the Restore resource in kopiur-snapshot.yaml).
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: grimmory
         globalMounts:
           - path: /app/data
       # NAS static NFS mount - dedicated comics export subdirectory.
