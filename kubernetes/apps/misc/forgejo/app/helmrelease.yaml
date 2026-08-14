@@ -163,13 +163,6 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
-        # CSI volume populator, only takes effect on PVC creation - see
-        # kubernetes/apps/home/esphome/app/helmrelease.yaml for the full
-        # explanation and live validation.
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: forgejo
         globalMounts:
           - path: /var/lib/gitea
       # Dynamically-provisioned NFS PVC (nfs-csi-driver) - repo/LFS data lives

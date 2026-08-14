@@ -118,13 +118,6 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "2Gi"
-        # CSI volume populator, only takes effect on PVC creation - see
-        # kubernetes/apps/home/esphome/app/helmrelease.yaml for the full
-        # explanation and live validation.
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: lazylibrarian
         globalMounts:
           - path: /config
       # Seeded on first run only (mirrors the sabnzbd-config-seed pattern):
