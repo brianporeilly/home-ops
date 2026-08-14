@@ -3,7 +3,8 @@
   "extends": [
     "github>home-operations/renovate-presets#7.0.0",
     "github>home-operations/renovate-presets//apps/cnpg.json5#7.0.0",
-    "github>home-operations/renovate-presets//apps/searxng.json5#7.0.0"
+    "github>home-operations/renovate-presets//apps/searxng.json5#7.0.0",
+    "local>brianporeilly/home-ops//.github/renovate/automerge.json5"
   ],
   "labels": ["dependencies"],
   "flux": {
@@ -43,12 +44,6 @@
       "matchPackageNames": ["mariadb-operator", "mariadb-operator-crds"],
       "groupName": "mariadb-operator",
       "automerge": false
-    },
-    {
-      "description": "Auto-merge patch updates for non-critical dependencies. matchManagers covers three managers, not just 'flux': 'regex' for the customManagers above (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex), and 'kubernetes' because that manager does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what actually catches images embedded in raw CRDs the flux manager doesn't parse (e.g. the ClickHouseInstallation CR, PR #421). Without all three, matching deps get detected but never auto-merged, unlike everything else at this update level.",
-      "matchUpdateTypes": ["patch", "pin", "digest"],
-      "matchManagers": ["flux", "regex", "kubernetes"],
-      "automerge": true
     }
   ]
 }

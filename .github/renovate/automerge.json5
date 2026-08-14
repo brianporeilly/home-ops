@@ -1,0 +1,28 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Extracted out of the top-level packageRules array and extended as a
+  // local preset instead, positioned last in renovate.json's `extends`.
+  //
+  // Why: confirmed via a live Renovate debug log (Repository config dump)
+  // that this exact rule loads correctly - right manager (flux), right
+  // updateType (patch), right automerge:true - yet PRs matching it still
+  // showed "Automerge: Disabled by config". Traced to a known, maintainer-
+  // acknowledged Renovate bug (renovatebot/renovate#31182): packageRules
+  // pulled in via `extends` can end up merged AFTER the repo's own local
+  // packageRules array, reversing the documented "local overrides presets"
+  // precedence and "last matching rule wins" semantics - so something deep
+  // in the home-operations/renovate-presets -> config:recommended chain
+  // was silently winning over our local rule regardless of array position.
+  //
+  // Workaround: since the bug makes stuff pulled in LATER via `extends`
+  // win, put our rule in the extends chain too, last, so it wins by the
+  // same (buggy) mechanics instead of fighting them.
+  packageRules: [
+    {
+      description: "Auto-merge patch updates for non-critical dependencies. matchManagers covers three managers, not just 'flux': 'regex' for the customManagers (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex), and 'kubernetes' because that manager does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what actually catches images embedded in raw CRDs the flux manager doesn't parse (e.g. the ClickHouseInstallation CR, PR #421). Without all three, matching deps get detected but never auto-merged, unlike everything else at this update level.",
+      matchUpdateTypes: ["patch", "pin", "digest"],
+      matchManagers: ["flux", "regex", "kubernetes"],
+      automerge: true,
+    },
+  ],
+}
