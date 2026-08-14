@@ -19,7 +19,6 @@ spec:
   patches:
     - target:
         kind: SnapshotPolicy
-        name: omada-controller
       patch: |
         apiVersion: kopiur.home-operations.com/v1alpha1
         kind: SnapshotPolicy
