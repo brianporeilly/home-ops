@@ -37,6 +37,19 @@ spec:
               capabilities:
                 add:
                   - DAC_OVERRIDE
+    # Restoring needs mover.privilegedMode: true too, for the same reason
+    # as the backup-side override above (CAP_CHOWN to reproduce root:root
+    # ownership) - see the equivalent comment in home/esphome/ks.yaml.
+    - target:
+        kind: Restore
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: Restore
+        metadata:
+          name: searxng
+        spec:
+          mover:
+            privilegedMode: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
