@@ -1,0 +1,52 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
+# Passive populator: sits idle until a PVC's spec.dataSourceRef claims it
+# (app-template supports this natively via persistence.<name>.dataSourceRef:
+# {apiGroup: kopiur.home-operations.com, kind: Restore, name: ${APP}}).
+# Adding this CR has no effect on a live cluster by itself - it only
+# matters once an app's own helmrelease.yaml also sets dataSourceRef, and
+# even then dataSourceRef only fires at PVC *creation* time, so existing
+# bound PVCs are unaffected. The payoff is a torn-down-and-rebuilt cluster:
+# Flux re-applies the HelmRelease, app-template creates a fresh PVC, and
+# this populates it from the last kopia snapshot before the app's own pod
+# ever starts.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: ${APP}
+spec:
+  # Resolves via the SnapshotPolicy's identity even with no Snapshot CR
+  # present yet (a fresh cluster hasn't recreated any) - "deploy-or-restore".
+  source:
+    fromPolicy:
+      name: ${APP}
+  target:
+    populator: {}
+  # Continue (not the Fail default): a brand-new app with nothing backed up
+  # yet under this identity should just get an empty volume and start
+  # normally, not block forever waiting for a snapshot that will never
+  # appear. An app that already has real backup history still restores it -
+  # this only kicks in for the genuinely-never-backed-up case.
+  policy:
+    onMissingSnapshot: Continue
+  # Same cross-namespace requirement as the SnapshotPolicy - see the
+  # equivalent comment in snapshotpolicy.yaml.
+  credentialProjection:
+    enabled: true
+  mover:
+    cache:
+      mode: Persistent
+      capacity: ${KOPIUR_CACHE_CAPACITY:=2Gi}
+      storageClassName: nfs-slow
+    # Reproduces whatever uid/gid/fsGroup the backup mover actually ran as,
+    # read from the snapshot itself rather than a live pod - there isn't
+    # one yet at restore-populator time, the app's own pod is waiting on
+    # this PVC to become Bound first. Covers the common UID-1000 case by
+    # default. The apps whose SnapshotPolicy needed an explicit
+    # mover.securityContext override (root + DAC_OVERRIDE) to back up in
+    # the first place will very likely need privilegedMode: true here too,
+    # to actually get CAP_CHOWN and reproduce non-1000 ownership on
+    # restore - not yet added, unconfirmed until a real restore is tested
+    # against one of those apps.
+    inheritSecurityContextFrom:
+      snapshot: {}
