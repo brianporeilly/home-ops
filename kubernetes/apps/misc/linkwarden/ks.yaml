@@ -14,7 +14,8 @@ spec:
   # linkwarden's root UID only comes from its image's own USER line, not a
   # pinned pod/container securityContext - invisible to the component's
   # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
-  # misc namespace carries the privileged-movers opt-in for this.
+  # misc namespace carries the privileged-movers opt-in for this. DAC_OVERRIDE:
+  # see the equivalent comment in download/qui/ks.yaml.
   patches:
     - target:
         kind: SnapshotPolicy
@@ -29,6 +30,9 @@ spec:
               runAsUser: 0
               runAsGroup: 0
               runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
   dependsOn:
     - name: envoy-gateway-config
       namespace: network

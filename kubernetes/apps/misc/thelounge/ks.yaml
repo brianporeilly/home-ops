@@ -13,8 +13,15 @@ spec:
     - ../../../../components/kopiur/backup
   # thelounge's image runs as nobody (65534), only visible via its own USER
   # line - invisible to the component's inheritSecurityContextFrom.pvcConsumer,
-  # so it needs an explicit override. Non-root, no privileged-movers opt-in
-  # needed.
+  # so it needs an explicit override. Running the mover as 65534 fixed
+  # nothing on its own: its config dir is 0700, owned 65534:65534, so a
+  # non-matching UID (including root without capabilities) can't read it,
+  # and separately the NFS-backed repo (owned 1000:1000) only grants access
+  # to an exact UID match or root's NFS no_root_squash bypass - a single
+  # mover process can't satisfy both as a genuinely non-root, non-1000
+  # identity. root + DAC_OVERRIDE is what actually works - see the
+  # equivalent comment in download/qui/ks.yaml. misc namespace carries the
+  # privileged-movers opt-in for this.
   patches:
     - target:
         kind: SnapshotPolicy
@@ -26,9 +33,12 @@ spec:
         spec:
           mover:
             securityContext:
-              runAsUser: 65534
-              runAsGroup: 65534
-              runAsNonRoot: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
   dependsOn:
     - name: envoy-gateway-config
       namespace: network

@@ -15,6 +15,17 @@ spec:
   # pod/container securityContext - invisible to the component's
   # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
   # download namespace carries the privileged-movers opt-in for this.
+  # DAC_OVERRIDE: /repo on the NAS is chowned 1000:1000 with 0600 blob
+  # files - only readable/writable by an exact UID match or by root's NFS
+  # no_root_squash bypass, which is server-side and independent of local
+  # Linux capabilities. Locally, though, the mover's "drop: ALL" hardened
+  # base strips root's own DAC bypass for the source PVC too, so without
+  # DAC_OVERRIDE root can only read files it happens to own outright -
+  # added uniformly on every explicit-root override so a future image
+  # update that changes internal file ownership doesn't silently reopen
+  # this failure mode. Confirmed live: qui/linkwarden's data happens to be
+  # owned 0:0 already (works without it), but omada-controller (508:508)
+  # and thelounge (65534:65534) need it to read their own PVC at all.
   patches:
     - target:
         kind: SnapshotPolicy
@@ -29,6 +40,9 @@ spec:
               runAsUser: 0
               runAsGroup: 0
               runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
   dependsOn:
     - name: envoy-gateway-config
       namespace: network

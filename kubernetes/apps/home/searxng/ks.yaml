@@ -14,7 +14,12 @@ spec:
   # searxng's image runs as its own searxng user (977), only visible via its
   # own USER line - invisible to the component's
   # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
-  # Non-root, no privileged-movers opt-in needed.
+  # Running the mover as 977 gets past the source PVC read fine (its config
+  # is world-readable), but the NFS-backed repo (owned 1000:1000) only
+  # grants access to an exact UID match or root's NFS no_root_squash
+  # bypass - 977 has neither. root + DAC_OVERRIDE is what actually works -
+  # see the equivalent comment in download/qui/ks.yaml. home namespace
+  # carries the privileged-movers opt-in for this.
   patches:
     - target:
         kind: SnapshotPolicy
@@ -26,9 +31,12 @@ spec:
         spec:
           mover:
             securityContext:
-              runAsUser: 977
-              runAsGroup: 977
-              runAsNonRoot: true
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
