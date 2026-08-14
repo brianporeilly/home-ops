@@ -37,6 +37,14 @@ spec:
                   secretKeyRef:
                     name: radarr-secret
                     key: RADARR__AUTH__APIKEY
+            # NB: intentionally $VAR, not ${VAR}, throughout this script -
+            # Flux's postBuild.substitute (enabled on this Kustomization for
+            # the kopiur ${APP}/${PVC} vars) does a blanket ${...} text
+            # replacement across the whole rendered manifest, this shell
+            # script included, and fails the build on any brace-form
+            # reference not in that map ("variable not set (strict mode):
+            # SONARR_API_KEY") - confirmed live as the actual cause of this
+            # Kustomization never having successfully reconciled.
             command:
               - sh
               - -c
@@ -46,8 +54,8 @@ spec:
                 if [ ! -f /config/config/config.yaml ]; then
                   echo "Seeding Bazarr config.yaml (Sonarr/Radarr connections + WebUI credentials pre-configured, first run)"
                   cp /seed/config.yaml /config/config/config.yaml
-                  sed -i "s|__SONARR_API_KEY__|${SONARR_API_KEY}|g" /config/config/config.yaml
-                  sed -i "s|__RADARR_API_KEY__|${RADARR_API_KEY}|g" /config/config/config.yaml
+                  sed -i "s|__SONARR_API_KEY__|$SONARR_API_KEY|g" /config/config/config.yaml
+                  sed -i "s|__RADARR_API_KEY__|$RADARR_API_KEY|g" /config/config/config.yaml
                 else
                   echo "Bazarr config.yaml already exists, leaving it alone"
                 fi
