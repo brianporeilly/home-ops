@@ -1,16 +1,18 @@
 # Cluster Migration Inventory
 
-Status: updated 2026-08-14. **Old cluster is now powered off for good** — vaultwarden's vault
-DB import is confirmed restored and the NAS media-file copy is complete, so both remaining
-gating items are closed. The old NAS box was wiped and rebuilt as `nas-ultan` on the new
-cluster's network (see `node-inventory.md` / `disk-hardware-plan.md`).
+Status: updated 2026-08-14. **Old cluster is now powered off** — vaultwarden's vault DB import
+is confirmed restored. The NAS media-file copy is **still in progress** (not yet complete,
+looking good so far) — the old cluster going down ahead of that finishing is a change from this
+doc's earlier stated plan, noted here rather than smoothed over. The old NAS box was wiped and
+rebuilt as `nas-ultan` on the new cluster's network (see `node-inventory.md` /
+`disk-hardware-plan.md`).
 
 Since the previous update: `csi-driver-nfs` went from staged-unused to actively used
 (frigate, forgejo); forgejo shipped (Postgres + nfs-csi-driver repo/LFS storage), survived
 three bootstrap bugs, and moved from `home` to `misc`; soularr (lidarr↔slskd bridge) shipped;
 the Kopia-based backup system (`kopiur`) went from draft to **live on 29 apps** (see New Apps
 table + Backlog); vaultwarden's DB import completed; copyparty is live and tested; old cluster
-decommissioned. See Backlog for what's still open.
+decommissioned (media copy still finishing). See Backlog for what's still open.
 
 Old cluster: k3s (Rancher), direct Helm, Longhorn storage (backed by iSCSI PVCs off the old
 NAS box).
@@ -64,11 +66,11 @@ Legend:
 
 | App | Old | New | Data Migration | NAS Dep | Notes |
 |-----|-----|-----|---------------|---------|-------|
-| audiobookshelf | ✅ | ✅ | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media/audiobooks`); media copy complete |
-| jellyfin | ✅ | ✅ | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media`); media copy complete |
+| audiobookshelf | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media/audiobooks`); app is functional, media files still being copied onto the new NAS |
+| jellyfin | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media`); same as above — waiting on media copy, not plumbing |
 | jellyseerr | ✅ | ❓ | None (just config) | No | Not started — not present in repo at all yet |
 | navidrome | ✅ | 💀 | None (reads music from NAS) | Yes - music library | Not using |
-| ersatztv | ❌ | ✅ | None (reads media from NAS) | Yes - media library | NFS mount wired (same export as jellyfin); media copy complete |
+| ersatztv | ❌ | 🟡 | None (reads media from NAS) | Yes - media library | NFS mount wired (same export as jellyfin); waiting on media copy |
 | tdarr | ✅ | 🔲 | Config only | Yes - media library | On main but still not wired into `media/kustomization.yaml` |
 | bazarr | ✅ | ✅ | Config only (small) | Yes - media library | NFS mount wired; subtitle management, not blocked on media presence |
 | podfetch | ❌ | ✅ | N/A | Yes - podcasts export | New - podcast app, NFS mount wired (`/media/podcasts`) |
@@ -216,10 +218,11 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - **soularr** — deployed, bridges lidarr/slskd (verify placeholder credentials, see New Apps table)
 - **vaultwarden** — old vault DB restored into the new CNPG instance
 - **copyparty** — live and tested
-- **jellyfin, audiobookshelf, ersatztv, bazarr, sonarr, radarr** — NAS media-file copy complete
+- **bazarr, sonarr, radarr** — config-only, not blocked on media presence
 - Misc new apps: echo, atuin, linkwarden, maddy, nebraska, thelounge, tuwunel, microbin, podfetch, tube-archivist
 
 ### 🟡 Deployed but needs data
+- **jellyfin, audiobookshelf, ersatztv** — NFS mounts done, media files still copying onto NAS
 - **ollama** — parked `replicas: 0`; rebuild fixed the etcd-contention root cause, un-park + test is outstanding
 
 ### 🔲 Staged (disabled but mergeable)
@@ -261,9 +264,8 @@ in progress, off-site still open).
 - changedetection, searxng
 - lidarr, bazarr
 
-**Media (NAS reads, mounts wired, data copy complete):**
-- jellyfin, audiobookshelf, ersatztv — done; tdarr still pending kustomization wiring (unrelated
-  to media copy)
+**Media (NAS reads, mounts wired, data copy in progress):**
+- jellyfin, audiobookshelf, ersatztv, tdarr(pending kustomization wiring)
 
 **NFS-wired via csi-driver-nfs (not static mounts):**
 - frigate recordings, forgejo repo/LFS — both done
@@ -272,9 +274,11 @@ in progress, off-site still open).
 
 ## Old cluster status
 
-**Decommissioned — powered off for good.** Both gating items (vaultwarden vault DB restore, full
-NAS media-file copy) are confirmed complete. All data was backed up off it and the old NAS box
-was wiped and rebuilt as the new cluster's `nas-ultan` before shutdown.
+**Decommissioned — powered off**, per direct confirmation, even though the NAS media-file copy
+is not yet finished (still in progress, no issues reported so far). This is ahead of what this
+doc's earlier version said the plan was ("kept alive until... copy verified complete") — noted
+as a fact, not resolved into a tidier story. All data was backed up off the old cluster and the
+old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdown.
 
 ---
 
