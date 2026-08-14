@@ -11,11 +11,20 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
-  # omada-controller's root UID only comes from its image's own USER line,
-  # not a pinned pod/container securityContext - invisible to the
-  # component's inheritSecurityContextFrom.pvcConsumer, so it needs an
-  # explicit override. network namespace carries the privileged-movers
-  # opt-in for this.
+  # omada-controller's pod securityContext is unset, so `id` inside the
+  # container reports uid 0 - but the entrypoint actually drops to an
+  # internal service UID (508) before writing any data, so every file on
+  # the PVC is really owned 508:508, not 0:0. That's invisible to the
+  # component's inheritSecurityContextFrom.pvcConsumer either way (no
+  # pinned pod-level UID to read), so it needs an explicit override.
+  # Running the mover AS 508 only fixes the source-PVC read - it still
+  # can't write to the NFS-backed repo (owned 1000:1000), which only
+  # grants access to an exact UID match or root's NFS no_root_squash
+  # bypass. So root + DAC_OVERRIDE (to get past the source PVC's 0600
+  # files, owned 508:508, since the mover's hardened base drops root's
+  # own local DAC bypass too) is what actually works end-to-end - see the
+  # equivalent comment in download/qui/ks.yaml. network namespace carries
+  # the privileged-movers opt-in for this.
   patches:
     - target:
         kind: SnapshotPolicy
@@ -30,6 +39,9 @@ spec:
               runAsUser: 0
               runAsGroup: 0
               runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
