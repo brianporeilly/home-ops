@@ -87,6 +87,13 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "3Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Migrated live: PVC deleted + restored,
+        # data verified.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: jellyfin
         globalMounts:
           - path: /config
       metadata:
