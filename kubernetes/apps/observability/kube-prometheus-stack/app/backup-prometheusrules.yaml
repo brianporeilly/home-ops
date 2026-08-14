@@ -93,3 +93,36 @@ spec:
           for: 15m
           labels:
             severity: warning
+
+    # RGW → NAS sync (components/rgw-nas-sync) — the off-Ceph DR copy of every
+    # CNPG/MariaDB/etcd/loki RGW bucket. Every instance shares the exact
+    # CronJob name "rgw-nas-sync" (see the component), so one rule per alert
+    # covers all namespaces via the namespace label from kube-state-metrics.
+    - name: rgw-nas-sync
+      rules:
+        - alert: RGWNASSyncJobFailed
+          annotations:
+            summary: "RGW→NAS sync job failed ({{ $labels.namespace }})"
+            description: >-
+              The rgw-nas-sync CronJob in namespace {{ $labels.namespace }}
+              has failed. That namespace's RGW bucket is not being mirrored
+              to the NAS — its off-Ceph DR copy is falling behind.
+          expr: |
+            kube_job_failed{job_name=~"rgw-nas-sync-.+"} > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: RGWNASSyncStale
+          annotations:
+            summary: "RGW→NAS sync has not succeeded recently ({{ $labels.namespace }})"
+            description: >-
+              The rgw-nas-sync CronJob in namespace {{ $labels.namespace }}
+              last succeeded {{ $value | humanizeDuration }} ago (schedule is
+              daily at 05:00).
+          expr: |
+            time() - max by (namespace, cronjob) (
+              kube_cronjob_status_last_successful_time{cronjob="rgw-nas-sync"}
+            ) > 60 * 60 * 30
+          for: 15m
+          labels:
+            severity: warning

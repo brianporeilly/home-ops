@@ -1,0 +1,84 @@
+---
+# Reusable component. Consume from an app's ks.yaml alongside its existing
+# obc.yaml (RGW bucket + S3 credentials) - see kubernetes/apps/home/home-assistant/ks.yaml
+# for a worked example:
+#   spec:
+#     components:
+#       - ../../../../components/rgw-nas-sync
+#     postBuild:
+#       substitute:
+#         OBC_NAME: home-assistant-postgres-backup
+# ${OBC_NAME} is required (no default) - it's the name of the app's own
+# ObjectBucketClaim, which is also the name of the Secret (AWS_ACCESS_KEY_ID/
+# AWS_SECRET_ACCESS_KEY) and ConfigMap (BUCKET_HOST/BUCKET_PORT/BUCKET_NAME)
+# that ObjectBucketClaim generates in the same namespace.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rgw-nas-sync
+spec:
+  # Daily, staggered an hour after etcd-backup (04:00) and two hours after
+  # the 03:00 CNPG/MariaDB base backups - gives both time to finish so the
+  # sync picks up the day's fresh backup, not yesterday's.
+  schedule: "0 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          # Matches the NAS /backups export's ownership convention (same as
+          # kopiur's moverDefaults) - no cross-namespace credential dance
+          # needed here since this job only ever touches its own app's bucket.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+          volumes:
+            - name: nas
+              nfs:
+                server: 10.20.30.11
+                path: /backups
+          containers:
+            - name: sync
+              image: docker.io/rclone/rclone:1.75.0
+              env:
+                - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
+                - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }
+                - name: RCLONE_CONFIG_RGW_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: "${OBC_NAME}", key: AWS_ACCESS_KEY_ID } }
+                - name: RCLONE_CONFIG_RGW_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: "${OBC_NAME}", key: AWS_SECRET_ACCESS_KEY } }
+                - name: BUCKET_HOST
+                  valueFrom: { configMapKeyRef: { name: "${OBC_NAME}", key: BUCKET_HOST } }
+                - name: BUCKET_PORT
+                  valueFrom: { configMapKeyRef: { name: "${OBC_NAME}", key: BUCKET_PORT } }
+                - name: BUCKET_NAME
+                  valueFrom: { configMapKeyRef: { name: "${OBC_NAME}", key: BUCKET_NAME } }
+              # NB: intentionally $VAR, not ${VAR}, throughout this script -
+              # Flux's postBuild.substitute does a blanket ${...} text
+              # replacement across the whole rendered manifest (this shell
+              # heredoc included), and would fail the build on any brace-form
+              # reference not in this component's own substitute map.
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  export RCLONE_CONFIG_RGW_ENDPOINT="http://$BUCKET_HOST:$BUCKET_PORT"
+                  dest="/nas/rgw-sync/$BUCKET_NAME"
+                  mkdir -p "$dest"
+                  echo "[rgw-nas-sync] syncing rgw:$BUCKET_NAME -> $dest"
+                  rclone sync "rgw:$BUCKET_NAME" "$dest" -v
+                  rclone size "$dest"
+              volumeMounts:
+                - { name: nas, mountPath: /nas }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }

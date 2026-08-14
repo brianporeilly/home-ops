@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/rgw-nas-sync
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -18,6 +20,9 @@ spec:
       namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/media/grimmory/app
+  postBuild:
+    substitute:
+      OBC_NAME: grimmory-mariadb-backup
   prune: true
   retryInterval: 2m
   sourceRef:
