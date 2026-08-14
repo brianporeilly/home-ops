@@ -11,6 +11,25 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+  # thelounge's image runs as nobody (65534), only visible via its own USER
+  # line - invisible to the component's inheritSecurityContextFrom.pvcConsumer,
+  # so it needs an explicit override. Non-root, no privileged-movers opt-in
+  # needed.
+  patches:
+    - target:
+        kind: SnapshotPolicy
+        name: thelounge
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: SnapshotPolicy
+        metadata:
+          name: thelounge
+        spec:
+          mover:
+            securityContext:
+              runAsUser: 65534
+              runAsGroup: 65534
+              runAsNonRoot: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network

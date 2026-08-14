@@ -5,6 +5,19 @@ kind: Kustomization
 namespace: misc
 components:
   - ../../components/common
+patches:
+  - target:
+      kind: Namespace
+    patch: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: not-used
+        annotations:
+          # kopiur mover pod for linkwarden runs its app container as root -
+          # the mover has to match to read the PVC data, and kopiur gates
+          # any UID-0 mover behind this explicit opt-in.
+          kopiur.home-operations.com/privileged-movers: "true"
 resources:
   - ./atuin/ks.yaml
   - ./copyparty/ks.yaml

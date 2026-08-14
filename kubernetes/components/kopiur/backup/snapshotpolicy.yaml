@@ -44,6 +44,19 @@ spec:
       mode: Persistent
       capacity: ${KOPIUR_CACHE_CAPACITY:=2Gi}
       storageClassName: nfs-slow
+    # Auto-match the mover's UID/GID to whatever the app's own pod actually
+    # runs as, for apps that don't follow the cluster's UID-1000 convention
+    # (moverDefaults). Only works when the workload pins runAsUser at the
+    # pod/container level - a UID that only comes from the image's own USER
+    # line is invisible here and silently falls back to moverDefaults, so
+    # apps with an image-baked (not pod-spec-pinned) UID still need an
+    # explicit mover.securityContext override in their own SnapshotPolicy
+    # patch. Resolving to a non-1000 UID (e.g. root) also requires the
+    # consuming namespace to carry the
+    # kopiur.home-operations.com/privileged-movers annotation - without it
+    # kopiur refuses to elevate and falls back to moverDefaults too.
+    inheritSecurityContextFrom:
+      pvcConsumer: {}
   # GFS retention: frequent recent recovery points, pruned further back.
   # Same shape across every app using this component - override individual
   # fields in the consuming app only if it genuinely needs something
