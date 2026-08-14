@@ -37,6 +37,40 @@ spec:
     keepDaily: 7
     keepWeekly: 4
 ---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
+# Only covers grimmory-data. grimmory-bookdrop is declared as a second
+# source above but has never actually been captured by any real Snapshot
+# (confirmed live: every Snapshot this SnapshotPolicy has ever produced
+# only resolved grimmory-data - a separate, not-yet-understood gap from
+# this restore work, worth its own investigation). Wiring a populator to
+# a PVC with zero backup history would be a no-op at best.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: Restore
+metadata:
+  name: grimmory
+spec:
+  source:
+    fromPolicy:
+      name: grimmory
+  target:
+    populator: {}
+  policy:
+    onMissingSnapshot: Continue
+  credentialProjection:
+    enabled: true
+  mover:
+    cache:
+      mode: Persistent
+      capacity: 2Gi
+      storageClassName: nfs-slow
+    inheritSecurityContextFrom:
+      snapshot: {}
+    # grimmory's SnapshotPolicy needed root + DAC_OVERRIDE to back up in
+    # the first place (see the equivalent comment in
+    # download/qui/ks.yaml), so restoring it needs privilegedMode: true
+    # too - see the equivalent comment in home/esphome/ks.yaml.
+    privilegedMode: true
+---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotschedule_v1alpha1.json
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: SnapshotSchedule

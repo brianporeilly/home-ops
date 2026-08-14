@@ -11,6 +11,21 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+  # lazylibrarian's SnapshotPolicy needed root + DAC_OVERRIDE to back up in
+  # the first place (see the equivalent comment in download/qui/ks.yaml),
+  # so restoring it needs mover.privilegedMode: true too - see the
+  # equivalent comment in home/esphome/ks.yaml.
+  patches:
+    - target:
+        kind: Restore
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: Restore
+        metadata:
+          name: lazylibrarian
+        spec:
+          mover:
+            privilegedMode: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
