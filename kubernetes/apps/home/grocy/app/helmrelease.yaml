@@ -29,7 +29,7 @@ spec:
             env:
               PUID: 1000
               GUID: 1000
-              TZ: America/Anchorage
+              TZ: UTC
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true

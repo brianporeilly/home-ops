@@ -14,6 +14,8 @@ spec:
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/media/grimmory/app
   prune: true

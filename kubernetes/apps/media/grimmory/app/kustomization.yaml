@@ -8,3 +8,4 @@ resources:
   - ./mariadb.yaml
   - ./obc.yaml
   - ./backup.yaml
+  - ./kopiur-snapshot.yaml

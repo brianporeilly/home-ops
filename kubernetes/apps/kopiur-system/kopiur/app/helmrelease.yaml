@@ -1,0 +1,50 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/kopiur/main/deploy/helm/kopiur/values.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kopiur
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: kopiur
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    # Helm upgrade skips the chart's crds/ directory by default (CRDsPolicy
+    # defaults to Skip on upgrade, unlike Create on install) - CRDsPolicy is
+    # alpha and the CRD surface can still change between releases, so schema
+    # changes must actually land or a bumped chart silently keeps stale CRDs.
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    # installScope defaults to cluster, which is what ClusterRepository (the
+    # shared-repo, many-namespaces layout used here) needs - a namespaced
+    # install's Role-only RBAC silently disables that CRD entirely.
+    #
+    # credentialProjection.allowed/enabled on the ClusterRepository/
+    # SnapshotPolicy CRs (see repository/clusterrepository.yaml and
+    # components/kopiur/backup/snapshotpolicy.yaml) only opts the resources
+    # in - the operator's own ClusterRole still needs the RBAC verbs to
+    # actually write a Secret outside its own namespace. Without this the
+    # CR-level opt-in gets as far as attempting the write and then fails
+    # with an HTTP 403: "the operator is not permitted to write the
+    # projected credentials Secret ... - confirmed live, error message
+    # points at this exact flag.
+    features:
+      credentialProjection:
+        enabled: true
+    monitoring:
+      serviceMonitor:
+        enabled: true
+      prometheusRule:
+        enabled: true
+      # ConfigMap sidecar mode (matches how Grafana dashboards are already
+      # loaded in this cluster) - not grafanaOperator mode, no grafana-operator
+      # CRDs here.
+      dashboards:
+        enabled: true

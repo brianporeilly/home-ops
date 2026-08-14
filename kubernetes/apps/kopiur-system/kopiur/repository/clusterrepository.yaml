@@ -1,0 +1,78 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/clusterrepository_v1alpha1.json
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: ClusterRepository
+metadata:
+  name: nas-backups
+spec:
+  allowedNamespaces:
+    all: true
+  # Owner-side half of credential projection - each consuming SnapshotPolicy
+  # also opts in (credentialProjection.enabled: true) since mover Jobs run,
+  # and load creds via envFrom, in their own app's namespace, not here.
+  # Without both sides every mover run fails: "credentials Secret
+  # kopiur-repository-secret does not exist in namespace X" - confirmed
+  # live, discovered right after the first apps were wired up.
+  credentialProjection:
+    allowed: true
+  # Inline NFS, not a PVC - kopiur's own docs recommend this for an on-prem
+  # NAS you'd rather name directly than wrap in a PVC. Dedicated export,
+  # separate from the nfs-csi-driver (nfs-slow) export used by forgejo/frigate
+  # and the static NFS export used by media - a single known path, not a
+  # CSI-generated subdirectory.
+  backend:
+    filesystem:
+      path: /repo
+      volume:
+        nfs:
+          server: 10.20.30.11
+          path: /backups
+  encryption:
+    passwordSecretRef:
+      name: kopiur-repository-secret
+      namespace: kopiur-system
+      key: KOPIA_PASSWORD
+  create:
+    enabled: true
+  # /backups on the NAS is already chowned to 1000:1000, which is also the
+  # runAsUser/runAsGroup/fsGroup every app in this cluster uses by convention
+  # (vaultwarden, home-assistant, paperless-ngx, forgejo, etc.) - so movers run
+  # as 1000 to match both the NAS export's ownership and every source PVC's
+  # ownership, no NAS change or per-policy override needed for now. A future
+  # app on a different UID would need its own SnapshotPolicy-level
+  # mover.inheritSecurityContextFrom override (see kopiur's nfs-shared-group
+  # backend example) rather than changing this cluster-wide default.
+  moverDefaults:
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+  maintenance:
+    namespace: kopiur-system
+  scheduleDefaults:
+    timezone: UTC
+  # Ad hoc browse/restore UI - "pick a snapshot, mount it, pull a file" per
+  # kopiur's own docs, without needing a full Restore CR for casual use.
+  # readOnly blocks create/delete/alter of snapshots/policies/maintenance
+  # from the UI - browsing and restoring individual files still works, but
+  # it can't touch the backup config itself. auth.generate creates a
+  # per-repo Secret (<name>-kopia-ui-auth) with a random password rather
+  # than reusing/exposing the repository password anywhere.
+  server:
+    namespace: kopiur-system
+    auth:
+      generate: {}
+    readOnly: true
+    # Same as moverDefaults.podSecurityContext above - the server pod is a
+    # separate field, doesn't inherit moverDefaults, and defaulted to some
+    # other UID/fsGroup entirely. Without this it can't read anything on
+    # the NAS export (chowned to 1000:1000): "permission denied" opening
+    # /repo/.shards - confirmed live via the server pod's crash logs.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
