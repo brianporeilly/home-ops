@@ -326,3 +326,14 @@ Once both are confirmed, the old cluster can be powered off. *(No target date se
   and the plugin may regenerate its config on sync, same class of gotcha as other device configs
   in this repo). If reachable, wiring it in is the same `ScrapeConfig` static-target pattern
   already used for the NAS exporters (`kube-prometheus-stack/app/nas-scrapeconfig.yaml`).
+- **Authentik as identity provider / SSO for HTTPRoutes** — full IdP (not just an auth proxy
+  sidecar; a different shape than the already-decided-against `oauth2-proxy` in the infra table
+  above), fronting Envoy Gateway via `SecurityPolicy`/`ExtAuthz` or per-route forward-auth. Main
+  use case: apps with no auth at all (or weak/shared-password auth) currently exposed via
+  `envoy-internal`/`envoy-external` HTTPRoutes — e.g. kopia web UI, gatus, various dashboards —
+  would get a real login wall without each app needing its own user system. Secondary uses:
+  centralized MFA, single login across apps that do have their own auth, and an extra layer in
+  front of anything internet-facing via `envoy-external`. No design work done yet — needs an
+  inventory of which current HTTPRoutes are unauthenticated/weakly-authenticated before deciding
+  scope, and a look at how much operational weight a full IdP adds (its own DB, its own SSO
+  outage becomes everything's outage) versus the narrower oauth2-proxy shape already passed on.
