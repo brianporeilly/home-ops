@@ -7,7 +7,9 @@ the 3rd SSD OSD, so `ceph-blockpool-ssd` is back to `size: 3` (no longer running
 `size: 2`); Ceph split into device-class tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block`
 (see `ceph-device-class-tiering` memory); CephObjectStore/RGW being added as the backup S3
 target (`backup-dr-plan.md`).
-**Pending:** block.db SSDs (roche/eata), etcd S3610 PLP swap, `wk-eata` 10GbE NIC, NAS build.
+**Pending:** block.db SSDs (roche/eata), etcd S3610 PLP swap, `wk-eata` 10GbE NIC.
+**NAS build is done** — `nas-ultan` has been re-laid to the §1 plan (3 mirror vdevs + cold
+spare) and is live, serving NFS to the cluster (confirmed 2026-08-11; see `migration-inventory.md`).
 Backups (`backup-dr-plan.md`) not yet implemented.
 
 Goal: assign every usable disk to a role during the cluster + NAS rebuild, fix the
@@ -29,6 +31,9 @@ current HDD prices. See related: `etcd-slow-commits-patriot-ssd`, `ceph-hdd-slow
 ---
 
 ## 1. NAS node (`nas-ultan`) — ZFS, bulk data, primary copy
+
+**Status: done (confirmed 2026-08-11)** — disks re-laid to this plan, pool live, serving NFS
+to the cluster at `10.20.30.11`. Layout below is as-built, not aspirational.
 
 **Pool: 3 × mirror vdevs = ~18 TB usable.** Mirrors (NOT RAIDZ) are the correct SMR
 mitigation — mirror resilver is sequential, which DM-SMR tolerates; RAIDZ resilver is
