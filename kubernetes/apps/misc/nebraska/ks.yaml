@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/rgw-nas-sync
   dependsOn:
     - name: postgres-operator
       namespace: database
@@ -18,6 +20,9 @@ spec:
       namespace: network
   interval: 1h
   path: ./kubernetes/apps/misc/nebraska/app
+  postBuild:
+    substitute:
+      OBC_NAME: nebraska-postgres-backup
   prune: true
   retryInterval: 2m
   sourceRef:

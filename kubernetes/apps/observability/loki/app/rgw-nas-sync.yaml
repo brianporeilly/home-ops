@@ -1,0 +1,68 @@
+---
+# Written directly rather than via components/rgw-nas-sync - that component
+# needs Flux postBuild.substitute (for ${OBC_NAME}) on this Kustomization,
+# but this app's own helmrelease.yaml already uses ${AWS_ACCESS_KEY_ID}/
+# ${AWS_SECRET_ACCESS_KEY} for Loki's own -config.expand-env=true runtime
+# expansion (unrelated to Flux). Enabling postBuild.substitute here would
+# make Flux try to resolve those too and hard-fail the whole Kustomization,
+# since they're not in any substitute map. Same shape as the component's
+# CronJob, just with OBC_NAME hardcoded instead of templated.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rgw-nas-sync
+spec:
+  schedule: "0 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+          volumes:
+            - name: nas
+              nfs:
+                server: 10.20.30.11
+                path: /backups
+          containers:
+            - name: sync
+              image: docker.io/rclone/rclone:1.75.0
+              env:
+                - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
+                - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }
+                - name: RCLONE_CONFIG_RGW_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: loki-bucket, key: AWS_ACCESS_KEY_ID } }
+                - name: RCLONE_CONFIG_RGW_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: loki-bucket, key: AWS_SECRET_ACCESS_KEY } }
+                - name: BUCKET_HOST
+                  valueFrom: { configMapKeyRef: { name: loki-bucket, key: BUCKET_HOST } }
+                - name: BUCKET_PORT
+                  valueFrom: { configMapKeyRef: { name: loki-bucket, key: BUCKET_PORT } }
+                - name: BUCKET_NAME
+                  valueFrom: { configMapKeyRef: { name: loki-bucket, key: BUCKET_NAME } }
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  export RCLONE_CONFIG_RGW_ENDPOINT="http://$BUCKET_HOST:$BUCKET_PORT"
+                  dest="/nas/rgw-sync/$BUCKET_NAME"
+                  mkdir -p "$dest"
+                  echo "[rgw-nas-sync] syncing rgw:$BUCKET_NAME -> $dest"
+                  rclone sync "rgw:$BUCKET_NAME" "$dest" -v
+                  rclone size "$dest"
+              volumeMounts:
+                - { name: nas, mountPath: /nas }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }

@@ -95,19 +95,25 @@ spec:
                   valueFrom: { configMapKeyRef: { name: etcd-backup, key: BUCKET_PORT } }
                 - name: BUCKET_NAME
                   valueFrom: { configMapKeyRef: { name: etcd-backup, key: BUCKET_NAME } }
+              # NB: intentionally $VAR, not ${VAR}, throughout this script -
+              # Flux's postBuild.substitute (added to this app's ks.yaml
+              # alongside the rgw-nas-sync component) does a blanket ${...}
+              # text replacement across the whole rendered manifest, this
+              # shell heredoc included, and would fail the build on any
+              # brace-form reference not in that component's substitute map.
               command:
                 - /bin/sh
                 - -c
                 - |
                   set -eu
                   ts="$(date -u +%Y%m%dT%H%M%SZ)"
-                  export RCLONE_CONFIG_RGW_ENDPOINT="http://${BUCKET_HOST}:${BUCKET_PORT}"
-                  echo "[etcd-backup] uploading snapshot + pki to rgw:${BUCKET_NAME}/${ts}/"
-                  rclone copyto /work/etcd-snapshot.db "rgw:${BUCKET_NAME}/${ts}/etcd-snapshot.db" --s3-no-check-bucket -v
-                  rclone copyto /work/pki.tgz          "rgw:${BUCKET_NAME}/${ts}/pki.tgz"          --s3-no-check-bucket -v
+                  export RCLONE_CONFIG_RGW_ENDPOINT="http://$BUCKET_HOST:$BUCKET_PORT"
+                  echo "[etcd-backup] uploading snapshot + pki to rgw:$BUCKET_NAME/$ts/"
+                  rclone copyto /work/etcd-snapshot.db "rgw:$BUCKET_NAME/$ts/etcd-snapshot.db" --s3-no-check-bucket -v
+                  rclone copyto /work/pki.tgz          "rgw:$BUCKET_NAME/$ts/pki.tgz"          --s3-no-check-bucket -v
                   echo "[etcd-backup] pruning snapshots older than 14d"
-                  rclone delete "rgw:${BUCKET_NAME}/" --min-age 14d -v || true
-                  rclone size "rgw:${BUCKET_NAME}/"
+                  rclone delete "rgw:$BUCKET_NAME/" --min-age 14d -v || true
+                  rclone size "rgw:$BUCKET_NAME/"
               volumeMounts:
                 - { name: work, mountPath: /work }
               resources:

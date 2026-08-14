@@ -8,3 +8,4 @@ resources:
   - ./ocirepository.yaml
   - ./syslog-rules.yaml
   - ./nas-journal-rules.yaml
+  - ./rgw-nas-sync.yaml

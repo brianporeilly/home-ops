@@ -11,6 +11,7 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+    - ../../../../components/rgw-nas-sync
   # linkwarden's root UID only comes from its image's own USER line, not a
   # pinned pod/container securityContext - invisible to the component's
   # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
@@ -48,6 +49,7 @@ spec:
     substitute:
       APP: linkwarden
       PVC: linkwarden-data
+      OBC_NAME: linkwarden-postgres-backup
   prune: true
   retryInterval: 2m
   sourceRef:
