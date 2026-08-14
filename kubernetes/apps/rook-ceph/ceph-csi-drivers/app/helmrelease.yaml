@@ -22,6 +22,17 @@ spec:
       rbd:
         name: rook-ceph.rbd.csi.ceph.com
         enabled: true
+        # Chart default is "none" for RBD specifically (cephfs defaults to
+        # volumeSnapshot) - without this the csi-snapshotter sidecar never
+        # gets deployed on the RBD ctrlplugin, so any VolumeSnapshot sourced
+        # from a ceph-block/ceph-block-ssd (RBD) PVC just hangs forever
+        # waiting to become readyToUse. Confirmed live: the Driver CR briefly
+        # showed volumeSnapshot (inherited from some prior state) until a
+        # routine Helm reconcile re-rendered it back to the chart's real
+        # default of none - this wasn't a code bug, just a missing value
+        # that needed to be explicit and persisted, not a transient CR edit.
+        # kopiur's PVC-based backups (components/kopiur/backup) require this.
+        snapshotPolicy: volumeSnapshot
       cephfs:
         name: rook-ceph.cephfs.csi.ceph.com
         enabled: true

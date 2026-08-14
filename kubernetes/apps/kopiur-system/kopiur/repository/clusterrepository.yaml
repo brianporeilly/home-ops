@@ -7,6 +7,14 @@ metadata:
 spec:
   allowedNamespaces:
     all: true
+  # Owner-side half of credential projection - each consuming SnapshotPolicy
+  # also opts in (credentialProjection.enabled: true) since mover Jobs run,
+  # and load creds via envFrom, in their own app's namespace, not here.
+  # Without both sides every mover run fails: "credentials Secret
+  # kopiur-repository-secret does not exist in namespace X" - confirmed
+  # live, discovered right after the first apps were wired up.
+  credentialProjection:
+    allowed: true
   # Inline NFS, not a PVC - kopiur's own docs recommend this for an on-prem
   # NAS you'd rather name directly than wrap in a PVC. Dedicated export,
   # separate from the nfs-csi-driver (nfs-slow) export used by forgejo/frigate
@@ -53,6 +61,18 @@ spec:
   # per-repo Secret (<name>-kopia-ui-auth) with a random password rather
   # than reusing/exposing the repository password anywhere.
   server:
+    namespace: kopiur-system
     auth:
       generate: {}
     readOnly: true
+    # Same as moverDefaults.podSecurityContext above - the server pod is a
+    # separate field, doesn't inherit moverDefaults, and defaulted to some
+    # other UID/fsGroup entirely. Without this it can't read anything on
+    # the NAS export (chowned to 1000:1000): "permission denied" opening
+    # /repo/.shards - confirmed live via the server pod's crash logs.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch

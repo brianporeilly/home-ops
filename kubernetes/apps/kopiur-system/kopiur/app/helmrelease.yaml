@@ -25,6 +25,19 @@ spec:
     # installScope defaults to cluster, which is what ClusterRepository (the
     # shared-repo, many-namespaces layout used here) needs - a namespaced
     # install's Role-only RBAC silently disables that CRD entirely.
+    #
+    # credentialProjection.allowed/enabled on the ClusterRepository/
+    # SnapshotPolicy CRs (see repository/clusterrepository.yaml and
+    # components/kopiur/backup/snapshotpolicy.yaml) only opts the resources
+    # in - the operator's own ClusterRole still needs the RBAC verbs to
+    # actually write a Secret outside its own namespace. Without this the
+    # CR-level opt-in gets as far as attempting the write and then fails
+    # with an HTTP 403: "the operator is not permitted to write the
+    # projected credentials Secret ... - confirmed live, error message
+    # points at this exact flag.
+    features:
+      credentialProjection:
+        enabled: true
     monitoring:
       serviceMonitor:
         enabled: true
