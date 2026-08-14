@@ -90,5 +90,13 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "10Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Migrated live: PVC deleted + restored -
+        # sparse content is expected (bookmarks live in Postgres, this PVC
+        # is only uploaded assets), app started and initialized normally.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: linkwarden
         globalMounts:
           - path: /data/data
