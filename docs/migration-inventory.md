@@ -1,6 +1,6 @@
 # Cluster Migration Inventory
 
-Status: updated 2026-08-12. Old cluster is still powered on but fully drained — all data
+Status: updated 2026-08-14. Old cluster is still powered on but fully drained — all data
 backed up off it, the old NAS box has been wiped and rebuilt as `nas-ultan` on the new
 cluster's network (see `node-inventory.md` / `disk-hardware-plan.md`). Old cluster is being
 kept alive only until the two remaining data items below (vaultwarden DB import, full media
@@ -9,8 +9,8 @@ copy to the new NAS) are verified complete, then it can be powered off for good.
 Since the previous update: `csi-driver-nfs` went from staged-unused to actively used
 (frigate, forgejo); forgejo shipped (Postgres + nfs-csi-driver repo/LFS storage), survived
 three bootstrap bugs, and moved from `home` to `misc`; soularr (lidarr↔slskd bridge) shipped;
-a Kopia-based backup system (`kopiur`) is in progress for non-DB PVC data. See Backlog for
-what's still open on each.
+the Kopia-based backup system (`kopiur`) went from draft to **live on 29 apps** (see New Apps
+table + Backlog). See Backlog for what's still open.
 
 Old cluster: k3s (Rancher), direct Helm, Longhorn storage (backed by iSCSI PVCs off the old
 NAS box).
@@ -168,7 +168,7 @@ Legend:
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
 | **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS-only (no SSH clone yet). Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
-| **kopiur** | 🟡 | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). PR open, not yet merged. See Backlog. |
+| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. Confirmed working end-to-end (manual + scheduled runs). See Backlog for what's left (off-site sync, auto-restore-on-rebuild). |
 
 ---
 
@@ -284,25 +284,28 @@ Once both are confirmed, the old cluster can be powered off. *(No target date se
 
 ## Backlog / Not yet started
 
-**In progress:**
-- **kopiur backup system** — PR open (draft), not yet merged. One shared `ClusterRepository`
-  (`nas-backups`, inline NFS to `10.20.30.11:/backups`), reusable `SnapshotPolicy`/
-  `SnapshotSchedule` component (`kubernetes/components/kopiur/backup/`, `${APP}`/`${PVC}`
-  substituted via Flux `postBuild.substitute`). First wave is vaultwarden + home-assistant only,
-  as a proving ground. See `backup-dr-plan.md` L2 for the full writeup.
+**Done since the last update:**
+- **kopiur backup system** — deployed, not just a draft PR. One shared `ClusterRepository`
+  (`nas-backups`, inline NFS to `10.20.30.11:/backups`) + a read-only web UI on
+  `kopiur.internal.oreillys.io`, reusable `SnapshotPolicy`/`SnapshotSchedule` component
+  (`kubernetes/components/kopiur/backup/`, `${APP}`/`${PVC}` substituted via Flux
+  `postBuild.substitute`). Rolled out in two batches (High tier: immich, minecraft, linkwarden,
+  grocy, forgejo, copyparty, grimmory; Medium tier: 20 more apps across download/media/home/misc/
+  network) plus vaultwarden/home-assistant from the original proving-ground wave — **29 apps
+  total**, hourly schedule. See `backup-dr-plan.md` L2 for the full writeup and the gotchas hit
+  along the way (RBD `snapshotPolicy` CSI default, cross-namespace `credentialProjection`,
+  privileged-mover namespace opt-in, non-1000-UID movers needing `root + DAC_OVERRIDE`).
 
 **Explicitly deferred (by design, not forgotten):**
-- **kopiur → rest of the L2 app list** — immich library, paperless documents, arr configs, etc.
-  Once the vaultwarden/home-assistant first wave is confirmed working live, extend the same
-  component to the rest.
 - **kopiur → off-site (Backblaze B2)** — via kopiur's `RepositoryReplication` CRD (mirrors the
   existing repo's blobs to a second backend on a schedule). Bolts on without touching the NAS-side
-  config once the NAS tier is proven. Also tracked in `backup-dr-plan.md` §2/§8.
+  config once the NAS tier is proven (it now is). Also tracked in `backup-dr-plan.md` §2/§8.
 - **kopiur → auto-restore-on-rebuild** — kopiur's `Restore` CRD can act as a CSI volume populator
   (`PVC.spec.dataSourceRef` → `Restore`), so a torn-down-and-rebuilt cluster restores each app's
   data automatically as Flux re-applies it. Needs the backed-up PVC declared outside bjw-s
   app-template's own persistence block (referenced back in via `existingClaim`) — real per-app
-  restructuring, scoped as a follow-up once the current phase is proven live.
+  restructuring, scoped as a follow-up once the current phase is proven live (it now is — this is
+  the next natural kopiur step). **Not started.**
 - **forgejo SSH access** — HTTPS-only for now; would need a dedicated kube-vip LB IP on port 22 and
   a host-key secret. Deliberate scope cut when forgejo was first built, not revisited since.
 
@@ -315,3 +318,11 @@ Once both are confirmed, the old cluster can be powered off. *(No target date se
   inbound port 25, so the public-MX design needs rethinking (dedicated secondary mailbox vs.
   Cloudflare Email Routing → Worker → paperless API). User was going to research further; no
   design decided yet.
+- **Scrape OPNsense's CrowdSec plugin metrics** — the in-cluster `crowdsec` agent
+  (`observability/crowdsec`) already exposes Prometheus metrics on :6060, scraped via
+  `ServiceMonitor`. The CrowdSec instance the os-crowdsec plugin runs on OPNsense itself (LAPI at
+  `10.2.0.1:8080`) wraps the same binary, so it likely exposes the same `/metrics` endpoint —
+  unconfirmed whether it's enabled and what it's bound to (possibly `127.0.0.1`-only by default,
+  and the plugin may regenerate its config on sync, same class of gotcha as other device configs
+  in this repo). If reachable, wiring it in is the same `ScrapeConfig` static-target pattern
+  already used for the NAS exporters (`kube-prometheus-stack/app/nas-scrapeconfig.yaml`).
