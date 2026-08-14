@@ -1,14 +1,15 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Partially implemented** (updated 2026-08-12). Companion to `disk-hardware-plan.md`,
+Status: **Partially implemented** (updated 2026-08-14). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
 target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
 snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
-(§5), Loki chunk storage → RGW (§4). **In progress:** L2 non-DB PVC backups via `kopiur`
-(Kopia-native operator, §2 L2) — NAS is up and the design is settled, PR open (draft) covering
-vaultwarden + home-assistant as a first wave, not yet merged. **Still open:** off-site from NAS to
-B2 (§2 L3, deliberately deferred until the NAS tier is proven), confirm the sops age-key backup ×2
-(§6, owner task), restore runbook + testing (§6). See the checklist in §8 for per-item status.
+(§5), Loki chunk storage → RGW (§4), **L2 non-DB PVC backups via `kopiur`** (§2 L2) — live on
+29 apps, hourly schedule, confirmed working end-to-end. **Still open:** off-site from NAS to
+B2 (§2 L3, deliberately deferred until the NAS tier is proven — it now is, this is next),
+kopiur-based auto-restore-on-rebuild (needs per-app `existingClaim` restructuring — see
+`migration-inventory.md` backlog), confirm the sops age-key backup ×2 (§6, owner task), restore
+runbook + testing (§6). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -62,14 +63,46 @@ For PVCs that aren't operator-managed databases: immich library, paperless docum
 vaultwarden vault, arr configs, home-assistant config, etc.
 
 **Decided: Kopia via `kopiur`** (home-operations' Kopia-native Kubernetes operator,
-`kubernetes/apps/kopiur-system/`, PR #436), not Volsync. One shared `ClusterRepository`
-backed by inline NFS to a dedicated NAS export (`10.20.30.11:/backups`, chowned to the same
-UID/GID every app in this cluster already runs as), with per-app `SnapshotPolicy`/
-`SnapshotSchedule` CRs. **Status: draft, first wave only** (vaultwarden, home-assistant) as a
-proving-ground before the rest of the L2 list. Off-site sync to B2 is a deliberate follow-up
-via kopiur's `RepositoryReplication` CRD (mirrors an existing repo's blobs to a second backend
-on a schedule) — not yet built, but bolts on without touching the NAS-side config once this is
-proven. See `migration-inventory.md`'s backlog for the rollout-to-remaining-apps step.
+`kubernetes/apps/kopiur-system/`), not Volsync. One shared `ClusterRepository` backed by
+inline NFS to a dedicated NAS export (`10.20.30.11:/backups`, chowned to the same UID/GID most
+apps in this cluster run as), with per-app `SnapshotPolicy`/`SnapshotSchedule` CRs via a reusable
+Kustomize component, plus a read-only web UI (`kopiur.internal.oreillys.io`). **Status: live,
+29 apps**, hourly schedule, confirmed via manual and scheduled snapshot runs.
+
+Hard-won gotchas from the rollout (worth reading before touching this again):
+- **RBD `snapshotPolicy` CSI default is `none`, not `volumeSnapshot`** (unlike CephFS, which
+  defaults to `volumeSnapshot`) — without setting it explicitly on `ceph-csi-drivers`'
+  `drivers.rbd.snapshotPolicy`, the `csi-snapshotter` sidecar never deploys and every
+  `VolumeSnapshot` sourced from a `ceph-block`/`ceph-block-ssd` PVC hangs forever. This was the
+  root cause that blocked the whole system before the first successful backup.
+- **Cross-namespace credentials need a two-sided opt-in**: the `ClusterRepository`'s
+  `credentialProjection.allowed: true` (owner) plus each `SnapshotPolicy`'s
+  `credentialProjection.enabled: true` (consumer) — mover Jobs run in the app's own namespace,
+  not `kopiur-system`, so `envFrom` can't reach the credentials Secret without both sides.
+- **Non-UID-1000 apps need explicit mover identity work.** `inheritSecurityContextFrom.pvcConsumer`
+  (added to the shared component) auto-matches apps that pin `runAsUser` at the pod/container
+  level, but silently falls back to the UID-1000 default for anything image-default-only —
+  invisible in the pod spec, so it can't be inherited. Worse: the NAS's `/repo` blobs are
+  `0600`, owned exactly `1000:1000` — no group/world bits at all — so **only an exact UID match
+  or root (via the NFS server's `no_root_squash`) can write to the repo**, and root also needs
+  `capabilities.add: [DAC_OVERRIDE]` explicitly re-added (the mover's hardened base drops all
+  capabilities by default) to read source files it doesn't exactly own. Net: any app not
+  natively at UID 1000 needs `mover.securityContext: {runAsUser: 0, runAsGroup: 0,
+  runAsNonRoot: false, capabilities: {add: [DAC_OVERRIDE]}}` on its `SnapshotPolicy`.
+- **Root movers need a per-namespace opt-in.** kopiur gates any privileged mover request (UID 0,
+  added capabilities) behind a `kopiur.home-operations.com/privileged-movers: "true"` annotation
+  on the consuming namespace — without it, kopiur silently downgrades to the UID-1000 default
+  rather than erroring, which looks identical to the original failure.
+- **Flux `patches:` target-matching happens before `postBuild.substitute` runs** — a patch
+  targeting a resource by its post-substitution name (e.g. `name: qui`) silently matches nothing,
+  since at patch-match time the resource is still literally named `${APP}`. Match on `kind:` alone
+  when there's only one resource of that kind per Kustomization.
+
+Off-site sync to B2 is next up (§8 item 8) via kopiur's `RepositoryReplication` CRD (mirrors an
+existing repo's blobs to a second backend on a schedule) — not yet built, but bolts on without
+touching the NAS-side config now that the NAS tier is proven. Auto-restore-on-rebuild (kopiur's
+`Restore` CRD as a CSI volume populator) is also still open — see `migration-inventory.md`'s
+backlog.
 
 ### L3 — Off-site (deferred, but not optional long-term)
 NAS is copy #2, **not DR** — the disk plan itself notes the NAS mirror pool "is not a backup."
@@ -191,10 +224,9 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
 5. ✅ **MariaDB native backup** → RGW. (§1)
 6. ⬜ **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. NAS is up; not started.
-7. 🟡 **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. PR open (draft, first
-   wave vaultwarden + home-assistant), not yet merged. (§2 L2)
-8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Deliberately
-   deferred until item 7's NAS tier is proven, not NAS-gated in the old sense. (§2 L3)
+7. ✅ **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. Live on 29 apps. (§2 L2)
+8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Item 7's NAS tier
+   is now proven — this is the next open item. (§2 L3)
 9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
 10. ✅ **Loki → RGW** storage. (§4)
 11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
@@ -203,11 +235,12 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
 **Next up:** (2) age-key confirmation [owner] and (12) restore runbook need no NAS and aren't
-started. (7) is in progress (PR open). (6) and (8) are next once (7) is proven live.
+started. (7) is done and proven live, so (6) RGW→NAS sync and (8) off-site are now unblocked and
+are the next real backup items.
 
 ## 9. Open questions
-- Volsync vs standalone Kopia for L2 (leaning Volsync — ecosystem fit).
 - RGW-then-sync-to-NAS vs. MinIO-on-NAS as the primary S3 (RGW shares fate with Ceph; MinIO-on-NAS
   is off-Ceph from the start but is more to run). Starting with RGW to prove the path.
-- Retention policies per tier (PITR window for CNPG; restic keep-policy for files).
+- Retention policies per tier (PITR window for CNPG; kopiur's GFS retention for files — currently
+  `keepLatest: 3, keepHourly: 24, keepDaily: 7, keepWeekly: 4` uniformly, not yet reviewed per-app).
 - Whether Redpanda gets any backup at all (leaning no).

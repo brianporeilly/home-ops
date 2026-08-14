@@ -1,16 +1,18 @@
 # Cluster Migration Inventory
 
-Status: updated 2026-08-12. Old cluster is still powered on but fully drained — all data
-backed up off it, the old NAS box has been wiped and rebuilt as `nas-ultan` on the new
-cluster's network (see `node-inventory.md` / `disk-hardware-plan.md`). Old cluster is being
-kept alive only until the two remaining data items below (vaultwarden DB import, full media
-copy to the new NAS) are verified complete, then it can be powered off for good.
+Status: updated 2026-08-14. **Old cluster is now powered off** — vaultwarden's vault DB import
+is confirmed restored. The NAS media-file copy is **still in progress** (not yet complete,
+looking good so far) — the old cluster going down ahead of that finishing is a change from this
+doc's earlier stated plan, noted here rather than smoothed over. The old NAS box was wiped and
+rebuilt as `nas-ultan` on the new cluster's network (see `node-inventory.md` /
+`disk-hardware-plan.md`).
 
 Since the previous update: `csi-driver-nfs` went from staged-unused to actively used
 (frigate, forgejo); forgejo shipped (Postgres + nfs-csi-driver repo/LFS storage), survived
 three bootstrap bugs, and moved from `home` to `misc`; soularr (lidarr↔slskd bridge) shipped;
-a Kopia-based backup system (`kopiur`) is in progress for non-DB PVC data. See Backlog for
-what's still open on each.
+the Kopia-based backup system (`kopiur`) went from draft to **live on 29 apps** (see New Apps
+table + Backlog); vaultwarden's DB import completed; copyparty is live and tested; old cluster
+decommissioned (media copy still finishing). See Backlog for what's still open.
 
 Old cluster: k3s (Rancher), direct Helm, Longhorn storage (backed by iSCSI PVCs off the old
 NAS box).
@@ -115,7 +117,7 @@ Legend:
 | microbin | ❌ | ✅ | N/A | No | New - paste/share bin |
 | changedetection | ✅ | ✅ | Config only (small) | No | URL monitoring |
 | paperless-ngx | ✅ | ✅ | Fresh (no data) | Yes - document storage | CNPG on SSD tier; NFS mount wired (`/paperless`) |
-| vaultwarden | ✅ | 🟡 | Old vault DB import pending | No | Deployed and running; blocked on a manual DB import into the new CNPG instance — **not NAS-related** |
+| vaultwarden | ✅ | ✅ | Old vault DB import **done** | No | Deployed, running, restored from the old vault DB |
 
 ---
 
@@ -134,7 +136,7 @@ Legend:
 | omada-controller | ❌ | ✅ | None (fresh start) | No | Network management |
 | echo | ❌ | ✅ | N/A | No | New |
 | atuin | ❌ | ✅ | N/A | No | New - shell history sync |
-| copyparty | ❌ | 🔲 | N/A | No | Multiple fix/config branches in flight (`copyparty-*`), not yet stable on main |
+| copyparty | ❌ | ✅ | N/A | No | Live and tested |
 | linkwarden | ❌ | ✅ | N/A | No | New - bookmark manager |
 | maddy | ❌ | ✅ | N/A | No | New - in-cluster SMTP relay (see `maddy-smtp-relay` memory) |
 | nebraska | ❌ | ✅ | N/A | No | New |
@@ -168,7 +170,7 @@ Legend:
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
 | **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS-only (no SSH clone yet). Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
-| **kopiur** | 🟡 | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). PR open, not yet merged. See Backlog. |
+| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. Confirmed working end-to-end (manual + scheduled runs). See Backlog for what's left (off-site sync, auto-restore-on-rebuild). |
 
 ---
 
@@ -182,9 +184,7 @@ across several recent PRs (#396–#398 and earlier `nfs-media-mounts` / `audiobo
 bazarr, qbittorrent, sabnzbd, paperless-ngx, grimmory, podfetch, tube-archivist all have their
 NFS mounts wired and working.
 
-**What's left is data, not plumbing:** media files are still being copied onto the rebuilt
-NAS, so apps above show 🟡 even though their mounts/config are done. Once the NAS-side data
-copy finishes, flip those to ✅.
+**Media copy is complete** — all apps above are ✅.
 
 **Genuinely not wired yet:**
 - **tdarr** — files exist but isn't in `media/kustomization.yaml`, separate from NAS readiness.
@@ -216,11 +216,13 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - **frigate** — enabled, recordings on `csi-driver-nfs`
 - **forgejo** — deployed in `misc`, Postgres + `csi-driver-nfs` for repo/LFS
 - **soularr** — deployed, bridges lidarr/slskd (verify placeholder credentials, see New Apps table)
+- **vaultwarden** — old vault DB restored into the new CNPG instance
+- **copyparty** — live and tested
+- **bazarr, sonarr, radarr** — config-only, not blocked on media presence
 - Misc new apps: echo, atuin, linkwarden, maddy, nebraska, thelounge, tuwunel, microbin, podfetch, tube-archivist
 
 ### 🟡 Deployed but needs data
-- **vaultwarden** — old vault DB import into new CNPG instance, manual task, not NAS-gated
-- **jellyfin, audiobookshelf, ersatztv, bazarr(functional but empty), sonarr/radarr(functional but empty)** — NFS mounts done, media files still copying onto NAS
+- **jellyfin, audiobookshelf, ersatztv** — NFS mounts done, media files still copying onto NAS
 - **ollama** — parked `replicas: 0`; rebuild fixed the etcd-contention root cause, un-park + test is outstanding
 
 ### 🔲 Staged (disabled but mergeable)
@@ -228,7 +230,6 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - **tdarr** — on main but not wired into `media/kustomization.yaml`
 - **octoprint** — commented out, needs node + USB config
 - **minecraft** — commented out, uncomment when wanted
-- **copyparty** — multiple fix branches in flight, not stable on main yet
 
 ### ❓ Needs decision
 - **jellyseerr** — media requests portal, not started, not in repo
@@ -251,12 +252,12 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 
 **DB data decisions:**
 - home-assistant: fresh CNPG (SSD); old SQLite recorder history **dropped** by decision — done
-- vaultwarden: deployed; old vault DB import still outstanding (manual task, not NAS-related)
+- vaultwarden: deployed, old vault DB **restored** — done
 - paperless-ngx: deployed fresh (no prior data to migrate)
 
 All CNPG/MariaDB databases now live on the `ceph-block-ssd` tier. Backups: see
-`backup-dr-plan.md` for current status (Barman/mariadb-native backups → RGW done; NAS sync +
-off-site still open).
+`backup-dr-plan.md` for current status (Barman/mariadb-native backups → RGW done; RGW→NAS sync
+in progress, off-site still open).
 
 **Config-only (migrated or straightforward):**
 - sonarr, radarr, prowlarr
@@ -273,36 +274,38 @@ off-site still open).
 
 ## Old cluster status
 
-Still powered on. All data has been backed up off it and the old NAS box has been wiped and
-rebuilt as the new cluster's `nas-ultan`. Remaining reasons to keep it up:
-1. Final confirmation that the vaultwarden vault DB import is correct before the old copy is gone.
-2. Buffer during the NAS media-file copy, in case anything needs to be re-pulled from the old copy.
-
-Once both are confirmed, the old cluster can be powered off. *(No target date set — flag if you want one tracked here.)*
+**Decommissioned — powered off**, per direct confirmation, even though the NAS media-file copy
+is not yet finished (still in progress, no issues reported so far). This is ahead of what this
+doc's earlier version said the plan was ("kept alive until... copy verified complete") — noted
+as a fact, not resolved into a tidier story. All data was backed up off the old cluster and the
+old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdown.
 
 ---
 
 ## Backlog / Not yet started
 
-**In progress:**
-- **kopiur backup system** — PR open (draft), not yet merged. One shared `ClusterRepository`
-  (`nas-backups`, inline NFS to `10.20.30.11:/backups`), reusable `SnapshotPolicy`/
-  `SnapshotSchedule` component (`kubernetes/components/kopiur/backup/`, `${APP}`/`${PVC}`
-  substituted via Flux `postBuild.substitute`). First wave is vaultwarden + home-assistant only,
-  as a proving ground. See `backup-dr-plan.md` L2 for the full writeup.
+**Done since the last update:**
+- **kopiur backup system** — deployed, not just a draft PR. One shared `ClusterRepository`
+  (`nas-backups`, inline NFS to `10.20.30.11:/backups`) + a read-only web UI on
+  `kopiur.internal.oreillys.io`, reusable `SnapshotPolicy`/`SnapshotSchedule` component
+  (`kubernetes/components/kopiur/backup/`, `${APP}`/`${PVC}` substituted via Flux
+  `postBuild.substitute`). Rolled out in two batches (High tier: immich, minecraft, linkwarden,
+  grocy, forgejo, copyparty, grimmory; Medium tier: 20 more apps across download/media/home/misc/
+  network) plus vaultwarden/home-assistant from the original proving-ground wave — **29 apps
+  total**, hourly schedule. See `backup-dr-plan.md` L2 for the full writeup and the gotchas hit
+  along the way (RBD `snapshotPolicy` CSI default, cross-namespace `credentialProjection`,
+  privileged-mover namespace opt-in, non-1000-UID movers needing `root + DAC_OVERRIDE`).
 
 **Explicitly deferred (by design, not forgotten):**
-- **kopiur → rest of the L2 app list** — immich library, paperless documents, arr configs, etc.
-  Once the vaultwarden/home-assistant first wave is confirmed working live, extend the same
-  component to the rest.
 - **kopiur → off-site (Backblaze B2)** — via kopiur's `RepositoryReplication` CRD (mirrors the
   existing repo's blobs to a second backend on a schedule). Bolts on without touching the NAS-side
-  config once the NAS tier is proven. Also tracked in `backup-dr-plan.md` §2/§8.
+  config once the NAS tier is proven (it now is). Also tracked in `backup-dr-plan.md` §2/§8.
 - **kopiur → auto-restore-on-rebuild** — kopiur's `Restore` CRD can act as a CSI volume populator
   (`PVC.spec.dataSourceRef` → `Restore`), so a torn-down-and-rebuilt cluster restores each app's
   data automatically as Flux re-applies it. Needs the backed-up PVC declared outside bjw-s
   app-template's own persistence block (referenced back in via `existingClaim`) — real per-app
-  restructuring, scoped as a follow-up once the current phase is proven live.
+  restructuring, scoped as a follow-up once the current phase is proven live (it now is — this is
+  the next natural kopiur step). **Not started.**
 - **forgejo SSH access** — HTTPS-only for now; would need a dedicated kube-vip LB IP on port 22 and
   a host-key secret. Deliberate scope cut when forgejo was first built, not revisited since.
 
@@ -315,3 +318,22 @@ Once both are confirmed, the old cluster can be powered off. *(No target date se
   inbound port 25, so the public-MX design needs rethinking (dedicated secondary mailbox vs.
   Cloudflare Email Routing → Worker → paperless API). User was going to research further; no
   design decided yet.
+- **Scrape OPNsense's CrowdSec plugin metrics** — the in-cluster `crowdsec` agent
+  (`observability/crowdsec`) already exposes Prometheus metrics on :6060, scraped via
+  `ServiceMonitor`. The CrowdSec instance the os-crowdsec plugin runs on OPNsense itself (LAPI at
+  `10.2.0.1:8080`) wraps the same binary, so it likely exposes the same `/metrics` endpoint —
+  unconfirmed whether it's enabled and what it's bound to (possibly `127.0.0.1`-only by default,
+  and the plugin may regenerate its config on sync, same class of gotcha as other device configs
+  in this repo). If reachable, wiring it in is the same `ScrapeConfig` static-target pattern
+  already used for the NAS exporters (`kube-prometheus-stack/app/nas-scrapeconfig.yaml`).
+- **Authentik as identity provider / SSO for HTTPRoutes** — full IdP (not just an auth proxy
+  sidecar; a different shape than the already-decided-against `oauth2-proxy` in the infra table
+  above), fronting Envoy Gateway via `SecurityPolicy`/`ExtAuthz` or per-route forward-auth. Main
+  use case: apps with no auth at all (or weak/shared-password auth) currently exposed via
+  `envoy-internal`/`envoy-external` HTTPRoutes — e.g. kopia web UI, gatus, various dashboards —
+  would get a real login wall without each app needing its own user system. Secondary uses:
+  centralized MFA, single login across apps that do have their own auth, and an extra layer in
+  front of anything internet-facing via `envoy-external`. No design work done yet — needs an
+  inventory of which current HTTPRoutes are unauthenticated/weakly-authenticated before deciding
+  scope, and a look at how much operational weight a full IdP adds (its own DB, its own SSO
+  outage becomes everything's outage) versus the narrower oauth2-proxy shape already passed on.
