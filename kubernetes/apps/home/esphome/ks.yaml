@@ -11,6 +11,26 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+  # esphome's SnapshotPolicy needed root + DAC_OVERRIDE to back up in the
+  # first place (see the equivalent comment in download/qui/ks.yaml), so
+  # restoring it also needs mover.privilegedMode: true - without CAP_CHOWN
+  # the restore mover can't reproduce root:root ownership on the restored
+  # files, only its own identity. Validated live: deleted the real
+  # esphome-config PVC, let this Restore (via
+  # persistence.config.dataSourceRef in app/helmrelease.yaml) repopulate
+  # it, confirmed the pod came back healthy with correct data and
+  # ownership (531M restored, garage.yaml intact, root:root preserved).
+  patches:
+    - target:
+        kind: Restore
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: Restore
+        metadata:
+          name: esphome
+        spec:
+          mover:
+            privilegedMode: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
