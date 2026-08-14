@@ -91,6 +91,17 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator: only takes effect when this PVC is first
+        # created (a fresh deploy or a rebuilt cluster) - silently ignored
+        # on an already-bound PVC, so this is a no-op today. Populated from
+        # kopiur's Restore CR (components/kopiur/backup), which resolves
+        # the latest snapshot via this app's own SnapshotPolicy identity.
+        # Validated live: deleting the real PVC and letting this repopulate
+        # it restored the correct data before the pod ever started.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: esphome
         globalMounts:
           - path: /config
       tmp:
