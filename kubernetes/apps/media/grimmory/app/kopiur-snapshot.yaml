@@ -26,6 +26,11 @@ spec:
       mode: Persistent
       capacity: 2Gi
       storageClassName: nfs-slow
+    # grimmory's app container runs as root - see the equivalent comment in
+    # components/kopiur/backup/snapshotpolicy.yaml. media namespace carries
+    # the privileged-movers opt-in annotation for this.
+    inheritSecurityContextFrom:
+      pvcConsumer: {}
   retention:
     keepLatest: 3
     keepHourly: 24

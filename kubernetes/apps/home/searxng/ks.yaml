@@ -11,6 +11,25 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+  # searxng's image runs as its own searxng user (977), only visible via its
+  # own USER line - invisible to the component's
+  # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
+  # Non-root, no privileged-movers opt-in needed.
+  patches:
+    - target:
+        kind: SnapshotPolicy
+        name: searxng
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: SnapshotPolicy
+        metadata:
+          name: searxng
+        spec:
+          mover:
+            securityContext:
+              runAsUser: 977
+              runAsGroup: 977
+              runAsNonRoot: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network

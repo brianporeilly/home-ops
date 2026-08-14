@@ -11,6 +11,25 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+  # linkwarden's root UID only comes from its image's own USER line, not a
+  # pinned pod/container securityContext - invisible to the component's
+  # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
+  # misc namespace carries the privileged-movers opt-in for this.
+  patches:
+    - target:
+        kind: SnapshotPolicy
+        name: linkwarden
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: SnapshotPolicy
+        metadata:
+          name: linkwarden
+        spec:
+          mover:
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
