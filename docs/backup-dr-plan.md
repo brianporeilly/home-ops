@@ -7,9 +7,11 @@ snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts in
 (§5), Loki chunk storage → RGW (§4), **L2 non-DB PVC backups via `kopiur`** (§2 L2) — live on
 29 apps, hourly schedule, confirmed working end-to-end, **auto-restore-on-rebuild also live**
 (all 22 backed-up apps wired to kopiur's `Restore` CSI populator, individually migrated and
-verified — see `migration-inventory.md`). **Still open:** off-site from NAS to B2 (§2 L3,
-deliberately deferred until the NAS tier is proven — it now is, this is next; B2 account is set
-up), confirm the sops age-key backup ×2 (§6, owner task), restore runbook + testing (§6),
+verified — see `migration-inventory.md`), and **off-site (B2) is now live** (§2 L3) — both the
+kopiur repo itself (`RepositoryReplication` → `kopiur-backups` bucket) and the RGW-sourced
+DB/etcd backups (`rgw-nas-sync`'s B2 leg → a separate `ceph-rgw-backups` bucket), each confirmed
+with a real end-to-end sync, not just applied-and-assumed-working. **Still open:** confirm the
+sops age-key backup ×2 (§6, owner task), restore runbook (§6 — the testing itself is done),
 grimmory-bookdrop's missing backup coverage (found during the restore migration, unrelated root
 cause not yet investigated — see `migration-inventory.md` backlog). See the checklist in §8 for
 per-item status.
@@ -123,17 +125,40 @@ Hard-won gotchas from the rollout (worth reading before touching this again):
 **Restore-on-rebuild is now live** (kopiur's `Restore` CRD as a CSI volume populator,
 `persistence.<name>.dataSourceRef`) across all 22 backed-up apps — see `migration-inventory.md`
 for the full app-by-app rollout and the two real bugs it surfaced (bazarr's Kustomization, the
-immich folder-integrity mismatch). Off-site sync to B2 is next up (§8 item 8) via kopiur's
-`RepositoryReplication` CRD (mirrors an existing repo's blobs to a second backend on a schedule) —
-not yet built, but bolts on without touching the NAS-side config now that the NAS tier is proven.
-B2 account is set up, ready to design.
+immich folder-integrity mismatch). **Off-site sync to B2 is also now live** — see §2 L3 below.
 
-### L3 — Off-site (deferred, but not optional long-term)
+### L3 — Off-site (DONE — 2026-08-15)
 NAS is copy #2, **not DR** — the disk plan itself notes the NAS mirror pool "is not a backup."
-Fire/theft/ransomware takes cluster **and** NAS. Plan (per stated intent): land L1/L2 backups on
-the **NAS** in a layout that a **Kopia** job on/near the NAS then syncs to **off-site**
-(Backblaze B2 / Cloudflare R2 — both S3-compatible, cheap). Get NAS-tier working first; wire
-off-site once proven. Barman/restic/Kopia all target B2/R2 directly if we later skip the NAS hop.
+Fire/theft/ransomware takes cluster **and** NAS. Two independent B2 legs, kept in **separate
+buckets with separately-scoped Application Keys** (deliberate — a leaked/misused key for one
+can't touch the other):
+
+- **kopiur's own repo → `kopiur-backups` bucket.** `RepositoryReplication` CR
+  (`kubernetes/apps/kopiur-system/kopiur/repository/replication.yaml`) does a blob-level
+  `kopia repository sync-to` from the NAS repo, daily at 06:00, `deleteExtra: true` (true
+  mirror — GFS-pruned blobs on the NAS get pruned in B2 too, no separate off-site retention
+  policy needed). Destination inherits the source repo's password verbatim.
+- **RGW-sourced DB/etcd backups → `ceph-rgw-backups` bucket.** `rgw-nas-sync`
+  (`kubernetes/components/rgw-nas-sync/`) got a second `rclone sync` leg alongside its existing
+  NAS sync, same mirror logic — CNPG's `retentionPolicy: 14d` and mariadb-operator's
+  `maxRetention: 720h` already self-prune at the RGW source, so `rclone sync` (not `copy`)
+  propagates that pruning to B2 automatically, no new logic needed.
+
+**Gotcha worth remembering:** kopia shards blobs into nested directories (`p00/`, `p01/`, ...)
+only on **filesystem** backends, to keep any one directory's entry count sane on a real
+filesystem. Object stores like B2 don't have that constraint, so kopia's B2/S3 blob driver
+stores every blob as a flat key (the blob ID itself, no `/`) at the bucket root — confirmed by
+listing the bucket directly (`rclone lsf b2:kopiur-backups --dirs-only` returns nothing) and
+cross-checking the object count against the NAS-side file count. Same encrypted content, just a
+different per-backend storage-key convention — not a sign anything's wrong, and unrelated to
+encryption.
+
+**Also fixed along the way:** the kopiur `ClusterRepository`'s NFS backend originally pointed at
+the NAS export root (`/backups`), so its blob shards sat as loose siblings of `rgw-nas-sync`'s
+own `rgw-sync/` directory in the same export. Moved into its own `/backups/kopiur` subdirectory
+(PR #490) — required physically moving the existing repo's files on the NAS first, then letting
+the controller re-detect the existing repo at the new path (confirmed via the `Bootstrapped`
+condition: "connected to the existing repository", not a fresh create).
 
 ### Cluster-state (kubeadm-specific — differs from the old k3s cluster)
 kubeadm stacked etcd has **no** k3s `--etcd-s3` convenience. For a GitOps cluster the workloads
@@ -252,8 +277,9 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
    of it).
 7. ✅ **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. Live on 29 apps, plus
    restore-on-rebuild (CSI populator) live on all 22 backed-up apps. (§2 L2)
-8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Both NAS tiers (6)
-   and (7) are now proven — this is the next open item. B2 account is set up. (§2 L3)
+8. ✅ **Off-site** from NAS to B2 — two independent legs (kopiur's own repo via
+   `RepositoryReplication`; RGW-sourced DB/etcd backups via `rgw-nas-sync`'s second B2 leg), each
+   in its own bucket with a separately-scoped key. Both confirmed with a real sync. (§2 L3)
 9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
 10. ✅ **Loki → RGW** storage. (§4)
 11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
@@ -265,9 +291,10 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
     Helm/`dataSourceRef` immutable-field dance, DB/disk state mismatches) still doesn't exist.
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up:** (2) age-key confirmation [owner] needs no NAS and isn't started. (6), (7), and (11)
-are done, so (8) off-site is the next real backup item. (12) would mostly be writing down what's
-already been proven live.
+**Next up:** (2) age-key confirmation [owner] is the only fully-unstarted item and needs no NAS.
+(6), (7), (8), and (11) are all done now, so (12) — the restore runbook — is the next real backup
+item, and it's mostly writing down what's already been proven live rather than new work. (13) is
+a low-priority nice-to-have.
 
 ## 9. Open questions
 - RGW-then-sync-to-NAS vs. MinIO-on-NAS as the primary S3 (RGW shares fate with Ceph; MinIO-on-NAS
