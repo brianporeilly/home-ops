@@ -158,6 +158,12 @@ spec:
       enabled: true
     serviceMonitor:
       enabled: true
+      # fluent-bit is a per-node DaemonSet - instance is a pod IP, not the
+      # host. Relabel the node name (already exposed by pod-role service
+      # discovery) onto a real `node` label for alerts/dashboards.
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
     extraVolumes:
       - name: flb-storage
         hostPath:
