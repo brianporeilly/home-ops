@@ -10,8 +10,9 @@ rebuilt as `nas-ultan` on the new cluster's network (see `node-inventory.md` /
 Since the previous update: `csi-driver-nfs` went from staged-unused to actively used
 (frigate, forgejo); forgejo shipped (Postgres + nfs-csi-driver repo/LFS storage), survived
 three bootstrap bugs, and moved from `home` to `misc`; soularr (lidarr↔slskd bridge) shipped;
-the Kopia-based backup system (`kopiur`) went from draft to **live on 29 apps** (see New Apps
-table + Backlog); vaultwarden's DB import completed; copyparty is live and tested; old cluster
+the Kopia-based backup system (`kopiur`) went from draft to **live on 29 apps** with
+**restore-on-rebuild and off-site (B2) backups both now also live** (see New Apps table +
+Backlog); vaultwarden's DB import completed; copyparty is live and tested; old cluster
 decommissioned (media copy still finishing). See Backlog for what's still open.
 
 Old cluster: k3s (Rancher), direct Helm, Longhorn storage (backed by iSCSI PVCs off the old
@@ -170,7 +171,7 @@ Legend:
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
 | **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS-only (no SSH clone yet). Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
-| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. See Backlog for what's left (off-site sync, grimmory-bookdrop gap). |
+| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS, under `/backups/kopiur`) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. **Off-site to B2 also live** (own repo + the separate RGW-sourced DB/etcd backups, two buckets). See Backlog for what's left (grimmory-bookdrop gap). |
 
 ---
 
@@ -256,8 +257,8 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - paperless-ngx: deployed fresh (no prior data to migrate)
 
 All CNPG/MariaDB databases now live on the `ceph-block-ssd` tier. Backups: see
-`backup-dr-plan.md` for current status (Barman/mariadb-native backups → RGW done; RGW→NAS sync
-in progress, off-site still open).
+`backup-dr-plan.md` for current status (Barman/mariadb-native backups → RGW → NAS → B2 off-site,
+all done).
 
 **Config-only (migrated or straightforward):**
 - sonarr, radarr, prowlarr
@@ -309,11 +310,19 @@ old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdo
   documented remedy). A rolling control-plane reinstall broke the BGP VIP mid-migration; verified
   nothing was actually damaged once the cluster stabilized.
 
+**Done since the last update:**
+- **Off-site (B2) backups** — two independent legs, live and each confirmed with a real sync:
+  kopiur's own repo mirrors to a `kopiur-backups` bucket via `RepositoryReplication`
+  (`kubernetes/apps/kopiur-system/kopiur/repository/replication.yaml`); the RGW-sourced DB/etcd
+  backups get a second `rclone sync` leg in `rgw-nas-sync` to a separate `ceph-rgw-backups`
+  bucket. Deliberately split into two buckets with separately-scoped B2 Application Keys rather
+  than nested under one bucket. Along the way: moved kopiur's NAS repo into its own
+  `/backups/kopiur` subdirectory (was sitting at the NAS export root, nested with
+  `rgw-nas-sync`'s own directory) and confirmed the flat/no-directories structure B2 shows for
+  kopiur's blobs is expected (kopia only shards into subdirectories on filesystem backends, not
+  object stores). See `backup-dr-plan.md` §2 L3 for the full writeup.
+
 **Explicitly deferred (by design, not forgotten):**
-- **kopiur → off-site (Backblaze B2)** — via kopiur's `RepositoryReplication` CRD (mirrors the
-  existing repo's blobs to a second backend on a schedule). Bolts on without touching the NAS-side
-  config now that the NAS tier is proven. B2 account is set up, ready to design. Also tracked in
-  `backup-dr-plan.md` §2/§8.
 - **forgejo SSH access** — HTTPS-only for now; would need a dedicated kube-vip LB IP on port 22 and
   a host-key secret. Deliberate scope cut when forgejo was first built, not revisited since.
 
