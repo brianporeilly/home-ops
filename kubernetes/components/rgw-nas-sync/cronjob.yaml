@@ -61,6 +61,19 @@ spec:
                   valueFrom: { configMapKeyRef: { name: "${OBC_NAME}", key: BUCKET_PORT } }
                 - name: BUCKET_NAME
                   valueFrom: { configMapKeyRef: { name: "${OBC_NAME}", key: BUCKET_NAME } }
+                # Off-site leg - own dedicated bucket (ceph-rgw-backups), separate
+                # from kopiur's own repo replication bucket (kopiur-backups, see
+                # kubernetes/apps/kopiur-system/kopiur/repository/replication.yaml)
+                # so the two off-site backup sources aren't nested inside each
+                # other. Secret is bundled in this component (rather than
+                # duplicated per consuming namespace by hand) so it's written/
+                # encrypted once and Kustomize naturally replicates it wherever
+                # this component is consumed.
+                - { name: RCLONE_CONFIG_B2_TYPE, value: b2 }
+                - name: RCLONE_CONFIG_B2_ACCOUNT
+                  valueFrom: { secretKeyRef: { name: rgw-nas-sync-b2-credentials, key: B2_KEY_ID } }
+                - name: RCLONE_CONFIG_B2_KEY
+                  valueFrom: { secretKeyRef: { name: rgw-nas-sync-b2-credentials, key: B2_KEY } }
               # NB: intentionally $VAR, not ${VAR}, throughout this script -
               # Flux's postBuild.substitute does a blanket ${...} text
               # replacement across the whole rendered manifest (this shell
@@ -77,8 +90,11 @@ spec:
                   echo "[rgw-nas-sync] syncing rgw:$BUCKET_NAME -> $dest"
                   rclone sync "rgw:$BUCKET_NAME" "$dest" -v
                   rclone size "$dest"
+                  echo "[rgw-nas-sync] syncing rgw:$BUCKET_NAME -> b2:ceph-rgw-backups/$BUCKET_NAME"
+                  rclone sync "rgw:$BUCKET_NAME" "b2:ceph-rgw-backups/$BUCKET_NAME" -v
+                  rclone size "b2:ceph-rgw-backups/$BUCKET_NAME"
               volumeMounts:
                 - { name: nas, mountPath: /nas }
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
-                limits: { memory: 256Mi }
+                limits: { memory: 512Mi }

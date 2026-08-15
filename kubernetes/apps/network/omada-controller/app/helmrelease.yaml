@@ -152,6 +152,14 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Migrated live: PVC deleted + restored,
+        # data verified (correct 508:508 ownership - the app's real
+        # internal service UID, not root).
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: omada-controller
         globalMounts:
           - path: /opt/tplink/EAPController/data
       work:
