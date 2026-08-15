@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/repositoryreplication_v1alpha1.json
+# Off-site copy: mirrors nas-backups' blobs to Backblaze B2 - the L3 tier
+# in docs/backup-dr-plan.md, deliberately deferred until the NAS tier (L2)
+# was proven live. Blob-level copy (kopia repository sync-to), so the
+# destination inherits the source's password/encryption verbatim - no
+# separate B2-side password to manage, just B2's own access credentials.
+apiVersion: kopiur.home-operations.com/v1alpha1
+kind: RepositoryReplication
+metadata:
+  name: nas-backups-offsite
+spec:
+  sourceRef:
+    kind: ClusterRepository
+    name: nas-backups
+  destination:
+    b2:
+      bucket: kopiur-backups
+      auth:
+        secretRef:
+          name: b2-offsite-credentials
+  # Daily, after the 05:00 RGW->NAS sync and the bulk of the day's hourly
+  # kopiur backups have landed - B2 API calls/egress aren't free, and a
+  # once-daily off-site recovery point is the right granularity for a
+  # home-lab DR copy (the NAS itself already holds finer-grained history).
+  schedule:
+    cron: "0 6 * * *"
+  sync:
+    # Matters most for the initial full-history seed; kopia default is
+    # sequential (1) which would take a long time for the current NAS
+    # repo size. Safe to leave high afterward - subsequent runs are
+    # incremental (only new/changed blobs).
+    parallel: 8
+    # True mirror: a blob pruned at the source (by each SnapshotPolicy's
+    # own GFS retention) gets pruned at B2 too on the next run, rather
+    # than accumulating forever. Matches the "second copy of the same
+    # data" intent - independent off-site retention wasn't the goal.
+    deleteExtra: true
+  # inheritSecurityContextFrom is rejected for replication (no workload to
+  # inherit from - this mover only ever talks to two repositories). 1000
+  # matches the NAS export's ownership convention every other kopiur
+  # mover already uses.
+  mover:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
