@@ -20,13 +20,23 @@ spec:
   # separate from the nfs-csi-driver (nfs-slow) export used by forgejo/frigate
   # and the static NFS export used by media - a single known path, not a
   # CSI-generated subdirectory.
+  #
+  # nfs.path is the mount root - kopia writes its repo objects directly at
+  # its top level (filesystem.path above is just the in-pod mountpoint, not
+  # a subPath). Pointed at /backups/kopiur, not the export root /backups,
+  # so the repo's own blob shards don't sit as loose siblings of
+  # rgw-nas-sync's rgw-sync/ directory in the same export. Requires the
+  # existing repo's files to be moved from /backups/ into /backups/kopiur/
+  # on the NAS (done manually, out of band) before this merges - the
+  # controller re-detects the existing repo at the new path rather than
+  # creating a fresh one, as long as the blobs are physically there first.
   backend:
     filesystem:
       path: /repo
       volume:
         nfs:
           server: 10.20.30.11
-          path: /backups
+          path: /backups/kopiur
   encryption:
     passwordSecretRef:
       name: kopiur-repository-secret
