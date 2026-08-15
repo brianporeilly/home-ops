@@ -99,9 +99,9 @@ DDR4 slots — by far the cheapest headroom if 8 GB ever proves tight for etcd/c
 
 | Hostname | OS / boot disk | Ceph OSDs / data disks | block.db | Notes |
 |----------|----------------|------------------------|----------|-------|
-| `cp-gurloes`   | **Patriot P210 128GB** (interim — slow) → **S3610 200GB** (pending) | — | — | tainted NoSchedule |
-| `cp-malrubius` | Samsung 870 EVO 500GB → **S3610 200GB** | — | — | tainted NoSchedule; S3610 pending |
-| `cp-palaemon`  | Intel 520 240GB (SSDSC2CW240A3) → **S3610 200GB** (etcd) | — | — | tainted NoSchedule; 2.5" bay; **+ Intel SSDPEKKF256G7L 256GB NVMe in M.2 (undocumented spare)**; S3610 pending |
+| `cp-gurloes`   | **Intel DC S3610 200GB (placed 2026-08-15)** — Patriot P210 128GB freed | — | — | tainted NoSchedule |
+| `cp-malrubius` | **Intel DC S3610 200GB (placed 2026-08-15)** — Samsung 870 EVO 500GB freed | — | — | tainted NoSchedule |
+| `cp-palaemon`  | **Intel DC S3610 200GB (placed 2026-08-15)** — Intel 520 240GB (SSDSC2CW240A3) freed | — | — | tainted NoSchedule; 2.5" bay; **+ Intel SSDPEKKF256G7L 256GB NVMe in M.2 (undocumented spare)** |
 | `wk-severian`  | Patriot P210 128GB | **SSD:** Samsung 850 EVO 1TB | — | 2-bay, SATA-only |
 | `wk-drotte`    | SanDisk X400 128GB (SD8SB8U) | **HDD:** HGST HUA723020ALA640 2TB · **SSD:** WD Blue WDBNCE0010P 1TB · **GPU:** GTX 745 | HGST colocated | SATA-only; WD Blue **placed** — 3rd SSD OSD, `ceph-blockpool-ssd` back to `size: 3` |
 | `wk-roche`     | SanDisk X400 128GB (SD8SB8U) | **HDD:** WD20EARX 2TB · **GPU:** GTX 745 | SATA SSD (pending) | SATA-only; block.db SSD not yet present |
@@ -111,9 +111,12 @@ DDR4 slots — by far the cheapest headroom if 8 GB ever proves tight for etcd/c
 
 ## Notes
 
-- **etcd disks:** 3× Intel DC S3610 200GB (SSDSC2BX200G4R) incoming; interim disks listed above.
+- **etcd disks:** 3× Intel DC S3610 200GB (SSDSC2BX200G4R) placed 2026-08-15 (all 3 CP nodes,
+  rolling swap — see `disk-hardware-plan.md` §3). Freed: Patriot P210 128GB (gurloes), Samsung
+  870 EVO 500GB (malrubius), Intel 520 240GB (palaemon).
 - **block.db (roche/eata HDD OSDs):** candidates = Intel Pro 1500 180GB (on hand) + one cascade
-  SATA SSD (870 EVO or Intel 520, freed when S3610s land). drotte's HGST runs colocated.
+  SATA SSD (870 EVO or Intel 520, now freed from the S3610 swap above). drotte's HGST runs
+  colocated.
 - **Chassis swap of note:** the old control-plane boxes (k8s-cp-01/02/03) became workers; the new
   control plane is the 8GB machines (k8s-wk-02 + k8s-test-01 + a new Lenovo).
 - **GPU nodes = `wk-drotte` + `wk-roche`** (old k8s-cp-02 @ `10.20.20.11`, k8s-cp-03 @ `.12`), each
