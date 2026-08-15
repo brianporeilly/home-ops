@@ -174,6 +174,25 @@ spec:
         accessMode: ReadWriteOnce
         size: "100Gi"
         retain: true
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Migrated live (PVC genuinely empty at the
+        # time - no admin account configured yet, so low stakes despite the
+        # size) and hit exactly the failure mode the comment above warns
+        # about: Postgres already had folder-integrity state recorded from
+        # some earlier partial setup, but the freshly-restored disk had none
+        # of the expected .immich marker files, so immich-server crash-looped
+        # on startup ("Failed to read .../encoded-video/.immich: ENOENT").
+        # Fixed by manually touching /data/{thumbs,upload,backups,library,
+        # profile,encoded-video}/.immich as UID 1000 before restarting the
+        # pod - immich's own documented fix, see
+        # https://docs.immich.app/administration/system-integrity#folder-checks.
+        # Not something dataSourceRef/kopiur caused; would recur on any fresh
+        # volume (rebuild, restore from a truly empty backup) paired with a
+        # Postgres DB that already thinks folders exist.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: immich
         advancedMounts:
           server:
             app:
