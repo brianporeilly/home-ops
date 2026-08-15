@@ -170,7 +170,7 @@ Legend:
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
 | **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS-only (no SSH clone yet). Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
-| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. Confirmed working end-to-end (manual + scheduled runs). See Backlog for what's left (off-site sync, auto-restore-on-rebuild). |
+| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. See Backlog for what's left (off-site sync, grimmory-bookdrop gap). |
 
 ---
 
@@ -296,18 +296,35 @@ old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdo
   along the way (RBD `snapshotPolicy` CSI default, cross-namespace `credentialProjection`,
   privileged-mover namespace opt-in, non-1000-UID movers needing `root + DAC_OVERRIDE`).
 
+**Done since the last update:**
+- **kopiur → auto-restore-on-rebuild** — `Restore` CRD wired as a CSI volume populator
+  (`persistence.<name>.dataSourceRef` → `Restore`) across **all 22 apps** wired into kopiur
+  backups. Each migrated individually (PVC deleted, restore verified — real data + correct
+  ownership, not just "pod is Running") rather than as a decoupled batch, after an early mistake
+  (#474) showed that committing `dataSourceRef` ahead of the actual PVC migration blocks *every*
+  future Helm update to that app, not just the restore path. See PRs #472–474, #480, #482–485.
+  Found and fixed two real bugs along the way: bazarr's Kustomization had never once reconciled
+  (Flux-substitute vs. a pre-existing `${VAR}` shell script, #481), and immich hit the DB/disk
+  folder-integrity mismatch its own code comment already anticipated (fixed with immich's
+  documented remedy). A rolling control-plane reinstall broke the BGP VIP mid-migration; verified
+  nothing was actually damaged once the cluster stabilized.
+
 **Explicitly deferred (by design, not forgotten):**
 - **kopiur → off-site (Backblaze B2)** — via kopiur's `RepositoryReplication` CRD (mirrors the
   existing repo's blobs to a second backend on a schedule). Bolts on without touching the NAS-side
-  config once the NAS tier is proven (it now is). Also tracked in `backup-dr-plan.md` §2/§8.
-- **kopiur → auto-restore-on-rebuild** — kopiur's `Restore` CRD can act as a CSI volume populator
-  (`PVC.spec.dataSourceRef` → `Restore`), so a torn-down-and-rebuilt cluster restores each app's
-  data automatically as Flux re-applies it. Needs the backed-up PVC declared outside bjw-s
-  app-template's own persistence block (referenced back in via `existingClaim`) — real per-app
-  restructuring, scoped as a follow-up once the current phase is proven live (it now is — this is
-  the next natural kopiur step). **Not started.**
+  config now that the NAS tier is proven. B2 account is set up, ready to design. Also tracked in
+  `backup-dr-plan.md` §2/§8.
 - **forgejo SSH access** — HTTPS-only for now; would need a dedicated kube-vip LB IP on port 22 and
   a host-key secret. Deliberate scope cut when forgejo was first built, not revisited since.
+
+**Not started:**
+- **grimmory-bookdrop has zero backup coverage** — found while migrating grimmory to the Restore
+  populator: its `SnapshotPolicy` declares two sources (`grimmory-data`, `grimmory-bookdrop`), but
+  every `Snapshot` it has ever produced only actually resolved `grimmory-data`. Confirmed via
+  `status.resolved.sources` on the full Snapshot history, not just the latest. Root cause not yet
+  investigated - worth checking whether explicit multi-entry `sources:` lists (vs. a `pvcSelector`)
+  actually expand to one Snapshot per PVC the way kopiur's docs describe, or if this is a genuine
+  gap in that path.
 
 **Not started:**
 - **blackbox_exporter** — Prometheus-native ICMP/TCP probes (NAS ping + NFS port 2049, maybe Omada

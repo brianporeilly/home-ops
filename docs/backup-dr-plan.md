@@ -1,15 +1,18 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Partially implemented** (updated 2026-08-14). Companion to `disk-hardware-plan.md`,
+Status: **Partially implemented** (updated 2026-08-15). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
 target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
 snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
 (§5), Loki chunk storage → RGW (§4), **L2 non-DB PVC backups via `kopiur`** (§2 L2) — live on
-29 apps, hourly schedule, confirmed working end-to-end. **Still open:** off-site from NAS to
-B2 (§2 L3, deliberately deferred until the NAS tier is proven — it now is, this is next),
-kopiur-based auto-restore-on-rebuild (needs per-app `existingClaim` restructuring — see
-`migration-inventory.md` backlog), confirm the sops age-key backup ×2 (§6, owner task), restore
-runbook + testing (§6). See the checklist in §8 for per-item status.
+29 apps, hourly schedule, confirmed working end-to-end, **auto-restore-on-rebuild also live**
+(all 22 backed-up apps wired to kopiur's `Restore` CSI populator, individually migrated and
+verified — see `migration-inventory.md`). **Still open:** off-site from NAS to B2 (§2 L3,
+deliberately deferred until the NAS tier is proven — it now is, this is next; B2 account is set
+up), confirm the sops age-key backup ×2 (§6, owner task), restore runbook + testing (§6),
+grimmory-bookdrop's missing backup coverage (found during the restore migration, unrelated root
+cause not yet investigated — see `migration-inventory.md` backlog). See the checklist in §8 for
+per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -97,12 +100,33 @@ Hard-won gotchas from the rollout (worth reading before touching this again):
   targeting a resource by its post-substitution name (e.g. `name: qui`) silently matches nothing,
   since at patch-match time the resource is still literally named `${APP}`. Match on `kind:` alone
   when there's only one resource of that kind per Kustomization.
+- **`dataSourceRef` and the actual PVC migration must land as one atomic change, never
+  decoupled.** Committing `dataSourceRef` to git ahead of deleting/recreating that app's live PVC
+  doesn't just sit inert — Helm applies a release's full desired state as one operation, so every
+  future change to that app (a Renovate image bump, any unrelated edit) hits the same
+  immutable-field conflict and gets rolled back, indefinitely, until the PVC actually gets
+  migrated. Learned the hard way (#474 reverted by #480) before settling on migrating app-by-app,
+  each one delete-verify-then-commit.
+- **Restore's repository connection is read-only by design** (a restore should never write to the
+  backup repo) **but kopia's own notification-listing path triggers an incidental manifest
+  auto-compaction that tries to write anyway**, failing outright against the read-only mount. A
+  failed `Restore` is terminal (kopiur never retries it) - the fix is deleting and recreating the
+  `Restore` CR, which succeeds on retry. Hit this on both thelounge and immich during the restore
+  migration.
+- **A CSI populator can restore a PVC's bytes faithfully while still leaving an app broken**, if
+  something *else* (a database) has state that assumes the disk's prior contents. Hit exactly this
+  with immich: Postgres had folder-integrity markers recorded from an earlier partial setup, the
+  freshly-restored (genuinely empty) disk had none, and `immich-server` crash-looped until the
+  missing `.immich` marker files were manually recreated. Not a kopiur/populator bug - would recur
+  on any fresh volume (a real rebuild included) paired with DB state that doesn't match.
 
-Off-site sync to B2 is next up (§8 item 8) via kopiur's `RepositoryReplication` CRD (mirrors an
-existing repo's blobs to a second backend on a schedule) — not yet built, but bolts on without
-touching the NAS-side config now that the NAS tier is proven. Auto-restore-on-rebuild (kopiur's
-`Restore` CRD as a CSI volume populator) is also still open — see `migration-inventory.md`'s
-backlog.
+**Restore-on-rebuild is now live** (kopiur's `Restore` CRD as a CSI volume populator,
+`persistence.<name>.dataSourceRef`) across all 22 backed-up apps — see `migration-inventory.md`
+for the full app-by-app rollout and the two real bugs it surfaced (bazarr's Kustomization, the
+immich folder-integrity mismatch). Off-site sync to B2 is next up (§8 item 8) via kopiur's
+`RepositoryReplication` CRD (mirrors an existing repo's blobs to a second backend on a schedule) —
+not yet built, but bolts on without touching the NAS-side config now that the NAS tier is proven.
+B2 account is set up, ready to design.
 
 ### L3 — Off-site (deferred, but not optional long-term)
 NAS is copy #2, **not DR** — the disk plan itself notes the NAS mirror pool "is not a backup."
@@ -223,20 +247,27 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
 5. ✅ **MariaDB native backup** → RGW. (§1)
-6. ⬜ **RGW → NAS sync** (Kopia/rclone) — makes DB backups actual DR. NAS is up; not started.
-7. ✅ **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. Live on 29 apps. (§2 L2)
-8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Item 7's NAS tier
-   is now proven — this is the next open item. (§2 L3)
+6. ✅ **RGW → NAS sync** (`components/rgw-nas-sync`, rclone) — makes DB backups actual DR. Live
+   on all 8 RGW buckets (loki deliberately excluded — RGW is its primary storage, not a backup
+   of it).
+7. ✅ **Kopia (`kopiur`) for non-DB PVCs** → NAS. Decided over Volsync. Live on 29 apps, plus
+   restore-on-rebuild (CSI populator) live on all 22 backed-up apps. (§2 L2)
+8. ⬜ **Off-site** from NAS (B2/R2) — via `kopiur`'s `RepositoryReplication`. Both NAS tiers (6)
+   and (7) are now proven — this is the next open item. B2 account is set up. (§2 L3)
 9. ✅ **etcd + /etc/kubernetes/pki** snapshot CronJob → RGW. (§2 cluster-state)
 10. ✅ **Loki → RGW** storage. (§4)
 11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
-    + MariaDB all done. (§5)
-12. ⬜ **Restore testing + runbook** — periodic, documented. *(no NAS needed for the runbook)*
+    + MariaDB + RGW→NAS sync all done. (§5)
+12. 🟡 **Restore testing + runbook** — the *testing* half is now extensively proven (all 22
+    kopiur-backed apps individually restore-tested live, real data + ownership verified per app,
+    see `migration-inventory.md`); a written runbook capturing the actual procedure (and the
+    non-obvious failure modes hit along the way — Restore's terminal-on-failure behavior, the
+    Helm/`dataSourceRef` immutable-field dance, DB/disk state mismatches) still doesn't exist.
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up:** (2) age-key confirmation [owner] and (12) restore runbook need no NAS and aren't
-started. (7) is done and proven live, so (6) RGW→NAS sync and (8) off-site are now unblocked and
-are the next real backup items.
+**Next up:** (2) age-key confirmation [owner] needs no NAS and isn't started. (6), (7), and (11)
+are done, so (8) off-site is the next real backup item. (12) would mostly be writing down what's
+already been proven live.
 
 ## 9. Open questions
 - RGW-then-sync-to-NAS vs. MinIO-on-NAS as the primary S3 (RGW shares fate with Ceph; MinIO-on-NAS
