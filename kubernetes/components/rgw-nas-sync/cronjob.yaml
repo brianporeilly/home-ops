@@ -81,4 +81,4 @@ spec:
                 - { name: nas, mountPath: /nas }
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
-                limits: { memory: 256Mi }
+                limits: { memory: 512Mi }
