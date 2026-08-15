@@ -163,6 +163,13 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Migrated live: PVC deleted + restored,
+        # data verified (git-data below is separate/untouched, unaffected).
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: forgejo
         globalMounts:
           - path: /var/lib/gitea
       # Dynamically-provisioned NFS PVC (nfs-csi-driver) - repo/LFS data lives
