@@ -284,17 +284,19 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 10. ✅ **Loki → RGW** storage. (§4)
 11. ✅ **Backup monitoring** alerts — etcd + CNPG WAL + CNPG base-backup (KSM CustomResourceState)
     + MariaDB + RGW→NAS sync all done. (§5)
-12. 🟡 **Restore testing + runbook** — the *testing* half is now extensively proven (all 22
+12. 🟡 **Restore testing + runbook** — the *testing* half is extensively proven (all 22
     kopiur-backed apps individually restore-tested live, real data + ownership verified per app,
-    see `migration-inventory.md`); a written runbook capturing the actual procedure (and the
-    non-obvious failure modes hit along the way — Restore's terminal-on-failure behavior, the
-    Helm/`dataSourceRef` immutable-field dance, DB/disk state mismatches) still doesn't exist.
+    see `migration-inventory.md`). The runbook itself now exists (`restore-runbook.md`), but it
+    honestly flags its own gaps: CNPG/MariaDB restore, a full etcd/PKI cluster rebuild, and
+    B2-only recovery (NAS also gone) are all documented procedure, **not yet rehearsed** against
+    this cluster. Still 🟡, not ✅, until at least one of those gets a real drill.
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
 **Next up:** (2) age-key confirmation [owner] is the only fully-unstarted item and needs no NAS.
-(6), (7), (8), and (11) are all done now, so (12) — the restore runbook — is the next real backup
-item, and it's mostly writing down what's already been proven live rather than new work. (13) is
-a low-priority nice-to-have.
+(6), (7), (8), and (11) are all done; (12)'s runbook is now written (`restore-runbook.md`) but
+stays 🟡 until its self-flagged gaps (CNPG/MariaDB restore, a full etcd/PKI rebuild, B2-only
+recovery) get an actual drill — that's the next real backup item. (13) is a low-priority
+nice-to-have.
 
 ## 9. Open questions
 - RGW-then-sync-to-NAS vs. MinIO-on-NAS as the primary S3 (RGW shares fate with Ceph; MinIO-on-NAS
