@@ -32,7 +32,7 @@ spec:
           fetch-model:
             image:
               repository: docker.io/curlimages/curl
-              tag: 8.11.0
+              tag: 8.21.0
             command: ["/bin/sh", "-c"]
             args:
               - |
