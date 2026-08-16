@@ -33,3 +33,30 @@ spec:
       enabled: false
     psa:
       enabled: false
+    # Chart defaults tolerate/prefer control-plane (stale from when CP had
+    # GPUs); steer away from GPU nodes instead, kept free for GPU workloads.
+    # Affinity override must be non-empty to take effect - empty falls back
+    # to the chart default.
+    operator:
+      tolerations: []
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values: ["true"]
+    node-feature-discovery:
+      master:
+        tolerations: []
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 50
+                preference:
+                  matchExpressions:
+                    - key: nvidia.com/gpu.present
+                      operator: NotIn
+                      values: ["true"]
