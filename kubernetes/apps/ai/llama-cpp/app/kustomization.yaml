@@ -6,3 +6,4 @@ resources:
   - ./backendtrafficpolicy.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./servicemonitor.yaml

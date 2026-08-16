@@ -73,6 +73,10 @@ spec:
               - "-1"
               - --ctx-size
               - "4096"
+              # Prometheus-format /metrics - token throughput, KV/context
+              # usage, requests processing/deferred. Off by default. Scraped
+              # by the ServiceMonitor alongside this HelmRelease.
+              - --metrics
             probes:
               # HTTP /health - confirmed live it returns 200 once the server's
               # actually up (GET / returns a bare 415 instead - llama-server's
