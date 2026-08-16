@@ -33,3 +33,18 @@ spec:
       enabled: false
     psa:
       enabled: false
+    # Chart defaults tolerate + prefer the control-plane taint for both the
+    # operator controller and nfd-master - a holdover default that made
+    # sense in the OLD topology where CP nodes carried GPUs (see
+    # gpu-nodes-flatcar-nvidia). The current CP tier is lean 8GB nodes with
+    # no GPUs and little memory headroom; these have no reason to run there
+    # and were contributing to KubeletHasInsufficientMemory on cp-gurloes.
+    # Clearing tolerations is sufficient on its own - affinity's
+    # control-plane preference is hardcoded in the chart template (doesn't
+    # respond to an override), but a preference can't overcome a taint with
+    # no matching toleration, so it's moot once these can't land there.
+    operator:
+      tolerations: []
+    node-feature-discovery:
+      master:
+        tolerations: []
