@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_backendtrafficpolicies.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: llama-cpp-no-compression
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: llama-cpp
+  # llama-server serves its embedded webui as a pre-compressed static gzip
+  # blob and returns 415 if it doesn't see gzip in the request's
+  # Accept-Encoding - it doesn't recompress on the fly. Envoy's compressor
+  # filter (enabled cluster-wide by envoy-gateway's own "envoy"
+  # BackendTrafficPolicy) strips/rewrites the upstream Accept-Encoding header
+  # so it can negotiate compression itself, which broke that (confirmed
+  # live: /health direct-to-pod works with a proper Accept-Encoding header,
+  # the same request through this route gets 415).
+  #
+  # Route-level policy fully replaces gateway-level for this route, not
+  # merges - omitting `compression` here disables it just for llama-cpp
+  # rather than gateway-wide. `timeout` has to be repeated for the same
+  # reason (same pattern as envoy-external-ratelimit's listener-level
+  # policy) - dropping it would silently fall back to Envoy's much shorter
+  # default and cut off long generations.
+  timeout:
+    http:
+      requestTimeout: 10m
