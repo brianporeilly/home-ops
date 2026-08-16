@@ -320,3 +320,4 @@ persistence:
 - **Reloader**: `reloader.stakater.com/auto: "true"` annotation on controllers for auto-restart on secret/config changes
 - **Probes**: YAML anchors (`&probes`) shared between liveness and readiness
 - **Service name**: Always `app` for the primary service
+- **Comments**: minimal - only the non-obvious "why" (a hidden constraint, a gotcha). No narrative/history of the change or the incident that prompted it; that belongs in the commit message, not the file.
