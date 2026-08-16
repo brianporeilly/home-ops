@@ -133,6 +133,13 @@ spec:
 
     route:
       app:
+        annotations:
+          # llama-server's minimal router returns a bare 415 for GET / (no
+          # static webui bundled in this image) - confirmed live, not a
+          # transient thing. /health is the correct check target and
+          # returns 200 once the server's up.
+          gatus.home-operations.com/endpoint: |-
+            url: https://llama-cpp.internal.oreillys.io/health
         hostnames:
           - llama-cpp.internal.oreillys.io
         parentRefs:

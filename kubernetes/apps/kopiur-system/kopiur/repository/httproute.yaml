@@ -5,6 +5,15 @@ kind: HTTPRoute
 metadata:
   name: kopiur-ui
   namespace: kopiur-system
+  annotations:
+    # kopia-ui enforces HTTP basic auth on every path including /, so a plain
+    # GET always returns 401 - that's correct behavior, not a failure. Not
+    # configuring Gatus with real credentials here (they'd sit in git as a
+    # plaintext annotation, unlike sops-encrypted secrets); a clean 401 is
+    # itself proof the service is up and enforcing auth, which is what the
+    # check actually needs to confirm.
+    gatus.home-operations.com/endpoint: |-
+      conditions: ["[STATUS] == 401"]
 spec:
   hostnames:
     - kopiur.internal.oreillys.io
