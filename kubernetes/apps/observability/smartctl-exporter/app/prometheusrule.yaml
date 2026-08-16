@@ -19,9 +19,25 @@ spec:
             severity: critical
 
         - alert: SmartDeviceTestFailed
+          # `or smartctl_device_status != 1` used to be here - dropped, it
+          # referenced a metric that doesn't exist in this exporter version
+          # (confirmed live against Prometheus: zero series for
+          # smartctl_device_status, cluster-wide). Pure dead weight, never
+          # contributed to this ever firing.
+          #
+          # for: widened 5m -> 15m: nas-ultan's WD60EFAX (SMR) drives
+          # occasionally return a checksum/data-structure read error on an
+          # otherwise-healthy poll (smartctl exit status 4 - background SMR
+          # band housekeeping colliding with the probe, not real
+          # degradation; confirmed live across multiple EFAX drives failing
+          # in the same poll cycle, self-healing within minutes). SMART
+          # status doesn't change fast enough for a tight window to matter -
+          # a genuine failure (e.g. wk-roche's still-open sda issue) stays
+          # failed for hours/days, easily clearing 15m; a transient SMR blip
+          # usually doesn't.
           expr: |-
-            (smartctl_device_smart_status != 1 or smartctl_device_status != 1)
-          for: 5m
+            smartctl_device_smart_status != 1
+          for: 15m
           annotations:
             summary: >-
               Drive {{ $labels.device }} on {{ $labels.node }} ({{ $labels.instance }}) did not pass its SMART test
