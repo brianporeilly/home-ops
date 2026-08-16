@@ -99,27 +99,37 @@ zfs create -o mountpoint=/backups/workstations <pool>/backups-workstations
 mountpoint and update §1's paths to match — do this **before** creating the per-workstation users,
 not after, to avoid a mid-flight `chown`/permissions surprise from the dataset mount.)
 
-**Snapshot schedule — recommend `sanoid`** (config-file-driven, purpose-built for this, avoids
-hand-rolling cron + `zfs snapshot`/`zfs destroy` retention logic):
+**Snapshot schedule — recommend `zrepl`, not `sanoid`.** `nas-ultan` runs Flatcar, same as the
+k8s nodes — no package manager, no Perl in the base image. `sanoid` is a Perl script; it doesn't
+run here without also standing up a Perl runtime, which is more moving parts than the tool
+itself. `zrepl` does the same job (config-driven periodic snapshot + GFS pruning, no hand-rolled
+`zfs snapshot`/`zfs destroy` cron logic) but ships as a **single static Go binary** — the shape
+that actually fits Flatcar's model: drop the binary + a systemd unit via Ignition/Butane (however
+`nas-ultan` is already provisioned — same mechanism as whatever delivers the `nvidia.service`
+setup on the GPU nodes, see `gpu-nodes-flatcar-nvidia` memory), no sysext needed since it has no
+shared-library or kernel-module dependencies beyond what's already on the box for ZFS itself.
 
-```sh
-# /etc/sanoid/sanoid.conf
-[backups-workstations]
-    use_template = production
-    recursive = yes
-
-[template_production]
-    # Mirrors kopiur's own GFS retention (backup-dr-plan.md §2 L2) for consistency -
-    # not load-bearing, just avoids inventing a third retention convention.
-    hourly = 24
-    daily = 7
-    weekly = 4
-    monthly = 3
-    autosnap = yes
-    autoprune = yes
+```yaml
+# /etc/zrepl/zrepl.yml
+jobs:
+  - name: backups-workstations-snap
+    type: snap
+    filesystems:
+      "<pool>/backups-workstations<": true   # trailing < = dataset + all children, recursive
+    snapshotting:
+      type: periodic
+      interval: 1h
+    pruning:
+      keep:
+        # Mirrors kopiur's own GFS retention (backup-dr-plan.md §2 L2) for consistency -
+        # not load-bearing, just avoids inventing a third retention convention.
+        - type: grid
+          grid: 1x1h(keep=24) | 1x1d(keep=7) | 1x7d(keep=4) | 1x30d(keep=3)
+          regex: "^zrepl_"
 ```
-Point sanoid at the workstation dataset specifically (adjust the section name to match whatever
-you named it above), run it from cron/systemd-timer per its own install docs.
+Run via a systemd unit (`zrepl daemon`) — the project publishes prebuilt binaries + a sample
+unit file upstream; no container/quadlet involved, it needs direct host access to `zfs`/`zpool`
+the same way the sysext-delivered ZFS tooling itself does.
 
 **Why this covers what Borg's `--append-only` covered:** the workstation SSH user can read/write/
 delete freely *within its own chroot*, including issuing a Kopia `maintenance`/prune that deletes
@@ -152,7 +162,7 @@ your password manager, same as the sops age key convention for the cluster — *
 not backed up anywhere else**, losing it means losing the ability to decrypt this workstation's
 backups.
 
-Add source paths and a retention policy (same GFS numbers as §2's sanoid config, for one less
+Add source paths and a retention policy (same GFS numbers as §2's zrepl config, for one less
 thing to remember) either via `kopia policy set` or KopiaUI once the repo is connected — KopiaUI
 will pick up the same repository non-interactively after the CLI `repository create` step above.
 
