@@ -74,17 +74,33 @@ spec:
               - --ctx-size
               - "4096"
             probes:
+              # TCP, not HTTP - llama-server's minimal HTTP server returned a
+              # bare 415 to kubelet's plain GET /health with no request body,
+              # which killed the container on every attempt (confirmed live:
+              # PR #496's first deploy). TCP sidesteps that entirely - same
+              # pattern the ollama HelmRelease already uses successfully.
+              startup:
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  # Ceiling of ~10min for first-time model load + CUDA
+                  # context/kernel init on the old Maxwell card - liveness/
+                  # readiness don't start counting until this passes once.
+                  failureThreshold: 60
               liveness: &probes
                 enabled: true
-                type: HTTP
+                type: TCP
                 spec:
-                  httpGet:
-                    path: /health
+                  tcpSocket:
                     port: 8080
-                  initialDelaySeconds: 15
                   periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 6
+                  timeoutSeconds: 3
+                  failureThreshold: 3
               readiness: *probes
             securityContext:
               allowPrivilegeEscalation: false
