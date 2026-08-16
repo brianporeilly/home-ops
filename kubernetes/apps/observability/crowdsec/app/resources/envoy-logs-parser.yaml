@@ -31,11 +31,10 @@ statics:
     expression: "evt.Unmarshaled.envoy.msg_start_time"
   # source_ip: msg_client_ip is DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT. Only
   # the real client IP because envoy-external's ClientTrafficPolicy sets
-  # clientIPDetection.xForwardedFor.numTrustedHops: 1 - OPNsense NATs
-  # internet traffic in front of that Gateway and sets X-Forwarded-For to
-  # the real client, so Envoy resolves through that one trusted hop.
-  # Without that policy this is always OPNsense's own address, not the
-  # attacker - confirmed live via a real scan log line before it was fixed.
+  # clientIPDetection.xForwardedFor - OPNsense NATs internet traffic in
+  # front of that Gateway and sets X-Forwarded-For to the real client, so
+  # Envoy resolves through that trusted hop. Without that policy this is
+  # always OPNsense's own address, not the attacker.
   - meta: source_ip
     expression: "evt.Unmarshaled.envoy.msg_client_ip"
   - parsed: source_ip

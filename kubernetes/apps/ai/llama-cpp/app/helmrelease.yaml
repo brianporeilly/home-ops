@@ -83,22 +83,18 @@ spec:
               # by the ServiceMonitor alongside this HelmRelease.
               - --metrics
             probes:
-              # HTTP /health - confirmed live it returns 200 once the server's
-              # actually up (GET / returns a bare 415 instead - llama-server's
-              # minimal router doesn't like the root path with no static
-              # webui bundled in this image; see the Gatus check fix for the
-              # same finding). A TCP check would only prove the port is open,
+              # HTTP /health returns 200 once the server's actually up (GET /
+              # returns a bare 415 instead - llama-server's minimal router
+              # doesn't like the root path with no static webui bundled in
+              # this image). A TCP check would only prove the port is open,
               # not that the server is actually responsive - HTTP catches a
               # hung-but-listening process that TCP wouldn't.
               #
               # NB: this chart wants `path`/`port` as top-level keys here, NOT
-              # nested under spec.httpGet - the original #496 probe had them
-              # nested that way, which the chart's template silently ignores.
-              # That meant `path` was never actually set, so Kubernetes
-              # defaulted the probe to "/" - which is the path that returns
-              # 415. The original crash loop was never really about /health;
-              # it was checking "/" the whole time without anyone intending
-              # that.
+              # nested under spec.httpGet - nesting them under httpGet is
+              # silently ignored by the chart's template, leaving `path`
+              # unset and the probe defaulting to "/" (the path that returns
+              # 415).
               startup:
                 enabled: true
                 type: HTTP
@@ -109,11 +105,8 @@ spec:
                   periodSeconds: 10
                   timeoutSeconds: 3
                   # Ceiling of ~10min for first-time model load + CUDA
-                  # context/kernel init on the old Maxwell card (the first
-                  # deploy's crash loop was a slow cold JIT-compile of CUDA
-                  # kernels racing the old, much shorter liveness window, not
-                  # /health itself being broken) - liveness/readiness don't
-                  # start counting until this passes once.
+                  # context/kernel init on the old Maxwell card - liveness/
+                  # readiness don't start counting until this passes once.
                   failureThreshold: 60
               liveness: &probes
                 enabled: true
@@ -158,9 +151,8 @@ spec:
       app:
         annotations:
           # llama-server's minimal router returns a bare 415 for GET / (no
-          # static webui bundled in this image) - confirmed live, not a
-          # transient thing. /health is the correct check target and
-          # returns 200 once the server's up.
+          # static webui bundled in this image). /health is the correct
+          # check target and returns 200 once the server's up.
           gatus.home-operations.com/endpoint: |-
             url: https://llama-cpp.internal.oreillys.io/health
         hostnames:

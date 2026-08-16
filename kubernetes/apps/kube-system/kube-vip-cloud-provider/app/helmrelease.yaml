@@ -29,16 +29,11 @@ spec:
         # (10.20.0.0/16), so every client's kernel treats it as off-link and
         # routes it via its default gateway automatically, no DHCP option /
         # per-host static route needed anywhere. kube-vip's LB VIPs are
-        # BGP-only (vip_arp: false, see the kube-vip HelmRelease) - they were
-        # never actually L2/ARP-reachable in general, it just happened to
-        # work for clients that were L2-adjacent to whichever node currently
-        # held a given VIP. Confirmed live: a non-cluster host (nas-ultan,
-        # flatcar-ignition repo) couldn't reach 10.20.250.5 via ARP at all
-        # despite the /16 route on its own interface saying it was on-link;
-        # OPNsense/Mikrotik already route the whole 10.20.0.0/16 as one
-        # block to each other regardless, so the overlap was purely an
-        # end-host on-link/off-link confusion, not a BGP/advertisement
-        # problem. See kube-vip-cloud-provider's docs (Multiple pools or
+        # BGP-only (vip_arp: false, see the kube-vip HelmRelease), so they
+        # were never actually guaranteed L2/ARP-reachable - a host that isn't
+        # L2-adjacent to whichever node currently holds a VIP in the old
+        # overlapping /24 can't ARP for it despite its own route saying
+        # on-link. See kube-vip-cloud-provider's docs (Multiple pools or
         # ranges) - comma-separated CIDRs here is the documented way to add
         # a pool without disturbing the existing one; nothing already using
         # 10.20.250.0/24 needs to move.

@@ -32,12 +32,12 @@ spec:
   # leader election so exactly one node binds/advertises the API VIP.
   #
   # Pinned to worker nodes (affinity: DoesNotExist control-plane) so the two
-  # kube-vip releases never peer with the router from the same source IP: when
-  # both ran on control-plane nodes the router kept only one BGP session per
-  # neighbor, the services release always won, and kube-vip-cp could never
-  # establish BGP (verified live - API VIP was never advertised). The workers
-  # must be registered as BGP peers on the router (10.20.0.1, AS 65001) so the
-  # LoadBalancer VIPs stay announced once the CP-node sessions are gone.
+  # kube-vip releases never peer with the router from the same source IP: the
+  # router only keeps one BGP session per neighbor, so if both ran on
+  # control-plane nodes the services release always wins and kube-vip-cp can
+  # never establish BGP. The workers must be registered as BGP peers on the
+  # router (10.20.0.1, AS 65001) so the LoadBalancer VIPs stay announced once
+  # the CP-node sessions are gone.
   values:
     affinity:
       nodeAffinity:

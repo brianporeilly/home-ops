@@ -14,9 +14,7 @@ spec:
   # Accept-Encoding - it doesn't recompress on the fly. Envoy's compressor
   # filter (enabled cluster-wide by envoy-gateway's own "envoy"
   # BackendTrafficPolicy) strips/rewrites the upstream Accept-Encoding header
-  # so it can negotiate compression itself, which broke that (confirmed
-  # live: /health direct-to-pod works with a proper Accept-Encoding header,
-  # the same request through this route gets 415).
+  # so it can negotiate compression itself, which breaks that.
   #
   # Route-level policy fully replaces gateway-level for this route, not
   # merges - omitting `compression` here disables it just for llama-cpp

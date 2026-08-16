@@ -48,9 +48,9 @@ spec:
               # fixes the in-cluster kube-proxy SNAT hop - OPNsense sits in
               # front of envoy-external and NATs internet-sourced
               # connections separately, replacing the real client with its
-              # own transit address. Confirmed live: OPNsense already sets
-              # X-Forwarded-For to the real client (single entry) before
-              # forwarding, so the envoy-external ClientTrafficPolicy's
+              # own transit address. OPNsense already sets X-Forwarded-For to
+              # the real client (single entry) before forwarding, so the
+              # envoy-external ClientTrafficPolicy's
               # clientIPDetection.xForwardedFor.numTrustedHops: 1 (below)
               # makes DOWNSTREAM_REMOTE_ADDRESS resolve through that one
               # trusted hop correctly, instead of showing OPNsense itself.
@@ -210,9 +210,9 @@ spec:
   # with status Conflicted), NOT by targetRefs-vs-targetSelectors
   # specificity as might be assumed. The envoy-external ClientTrafficPolicy
   # below needs sole ownership of that Gateway for its
-  # clientIPDetection.xForwardedFor.numTrustedHops to actually apply -
-  # confirmed live that it was silently rejected while this policy was
-  # still broad enough to cover both Gateways.
+  # clientIPDetection.xForwardedFor.numTrustedHops to actually apply - it's
+  # silently rejected while this policy is still broad enough to cover
+  # both Gateways.
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
@@ -270,22 +270,17 @@ spec:
   # direct LAN traffic with no NAT/proxy hop in front of it, so trusting an
   # XFF hop there would let any LAN client spoof its own source IP.
   # envoy-external sits behind exactly one trusted hop (OPNsense, which NATs
-  # internet traffic and already sets X-Forwarded-For to the real client) -
-  # #366 removed this same setting when externalTrafficPolicy was Cluster
-  # and envoy-external wasn't internet-exposed yet (kube-proxy SNAT was the
-  # only hop then); re-added here now that OPNsense's own separate edge NAT
-  # is the actual hop in play.
+  # internet traffic and already sets X-Forwarded-For to the real client).
   #
-  # trustedCIDRs, not numTrustedHops: confirmed live (inspecting the
-  # rendered Envoy config via admin :19000/config_dump) that Envoy Gateway
-  # v1.8.3 silently drops numTrustedHops - it never makes it into the
-  # XffConfig proto at all, so client_ip stayed OPNsense's own address no
-  # matter what. trustedCIDRs pinned to OPNsense's actual transit address
-  # renders correctly and is arguably the better fit anyway: it explicitly
-  # trusts the one known proxy IP rather than a generic hop-count, and
-  # correctly falls back to the raw peer address (rejecting any injected
-  # XFF) for traffic that didn't actually come from OPNsense - verified
-  # live with a spoofed XFF header sent directly from outside this CIDR.
+  # trustedCIDRs, not numTrustedHops: Envoy Gateway v1.8.3 silently drops
+  # numTrustedHops - it never makes it into the XffConfig proto at all
+  # (confirmed via the rendered config at admin :19000/config_dump), so
+  # client_ip stayed OPNsense's own address no matter what. trustedCIDRs
+  # pinned to OPNsense's actual transit address renders correctly and is
+  # arguably the better fit anyway: it explicitly trusts the one known
+  # proxy IP rather than a generic hop-count, and correctly falls back to
+  # the raw peer address (rejecting any injected XFF) for traffic that
+  # didn't actually come from OPNsense.
   clientIPDetection:
     xForwardedFor:
       trustedCIDRs:
