@@ -33,8 +33,7 @@ spec:
     # actually write a Secret outside its own namespace. Without this the
     # CR-level opt-in gets as far as attempting the write and then fails
     # with an HTTP 403: "the operator is not permitted to write the
-    # projected credentials Secret ... - confirmed live, error message
-    # points at this exact flag.
+    # projected credentials Secret ..." pointing at this exact flag.
     features:
       credentialProjection:
         enabled: true

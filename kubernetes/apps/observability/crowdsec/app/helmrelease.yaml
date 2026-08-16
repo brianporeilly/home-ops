@@ -33,8 +33,7 @@ spec:
               # `cscli machines add ... -f -`, not self-registered by this
               # pod). 10.2.0.1 is OPNsense's transit-VLAN address (MikroTik
               # handles inter-VLAN routing; OPNsense is the default route
-              # for anything MikroTik doesn't know) - confirmed reachable
-              # from the cluster's VLAN before building this.
+              # for anything MikroTik doesn't know).
               DISABLE_LOCAL_API: "true"
               LOCAL_API_URL: http://10.2.0.1:8080
               # Explicitly empty - overrides the image's default of

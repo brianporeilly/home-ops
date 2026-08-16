@@ -39,11 +39,9 @@ spec:
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
 # Only covers grimmory-data. grimmory-bookdrop is declared as a second
-# source above but has never actually been captured by any real Snapshot
-# (confirmed live: every Snapshot this SnapshotPolicy has ever produced
-# only resolved grimmory-data - a separate, not-yet-understood gap from
-# this restore work, worth its own investigation). Wiring a populator to
-# a PVC with zero backup history would be a no-op at best.
+# source above but has never actually been captured by any Snapshot this
+# SnapshotPolicy has produced - wiring a populator to a PVC with zero
+# backup history would be a no-op at best.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:

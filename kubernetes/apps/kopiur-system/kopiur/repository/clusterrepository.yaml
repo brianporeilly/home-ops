@@ -11,8 +11,7 @@ spec:
   # also opts in (credentialProjection.enabled: true) since mover Jobs run,
   # and load creds via envFrom, in their own app's namespace, not here.
   # Without both sides every mover run fails: "credentials Secret
-  # kopiur-repository-secret does not exist in namespace X" - confirmed
-  # live, discovered right after the first apps were wired up.
+  # kopiur-repository-secret does not exist in namespace X".
   credentialProjection:
     allowed: true
   # Inline NFS, not a PVC - kopiur's own docs recommend this for an on-prem
@@ -25,11 +24,9 @@ spec:
   # its top level (filesystem.path above is just the in-pod mountpoint, not
   # a subPath). Pointed at /backups/kopiur, not the export root /backups,
   # so the repo's own blob shards don't sit as loose siblings of
-  # rgw-nas-sync's rgw-sync/ directory in the same export. Requires the
-  # existing repo's files to be moved from /backups/ into /backups/kopiur/
-  # on the NAS (done manually, out of band) before this merges - the
-  # controller re-detects the existing repo at the new path rather than
-  # creating a fresh one, as long as the blobs are physically there first.
+  # rgw-nas-sync's rgw-sync/ directory in the same export. The controller
+  # re-detects an existing repo by the blobs actually being at this path,
+  # not by any stored identity - moving the repo means moving the blobs.
   backend:
     filesystem:
       path: /repo
@@ -79,7 +76,7 @@ spec:
     # separate field, doesn't inherit moverDefaults, and defaulted to some
     # other UID/fsGroup entirely. Without this it can't read anything on
     # the NAS export (chowned to 1000:1000): "permission denied" opening
-    # /repo/.shards - confirmed live via the server pod's crash logs.
+    # /repo/.shards.
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 1000

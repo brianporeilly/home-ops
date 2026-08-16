@@ -80,8 +80,7 @@ spec:
         accessMode: ReadWriteOnce
         size: "1Gi"
         # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        # for the full explanation. Migrated live: PVC deleted + restored,
-        # data verified.
+        # for the full explanation.
         dataSourceRef:
           apiGroup: kopiur.home-operations.com
           kind: Restore
