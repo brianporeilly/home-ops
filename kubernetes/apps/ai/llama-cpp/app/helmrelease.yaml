@@ -1,0 +1,144 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: llama-cpp
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      llama-cpp:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          runtimeClassName: nvidia
+        initContainers:
+          # Idempotent - skips the download if the file already exists on the
+          # (persistent) volume, so pod restarts don't re-fetch. Change MODEL_URL
+          # + MODEL_FILE together to switch models; both the fetch and the
+          # llama-server -m flag below read from the same values, so "which
+          # model is running" is one fact, defined once, in git.
+          fetch-model:
+            image:
+              repository: docker.io/curlimages/curl
+              tag: 8.11.0
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                dest="/models/${MODEL_FILE}"
+                if [ -f "$dest" ]; then
+                  echo "[fetch-model] $dest already present, skipping"
+                  exit 0
+                fi
+                echo "[fetch-model] downloading $MODEL_URL -> $dest"
+                curl -fL --retry 3 --create-dirs -o "${dest}.tmp" "$MODEL_URL"
+                mv "${dest}.tmp" "$dest"
+                echo "[fetch-model] done"
+            env: &model_env
+              MODEL_URL: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+              MODEL_FILE: "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/ggml-org/llama.cpp
+              tag: server-cuda
+            env: *model_env
+            args:
+              - -m
+              - /models/$(MODEL_FILE)
+              - --host
+              - 0.0.0.0
+              - --port
+              - "8080"
+              # -1 offloads every layer to the GPU. The GTX 745 (Maxwell,
+              # 4GB VRAM) is old enough that this needs verifying in practice -
+              # drop to a smaller positive number of layers if it OOMs.
+              - --n-gpu-layers
+              - "-1"
+              - --ctx-size
+              - "4096"
+            probes:
+              liveness: &probes
+                enabled: true
+                type: HTTP
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 8080
+                  initialDelaySeconds: 15
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+              limits:
+                cpu: "4"
+                memory: 6Gi
+                nvidia.com/gpu: 1
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: llama-cpp
+        ports:
+          http:
+            port: 8080
+
+    route:
+      app:
+        hostnames:
+          - llama-cpp.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      models:
+        storageClass: ceph-block
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        advancedMounts:
+          llama-cpp:
+            fetch-model:
+              - path: /models
+            app:
+              - path: /models
+                readOnly: true
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          llama-cpp:
+            app:
+              - path: /tmp
