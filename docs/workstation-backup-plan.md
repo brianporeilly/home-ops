@@ -99,15 +99,14 @@ zfs create -o mountpoint=/backups/workstations <pool>/backups-workstations
 mountpoint and update §1's paths to match — do this **before** creating the per-workstation users,
 not after, to avoid a mid-flight `chown`/permissions surprise from the dataset mount.)
 
-**Snapshot schedule — recommend `zrepl`, not `sanoid`.** `nas-ultan` runs Flatcar, same as the
-k8s nodes — no package manager, no Perl in the base image. `sanoid` is a Perl script; it doesn't
-run here without also standing up a Perl runtime, which is more moving parts than the tool
-itself. `zrepl` does the same job (config-driven periodic snapshot + GFS pruning, no hand-rolled
-`zfs snapshot`/`zfs destroy` cron logic) but ships as a **single static Go binary** — the shape
-that actually fits Flatcar's model: drop the binary + a systemd unit via Ignition/Butane (however
-`nas-ultan` is already provisioned — same mechanism as whatever delivers the `nvidia.service`
-setup on the GPU nodes, see `gpu-nodes-flatcar-nvidia` memory), no sysext needed since it has no
-shared-library or kernel-module dependencies beyond what's already on the box for ZFS itself.
+**Snapshot schedule — recommend `zrepl`, not `sanoid`, run as a Podman Quadlet** (consistent
+with `smartctl-exporter`/`node-exporter`/`alloy` on the same box — one operational model for
+host-level services, not a one-off raw systemd unit). `nas-ultan` runs Flatcar, same as the k8s
+nodes — no package manager, no Perl in the base image, so `sanoid` (a Perl script) is out. `zrepl`
+does the same job (config-driven periodic snapshot + GFS pruning, no hand-rolled `zfs snapshot`/
+`zfs destroy` cron logic) as a single static Go binary — and critically, it **shells out to the
+`zfs`/`zpool` CLI rather than linking `libzfs` directly** (pure Go, no cgo), so the container
+itself needs almost nothing of its own.
 
 ```yaml
 # /etc/zrepl/zrepl.yml
@@ -127,9 +126,46 @@ jobs:
           grid: 1x1h(keep=24) | 1x1d(keep=7) | 1x7d(keep=4) | 1x30d(keep=3)
           regex: "^zrepl_"
 ```
-Run via a systemd unit (`zrepl daemon`) — the project publishes prebuilt binaries + a sample
-unit file upstream; no container/quadlet involved, it needs direct host access to `zfs`/`zpool`
-the same way the sysext-delivered ZFS tooling itself does.
+
+**The one real wrinkle vs. the other quadlets on this box:** `zfs`/`zpool` are tightly
+version-coupled to the host's OpenZFS *kernel module* via ioctl ABI (confirmed live on
+`nas-ultan`: `zfs-2.3.3-r0-gentoo`, and `/usr/bin/zfs` alone pulls in 18 shared libraries -
+`libzfs.so.6`, `libzfs_core.so.3`, `libuutil.so.3`, `libnvpair.so.3`, plus libc/libcrypto/libkrb5/
+etc.) — unlike SMART or `/proc`/`/sys` reads, a mismatched userspace-vs-kernel-module version can
+fail outright or silently misbehave. Hand-enumerating 18 individual bind-mounts is fragile and
+would silently go stale on the next `zfs` sysext update.
+
+**The fix: bind-mount the host's entire `/usr` read-only, not individual binaries/libs.** The
+`zfs` sysext already keeps `/usr/bin/zfs`/`zpool` and every library they need version-locked to
+the kernel module automatically on every Flatcar update — mounting `/usr` wholesale inherits that
+guarantee for free, forever, with zero image-rebuild-on-ZFS-upgrade maintenance. `zrepl` itself
+(the static binary) lives outside `/usr` in the container so the host mount doesn't shadow it:
+
+```
+# /etc/containers/systemd/zrepl-backups-workstations.container
+[Unit]
+Description=zrepl - ZFS snapshot/pruning for workstation backups
+After=zfs-setup.service
+
+[Container]
+Image=<build or pull a minimal image with just the static zrepl binary at /zrepl -
+       see github.com/zrepl/zrepl/releases for the current stable version/binary>
+Volume=/usr:/usr:ro
+Volume=/dev/zfs:/dev/zfs
+Volume=/etc/zrepl:/etc/zrepl:ro,Z
+PodmanArgs=--privileged
+Exec=/zrepl daemon -config /etc/zrepl/zrepl.yml
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+No bind-mount of the actual `/backups/workstations` data tree needed — ZFS snapshots operate at
+the pool/dataset level via `/dev/zfs` + the CLI, not by reading the mounted directory, so zrepl
+never needs to see the backup files themselves.
 
 **Why this covers what Borg's `--append-only` covered:** the workstation SSH user can read/write/
 delete freely *within its own chroot*, including issuing a Kopia `maintenance`/prune that deletes
