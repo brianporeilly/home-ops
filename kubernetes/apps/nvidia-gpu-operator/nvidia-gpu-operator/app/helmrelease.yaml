@@ -39,12 +39,44 @@ spec:
     # gpu-nodes-flatcar-nvidia). The current CP tier is lean 8GB nodes with
     # no GPUs and little memory headroom; these have no reason to run there
     # and were contributing to KubeletHasInsufficientMemory on cp-gurloes.
-    # Clearing tolerations is sufficient on its own - affinity's
-    # control-plane preference is hardcoded in the chart template (doesn't
-    # respond to an override), but a preference can't overcome a taint with
-    # no matching toleration, so it's moot once these can't land there.
+    # Clearing tolerations is sufficient on its own to hard-block
+    # control-plane (a preference can't overcome a taint with no matching
+    # toleration) - but an *empty* affinity override doesn't stick (falls
+    # back to the chart default, confirmed live), so a non-empty affinity
+    # is required below to actually replace it, not just clear it.
+    #
+    # Soft preference (not required) away from the actual GPU workers
+    # (wk-drotte/wk-roche - nvidia.com/gpu.present=true) too: these are
+    # lightweight (operator's own limit is 350Mi) so it's not about
+    # resource contention, just keeping management/discovery pods off the
+    # nodes that exist to run GPU workloads when a non-GPU worker is
+    # available. Soft, not hard - stays schedulable even if every non-GPU
+    # worker is down.
+    #
+    # NB: wk-eata also carries nvidia.com/gpu.present=true despite not
+    # being a documented GPU node (only wk-drotte/wk-roche have GTX 745s
+    # per node-inventory.md) - worth checking separately whether that's a
+    # real undocumented GPU or a stale NFD label; not fixed here.
     operator:
       tolerations: []
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: NotIn
+                    values: ["true"]
     node-feature-discovery:
       master:
         tolerations: []
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 50
+                preference:
+                  matchExpressions:
+                    - key: nvidia.com/gpu.present
+                      operator: NotIn
+                      values: ["true"]
