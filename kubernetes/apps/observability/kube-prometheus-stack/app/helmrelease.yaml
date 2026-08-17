@@ -117,6 +117,12 @@ spec:
           - apiGroups: ["postgresql.cnpg.io"]
             resources: ["backups"]
             verbs: ["list", "watch"]
+          - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+            resources: ["kustomizations"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["helm.toolkit.fluxcd.io"]
+            resources: ["helmreleases"]
+            verbs: ["list", "watch"]
       customResourceState:
         enabled: true
         config:
@@ -143,6 +149,50 @@ spec:
                       type: Gauge
                       gauge:
                         path: [status, stoppedAt]
+              # Flux no longer exposes gotk_reconcile_condition (removed from
+              # the controllers in a later release than flux-alerts.yaml's
+              # rules were written against - confirmed live, zero series,
+              # scrape itself is healthy). Derive Ready status here instead.
+              - groupVersionKind:
+                  group: kustomize.toolkit.fluxcd.io
+                  version: v1
+                  kind: Kustomization
+                metricNamePrefix: flux_kustomization
+                labelsFromPath:
+                  name: [metadata, name]
+                  namespace: [metadata, namespace]
+                metrics:
+                  - name: status_condition
+                    help: "Flux Kustomization Ready condition"
+                    each:
+                      type: StateSet
+                      stateSet:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: ["type"]
+                        labelName: status
+                        valueFrom: [status]
+                        list: ["True", "False", "Unknown"]
+              - groupVersionKind:
+                  group: helm.toolkit.fluxcd.io
+                  version: v2
+                  kind: HelmRelease
+                metricNamePrefix: flux_helmrelease
+                labelsFromPath:
+                  name: [metadata, name]
+                  namespace: [metadata, namespace]
+                metrics:
+                  - name: status_condition
+                    help: "Flux HelmRelease Ready condition"
+                    each:
+                      type: StateSet
+                      stateSet:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: ["type"]
+                        labelName: status
+                        valueFrom: [status]
+                        list: ["True", "False", "Unknown"]
       prometheus:
         monitor:
           enabled: true
