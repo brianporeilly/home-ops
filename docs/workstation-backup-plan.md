@@ -1,9 +1,29 @@
 # Workstation Backup Plan
 
-Status: **drafted 2026-08-15, not yet implemented**. Out of scope for `backup-dr-plan.md` (that
-doc covers the cluster; this covers personal Linux workstations backing up *to* the NAS,
-independent of Kubernetes). Runs entirely on `nas-ultan` and each workstation — nothing here
-touches the cluster.
+Status: **§1 live and verified working on the first workstation (2026-08-17)**; §2 (zrepl
+snapshots) still just designed, not built. Out of scope for `backup-dr-plan.md` (that doc covers
+the cluster; this covers personal Linux workstations backing up *to* the NAS, independent of
+Kubernetes). Runs entirely on `nas-ultan` and each workstation — nothing here touches the
+cluster.
+
+**Two real bugs were hit standing up §1, both now fixed here — read this before following the
+steps below on a fresh workstation:**
+1. **`/backups/...` isn't a real path on the NAS.** It's purely an NFSv4 client-side export
+   alias for the local path `/stacks/backups` — Kubernetes/kopiur mount it fine over NFS, but
+   SSH/SFTP/ZFS operate on the NAS's *actual local filesystem*, where `/backups` doesn't exist
+   at all. Confirmed live: `ls /backups` → `No such file or directory`, while the real data sits
+   at `/stacks/backups`. Every path below uses the real local path.
+2. **The chroot parent can't live under `/stacks/backups`, and the chroot root can't be
+   user-owned.** OpenSSH's `ChrootDirectory` requires the target directory *and every parent up
+   to `/`* to be owned by `root` and not writable by anyone else — chowning it to the backup
+   user (what an earlier version of this doc said to do) makes sshd silently kill the session
+   post-auth with no useful log line (`Connection reset by peer`, nothing informative in
+   `journalctl`). Worse, `/stacks/backups`'s own top level is *already* chowned 1000:1000 for
+   kopiur's unrelated NFS-mounted repository (`kopiur/`, `rgw-sync/` live there too) — that
+   ownership is load-bearing for kopiur and must not change. So the workstation-backup tree needs
+   its **own top-level dataset**, `stacks/workstations` (sibling to `stacks/backups`, not nested
+   under it), with a writable `data/` subdirectory one level inside each user's otherwise
+   root-owned chroot root.
 
 **Decision: Kopia**, replacing the current Pika/Borg-over-SSH setup. Reasoning: same tool
 already run and understood for the cluster's backups (`kopiur`), native S3/B2 support if an
@@ -29,29 +49,44 @@ user/group), not per-key in `authorized_keys` — so proper isolation between wo
 single shared user, but it's what actually enforces "workstation A's key can't touch workstation
 B's backups," which was the point.
 
-### One-time: group + chroot parent
+### One-time: dataset + group + chroot parent
+The ZFS dataset creation from §2 needs to happen **first** — it's what the chroot parent actually
+mounts on. Do it as its own top-level dataset (`stacks/workstations`), **not** nested under
+`stacks/backups` (see the bug write-up above):
+
 ```sh
-# On nas-ultan, as root:
+# On nas-ultan, as root. `stacks` is this NAS's actual zpool name, confirmed live -
+# see docs/disk-hardware-plan.md §1 if setting this up on different hardware.
+zfs create -o mountpoint=/stacks/workstations stacks/workstations
 groupadd kopia-backup
-mkdir -p /backups/workstations
-chown root:root /backups/workstations
-chmod 755 /backups/workstations   # chroot root must NOT be group/world-writable
+chown root:root /stacks/workstations
+chmod 755 /stacks/workstations   # chroot ancestor - must NOT be group/world-writable
 ```
 
 ### Per workstation (repeat for each host)
 ```sh
 host=desktop   # substitute: desktop, laptop, etc.
 
-useradd -m -d /backups/workstations/$host -s /usr/sbin/nologin -g kopia-backup $host-backup
-mkdir -p /backups/workstations/$host/.ssh
-chmod 700 /backups/workstations/$host/.ssh
-chmod 700 /backups/workstations/$host
-chown -R ${host}-backup:kopia-backup /backups/workstations/$host
+useradd -m -d /stacks/workstations/$host -s /usr/sbin/nologin -g kopia-backup $host-backup
+
+# The chroot root itself must be root-owned (see bug #2 above) - so the actual
+# writable content lives one level inside it, in a data/ subdirectory.
+mkdir -p /stacks/workstations/$host/data
+chown ${host}-backup:kopia-backup /stacks/workstations/$host/data
+chmod 700 /stacks/workstations/$host/data
+chown root:root /stacks/workstations/$host
+chmod 755 /stacks/workstations/$host
+
+mkdir -p /stacks/workstations/$host/.ssh
+chmod 700 /stacks/workstations/$host/.ssh
+chown ${host}-backup:kopia-backup /stacks/workstations/$host/.ssh
+# authorized_keys is read against the real (pre-chroot) filesystem path during
+# auth, so it doesn't need root ownership like the chroot root itself does.
 
 # Paste that workstation's dedicated (not reused) ed25519 public key:
-echo "ssh-ed25519 AAAA... $host" > /backups/workstations/$host/.ssh/authorized_keys
-chmod 600 /backups/workstations/$host/.ssh/authorized_keys
-chown ${host}-backup:kopia-backup /backups/workstations/$host/.ssh/authorized_keys
+echo "ssh-ed25519 AAAA... $host" > /stacks/workstations/$host/.ssh/authorized_keys
+chmod 600 /stacks/workstations/$host/.ssh/authorized_keys
+chown ${host}-backup:kopia-backup /stacks/workstations/$host/.ssh/authorized_keys
 ```
 
 ### `/etc/ssh/sshd_config.d/kopia-backup.conf`
@@ -65,16 +100,26 @@ Match Group kopia-backup
     PasswordAuthentication no
 ```
 ```sh
-sshd -t   # validate syntax before reloading - a broken sshd_config can lock out ALL ssh access
-systemctl reload sshd
+sshd -t   # validate syntax before trusting it - a broken sshd_config can lock out ALL ssh access
 ```
+No reload/restart needed — Flatcar's sshd is socket-activated (`sshd.socket` +
+a fresh `sshd@.service` instance per connection), so each new connection reads
+`/etc/ssh/sshd_config.d/*.conf` from disk fresh; there's no long-running daemon holding a stale
+copy. (`systemctl reload sshd` doesn't apply here — there's no persistent `sshd.service` unit to
+reload.)
 
 **Test before trusting it:**
 ```sh
 sftp -i ~/.ssh/id_ed25519_desktop_backup desktop-backup@nas-ultan
-# should land chrooted at what NAS sees as /backups/workstations/desktop (shown as / to the client)
-# confirm: cannot cd .. past root, cannot see other workstations' directories
+# should land chrooted at what the NAS calls /stacks/workstations/desktop (shown as / to the client)
+# confirm: cd data works (writable), cannot cd .. past root, cannot see other workstations' directories
 ```
+
+If this instead accepts the key and then immediately resets the connection
+(`Read from remote host ...: Connection reset by peer`) with nothing useful in
+`journalctl -u "sshd@*"`, it's almost always the `ChrootDirectory` ownership requirement above —
+check the *entire* path with `namei -mo /stacks/workstations/<host>` and confirm every component
+from `/` down is `root:root` and not group/world-writable.
 
 Generate a **separate SSH keypair per workstation** (`ssh-keygen -t ed25519 -f
 ~/.ssh/id_ed25519_<host>_backup -C <host>`) rather than reusing one key everywhere — same
@@ -85,19 +130,9 @@ workstation's credentials.
 
 ## 2. NAS-side: ZFS snapshots on the backup dataset (the ransomware-resistance piece)
 
-Put workstation backups on their own dataset (not nested under the existing `/backups` export
-used by kopiur/etcd/RGW-sync — separate retention policy, separate snapshot schedule, keeps blast
-radius and dataset properties independent):
-
-```sh
-# Substitute your actual pool name (see docs/disk-hardware-plan.md §1).
-zfs create -o mountpoint=/backups/workstations <pool>/backups-workstations
-```
-
-(If `/backups/workstations` from §1 already exists as a plain directory on the main pool, either
-`zfs create` at that exact mountpoint after moving existing content aside, or pick a fresh
-mountpoint and update §1's paths to match — do this **before** creating the per-workstation users,
-not after, to avoid a mid-flight `chown`/permissions surprise from the dataset mount.)
+The `stacks/workstations` dataset from §1 already exists on its own top-level path (deliberately
+*not* nested under `stacks/backups` — see the bug write-up at the top of this doc), so there's no
+separate creation step here — just the snapshot schedule on top of it.
 
 **Snapshot schedule — recommend `zrepl`, not `sanoid`, run as a Podman Quadlet** (consistent
 with `smartctl-exporter`/`node-exporter`/`alloy` on the same box — one operational model for
@@ -111,10 +146,10 @@ itself needs almost nothing of its own.
 ```yaml
 # /etc/zrepl/zrepl.yml
 jobs:
-  - name: backups-workstations-snap
+  - name: workstations-snap
     type: snap
     filesystems:
-      "<pool>/backups-workstations<": true   # trailing < = dataset + all children, recursive
+      "stacks/workstations<": true   # trailing < = dataset + all children, recursive
     snapshotting:
       type: periodic
       interval: 1h
@@ -142,7 +177,7 @@ guarantee for free, forever, with zero image-rebuild-on-ZFS-upgrade maintenance.
 (the static binary) lives outside `/usr` in the container so the host mount doesn't shadow it:
 
 ```
-# /etc/containers/systemd/zrepl-backups-workstations.container
+# /etc/containers/systemd/zrepl-workstations.container
 [Unit]
 Description=zrepl - ZFS snapshot/pruning for workstation backups
 After=zfs-setup.service
@@ -163,7 +198,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-No bind-mount of the actual `/backups/workstations` data tree needed — ZFS snapshots operate at
+No bind-mount of the actual `/stacks/workstations` data tree needed — ZFS snapshots operate at
 the pool/dataset level via `/dev/zfs` + the CLI, not by reading the mounted directory, so zrepl
 never needs to see the backup files themselves.
 
@@ -186,14 +221,15 @@ point-in-time block-level copy, immutable by construction.
 flatpak install flathub io.github.kopia.KopiaUI
 
 kopia repository create sftp \
-  --path=/ \
+  --path=/data \
   --host=nas-ultan \
   --username=${host}-backup \
   --keyfile=~/.ssh/id_ed25519_${host}_backup \
   --known-hosts=~/.ssh/known_hosts
 ```
-(`--path=/` because the SFTP session is already chrooted to this workstation's own directory —
-there's nothing else to see at `/`.) Set a strong repository password when prompted; store it in
+(`--path=/data`, not `/` — the SFTP session is chrooted to this workstation's own directory, but
+the chroot root itself is root-owned per §1's fix, so the actual writable location is the `data/`
+subdirectory one level in.) Set a strong repository password when prompted; store it in
 your password manager, same as the sops age key convention for the cluster — **this password is
 not backed up anywhere else**, losing it means losing the ability to decrypt this workstation's
 backups.
