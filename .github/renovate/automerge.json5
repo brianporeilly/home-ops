@@ -19,9 +19,9 @@
   // same (buggy) mechanics instead of fighting them.
   packageRules: [
     {
-      description: "Auto-merge patch updates for non-critical dependencies. matchManagers covers three managers, not just 'flux': 'regex' for the customManagers (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex), and 'kubernetes' because that manager does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what actually catches images embedded in raw CRDs the flux manager doesn't parse (e.g. the ClickHouseInstallation CR, PR #421). Without all three, matching deps get detected but never auto-merged, unlike everything else at this update level.",
+      description: "Auto-merge patch updates for non-critical dependencies. matchManagers covers four managers: 'helm-values' is the one that actually matches the vast majority of this repo's PRs - bjw-s app-template's `values.controllers.*.containers.*.image.{repository,tag}` fields (confirmed missing live: PR #516, a plain searxng patch bump, showed 'Automerge: Disabled by config' with this manager absent from the list - every recent patch/fix container-image PR had to be merged by hand for the same reason). 'flux' covers Flux-native resources (HelmRelease chartRef, OCIRepository, Kustomization). 'regex' covers the customManagers (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex). 'kubernetes' does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what catches images embedded in raw CRDs neither flux nor helm-values parse (e.g. the ClickHouseInstallation CR, PR #421). Without all four, matching deps get detected but never auto-merged, unlike everything else at this update level.",
       matchUpdateTypes: ["patch", "pin", "digest"],
-      matchManagers: ["flux", "regex", "kubernetes"],
+      matchManagers: ["flux", "helm-values", "regex", "kubernetes"],
       automerge: true,
     },
   ],
