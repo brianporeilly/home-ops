@@ -1,0 +1,107 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: authentik
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Own CNPG cluster (cluster.yaml, this dir) instead of the chart's
+    # bundled Bitnami postgresql subchart - matches every other stateful
+    # app in this repo. host/name/user are non-secret so they're set
+    # directly here; the password comes from CNPG's own auto-generated
+    # `authentik-postgres-app` Secret via global.env below (no
+    # bootstrap.initdb.secret override in cluster.yaml, so CNPG generates
+    # it - same pattern as paperless-ngx, not linkwarden's hand-rolled
+    # duplicate-password approach).
+    postgresql:
+      enabled: false
+    authentik:
+      postgresql:
+        host: authentik-postgres-rw
+        name: authentik
+        user: authentik
+        port: 5432
+      # secret_key intentionally left empty here - the chart's own
+      # env-generation helper skips empty values, so AUTHENTIK_SECRET_KEY
+      # comes solely from global.env below (sourced from our sops secret)
+      # rather than being set in this plaintext values: block.
+    global:
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: secret_key
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgres-app
+              key: password
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_EMAIL
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_PASSWORD
+        - name: AUTHENTIK_BOOTSTRAP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_TOKEN
+        # Dedicated valkey release (../valkey), not the chart's own bundled
+        # redis - it doesn't ship one (confirmed against its values.yaml).
+        - name: AUTHENTIK_REDIS__HOST
+          value: authentik-valkey
+        - name: AUTHENTIK_REDIS__PORT
+          value: "6379"
+    server:
+      replicas: 1
+      route:
+        main:
+          enabled: true
+          # Internal only for Phase 1 - the IdP itself doesn't need external
+          # exposure yet; some apps it protects might, in a later phase.
+          hostnames:
+            - authentik.internal.oreillys.io
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+              sectionName: https
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+    worker:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
