@@ -243,19 +243,18 @@ Finish the baseline first (block.db SSDs — the S3610 swap is done). After that
 1. **Backups — highest value, now planned in detail.** See **`backup-dr-plan.md`** for the
    full architecture (DB-native PITR + file-level PVC + off-site, with a Ceph RGW S3 target).
    Still the biggest remaining risk-reducer; blocked only on standing up the S3 target + NAS.
-2. **GPU / AI — the blocker was etcd contention, and this rebuild fixes it.** `ollama` is
-   GPU-wired correctly (`runtimeClassName: nvidia` + `nvidia.com/gpu: 1`) but sits at
-   **`replicas: 0`** — parked because booting it (loading a multi-GB model) produced an I/O
-   burst that **starved etcd's fsync and took the control plane down**, on the OLD co-located
-   CP nodes with Patriot SSDs. The new topology resolves this by design: CP nodes are dedicated
-   + **tainted NoSchedule** (ollama can't land there) and etcd is now on **PLP S3610s (done
-   2026-08-15)**. The prerequisite is complete — un-park it (`replicas: 1`) and test; it should
-   run without threatening etcd.
-   (`immich-ml` separately runs the **CPU** image — no `-cuda`, no GPU request.) **Caveat:**
-   Maxwell runs LLMs *stably but slowly*. If you want good perf, a used **RTX 3060 12GB / 3090
-   24GB** is then a pure capability upgrade (decoupled from cluster stability) and also dodges
-   Maxwell's deprecated-in-CUDA driver pain. Free win: immich-ml → `-cuda` image + GPU request
-   once the GPU path is proven.
+2. **GPU / AI — done, proven working (2026-08-16).** The original blocker was etcd
+   contention: `ollama` (GPU-wired, `runtimeClassName: nvidia` + `nvidia.com/gpu: 1`) sat
+   parked at `replicas: 0` because booting it starved etcd's fsync on the OLD co-located CP
+   nodes with Patriot SSDs. The new topology fixed that by design (dedicated + tainted CP
+   nodes, etcd on PLP S3610s) — but `ollama` itself has since been **replaced by `llama-cpp`**
+   (declarative model management, no `kubectl exec` required; see `kubernetes/apps/ai/llama-cpp`).
+   Confirmed live on the GTX 745: model loads onto the GPU, inference works
+   (`Phi-4-mini` Q4_K_M, ~5.8 tok/s generation). Maxwell runs LLMs *stably but slowly*, as
+   expected. Free win now unblocked: `immich-ml` → `-cuda` image + GPU request, same as
+   `llama-cpp`. A used **RTX 3060 12GB / 3090 24GB** remains a pure capability upgrade if
+   better perf is wanted later (decoupled from cluster stability, also dodges Maxwell's
+   deprecated-in-CUDA driver pain).
 3. **Ceph 4th-host headroom — resilience.** Both OSD tiers are exactly size=3 → if an OSD host
    dies, Ceph runs degraded (can't re-replicate) until repaired. A 4th host per tier restores
    self-healing. Medium priority for a homelab (degraded ≠ data loss).

@@ -143,7 +143,7 @@ Legend:
 | nebraska | ❌ | ✅ | N/A | No | New |
 | thelounge | ❌ | ✅ | N/A | No | New - IRC client |
 | tuwunel | ❌ | ✅ | N/A | No | New |
-| ollama | ❌ | 🟡 | N/A | No | New; GPU-wired but parked at `replicas: 0` — see `ollama-etcd-contention-parked` memory. Rebuild resolved the root cause; un-park + test is a backlog item. |
+| llama-cpp | ❌ | ✅ | N/A | No | New; replaced ollama (removed 2026-08-16). Declarative model management, no `kubectl exec`. Confirmed working on the GTX 745 (Phi-4-mini Q4_K_M, ~5.8 tok/s). |
 
 ---
 
@@ -220,11 +220,10 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - **vaultwarden** — old vault DB restored into the new CNPG instance
 - **copyparty** — live and tested
 - **bazarr, sonarr, radarr** — config-only, not blocked on media presence
-- Misc new apps: echo, atuin, linkwarden, maddy, nebraska, thelounge, tuwunel, microbin, podfetch, tube-archivist
+- Misc new apps: echo, atuin, linkwarden, maddy, nebraska, thelounge, tuwunel, microbin, podfetch, tube-archivist, llama-cpp
 
 ### 🟡 Deployed but needs data
 - **jellyfin, audiobookshelf, ersatztv** — NFS mounts done, media files still copying onto NAS
-- **ollama** — parked `replicas: 0`; rebuild fixed the etcd-contention root cause, un-park + test is outstanding
 
 ### 🔲 Staged (disabled but mergeable)
 - **grocy** — commented out, just uncomment
