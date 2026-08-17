@@ -26,11 +26,9 @@ spec:
         # volumeSnapshot) - without this the csi-snapshotter sidecar never
         # gets deployed on the RBD ctrlplugin, so any VolumeSnapshot sourced
         # from a ceph-block/ceph-block-ssd (RBD) PVC just hangs forever
-        # waiting to become readyToUse. Confirmed live: the Driver CR briefly
-        # showed volumeSnapshot (inherited from some prior state) until a
-        # routine Helm reconcile re-rendered it back to the chart's real
-        # default of none - this wasn't a code bug, just a missing value
-        # that needed to be explicit and persisted, not a transient CR edit.
+        # waiting to become readyToUse. Must be set explicitly and persisted
+        # here, not just applied once to the Driver CR - a routine Helm
+        # reconcile re-renders it back to the chart's real default of none.
         # kopiur's PVC-based backups (components/kopiur/backup) require this.
         snapshotPolicy: volumeSnapshot
       cephfs:

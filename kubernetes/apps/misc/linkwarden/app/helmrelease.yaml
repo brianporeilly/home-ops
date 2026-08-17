@@ -91,9 +91,8 @@ spec:
         accessMode: ReadWriteOnce
         size: "10Gi"
         # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        # for the full explanation. Migrated live: PVC deleted + restored -
-        # sparse content is expected (bookmarks live in Postgres, this PVC
-        # is only uploaded assets), app started and initialized normally.
+        # for the full explanation. Sparse content here is expected -
+        # bookmarks live in Postgres, this PVC only holds uploaded assets.
         dataSourceRef:
           apiGroup: kopiur.home-operations.com
           kind: Restore

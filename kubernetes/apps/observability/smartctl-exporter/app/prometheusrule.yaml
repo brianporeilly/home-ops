@@ -19,9 +19,16 @@ spec:
             severity: critical
 
         - alert: SmartDeviceTestFailed
+          # for: 15m - nas-ultan's WD60EFAX (SMR) drives occasionally return
+          # a checksum/data-structure read error on an otherwise-healthy poll
+          # (smartctl exit status 4 - background SMR band housekeeping
+          # colliding with the probe, not real degradation, self-heals within
+          # minutes). SMART status doesn't change fast enough for a tight
+          # window to matter - a genuine failure stays failed for hours/days,
+          # easily clearing 15m; a transient SMR blip usually doesn't.
           expr: |-
-            (smartctl_device_smart_status != 1 or smartctl_device_status != 1)
-          for: 5m
+            smartctl_device_smart_status != 1
+          for: 15m
           annotations:
             summary: >-
               Drive {{ $labels.device }} on {{ $labels.node }} ({{ $labels.instance }}) did not pass its SMART test

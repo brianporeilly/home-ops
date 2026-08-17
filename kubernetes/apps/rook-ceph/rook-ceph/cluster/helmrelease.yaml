@@ -91,10 +91,8 @@ spec:
           osd_mclock_scheduler_background_best_effort_lim: "0.9"
           # Deep scrubs are a major slow-op source on spinning disks, and all
           # 3 hdd OSDs replicate nearly the whole cluster (136/142 PGs), so
-          # stretch the interval and confine scrubs to an off-peak window.
-          # Widened from 5h->10h as extra headroom on top of the reservation
-          # fix above; the 81 PGs / ~66 GiB estimate this was originally
-          # sized on was stale (now 136 hdd PGs / ~232 GiB).
+          # stretch the interval and confine scrubs to an off-peak window -
+          # extra headroom on top of the reservation fix above.
           osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
           # Cluster runs UTC; these are wall-clock UTC hours, not local. 07:00
           # UTC = 23:00 AKDT (America/Anchorage, UTC-8, current DST rules).

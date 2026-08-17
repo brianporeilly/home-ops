@@ -23,9 +23,9 @@ spec:
   # DAC_OVERRIDE root can only read files it happens to own outright -
   # added uniformly on every explicit-root override so a future image
   # update that changes internal file ownership doesn't silently reopen
-  # this failure mode. Confirmed live: qui/linkwarden's data happens to be
-  # owned 0:0 already (works without it), but omada-controller (508:508)
-  # and thelounge (65534:65534) need it to read their own PVC at all.
+  # this failure mode. (qui/linkwarden's data happens to be owned 0:0
+  # already and works without it, but omada-controller (508:508) and
+  # thelounge (65534:65534) need it to read their own PVC at all.)
   patches:
     - target:
         kind: SnapshotPolicy

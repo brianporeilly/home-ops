@@ -111,11 +111,10 @@ spec:
         accessMode: ReadWriteOnce
         size: "10Gi"
         # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        # for the full explanation. Migrated live: PVC deleted + restored -
-        # sparse content is expected (the real library catalog lives in
-        # storage-grimmory-mariadb-0, untouched by this), app started and
-        # initialized normally. grimmory-bookdrop is NOT wired - see the
-        # comment on the Restore resource in kopiur-snapshot.yaml.
+        # for the full explanation. Sparse content here is expected - the real
+        # library catalog lives in storage-grimmory-mariadb-0, untouched by
+        # this. grimmory-bookdrop is NOT wired - see the comment on the
+        # Restore resource in kopiur-snapshot.yaml.
         dataSourceRef:
           apiGroup: kopiur.home-operations.com
           kind: Restore

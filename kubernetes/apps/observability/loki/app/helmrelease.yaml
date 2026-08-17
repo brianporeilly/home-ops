@@ -142,8 +142,8 @@ spec:
       # kube-vip LB-IP technique fluent-bit already uses for external syslog
       # input, but on the routed 10.21.0.0/16 pool (kube-vip-cloud-provider
       # HelmRelease) rather than 10.20.250.0/24 - that pool overlaps
-      # non-cluster hosts' own local /16, which made it unreachable via ARP
-      # for a genuinely external host like nas-ultan (confirmed live). NB:
+      # non-cluster hosts' own local /16, which makes it unreachable via ARP
+      # for a genuinely external host like nas-ultan. NB:
       # auth_enabled is false, so this puts Loki's full push+query HTTP API
       # on the LAN at 10.21.0.5:3100 - not scoped down to push-only. .5 to
       # match Loki's old 10.20.250.5 slot - .1-.4 are reserved for the other
