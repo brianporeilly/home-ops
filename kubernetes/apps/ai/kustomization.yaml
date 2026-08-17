@@ -6,5 +6,4 @@ namespace: ai
 components:
   - ../../components/common
 resources:
-  - ./ollama/ks.yaml
   - ./llama-cpp/ks.yaml
