@@ -57,3 +57,14 @@ spec:
         ports:
           http:
             port: 6379
+
+    persistence:
+      # readOnlyRootFilesystem + --appendonly need somewhere writable for
+      # valkey's appendonlydir - paperless-ngx's own inline valkey controller
+      # has the same requirement (see its helmrelease.yaml persistence.valkey-data).
+      # emptyDir, not a PVC - this is a cache, not data worth persisting past
+      # a pod restart.
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /data
