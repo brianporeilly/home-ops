@@ -49,7 +49,6 @@ spec:
       HTTPROUTE_NAME: kopiur-ui
       HOSTNAME: kopiur.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
-      OIDC_CLIENT_ID: 02d615fede34cb44884a4584285ce2edeb843576
   prune: true
   retryInterval: 2m
   sourceRef:

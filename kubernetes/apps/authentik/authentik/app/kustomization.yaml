@@ -11,13 +11,13 @@ resources:
   - ./blueprints-configmap.yaml
   - ./oidc-generators.yaml
   - ./echo-oidc-credentials.yaml
-  - ./kopiur-ui-provider-secret.yaml
-  - ./changedetection-provider-secret.yaml
-  - ./sonarr-provider-secret.yaml
-  - ./radarr-provider-secret.yaml
-  - ./prowlarr-provider-secret.yaml
-  - ./lidarr-provider-secret.yaml
-  - ./grafana-provider-secret.yaml
+  - ./kopiur-ui-oidc-credentials.yaml
+  - ./changedetection-oidc-credentials.yaml
+  - ./sonarr-oidc-credentials.yaml
+  - ./radarr-oidc-credentials.yaml
+  - ./prowlarr-oidc-credentials.yaml
+  - ./lidarr-oidc-credentials.yaml
+  - ./grafana-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml

@@ -8,4 +8,3 @@ resources:
   - ./httproute.yaml
   - ./b2-secret.yaml
   - ./replication.yaml
-  - ./oidc-client-secret.yaml

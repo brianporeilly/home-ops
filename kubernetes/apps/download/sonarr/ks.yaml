@@ -28,7 +28,6 @@ spec:
       HTTPROUTE_NAME: sonarr
       HOSTNAME: sonarr.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
-      OIDC_CLIENT_ID: 8e2f4df4e268a75fe63b4ad1e7feb6fcdcc4f346
   prune: true
   retryInterval: 2m
   sourceRef:
