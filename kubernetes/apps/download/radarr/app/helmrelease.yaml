@@ -86,6 +86,8 @@ spec:
       # route key renames the one above from `radarr` to `radarr-app`
       # (see ks.yaml's HTTPROUTE_NAME).
       api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
         hostnames:
           - radarr.internal.oreillys.io
         parentRefs:

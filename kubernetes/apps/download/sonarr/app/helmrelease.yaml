@@ -91,6 +91,10 @@ spec:
       # returns 401 without one even for in-cluster requests, so this
       # isn't a net new exposure versus the pre-SSO baseline.
       api:
+        annotations:
+          # No 401-expecting UI check for this one - not meaningful to
+          # monitor and Gatus would otherwise flag it as always-down.
+          gatus.home-operations.com/enabled: "false"
         hostnames:
           - sonarr.internal.oreillys.io
         parentRefs:

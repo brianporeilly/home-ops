@@ -91,6 +91,8 @@ spec:
       # route key renames the one above from `lidarr` to `lidarr-app`
       # (see ks.yaml's HTTPROUTE_NAME).
       api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
         hostnames:
           - lidarr.internal.oreillys.io
         parentRefs:
