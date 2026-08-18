@@ -43,12 +43,20 @@ spec:
 
     httpRoute:
       enabled: true
+      # Deliberately unprotected on both hostnames - kromgo only serves
+      # aggregate Prometheus-derived badge SVGs (node/pod counts, flow
+      # rate), nothing sensitive, and the external route exists
+      # specifically so badges can be embedded publicly (e.g. a README).
       parentRefs:
         - name: envoy-internal
           namespace: network
           sectionName: https
+        - name: envoy-external
+          namespace: network
+          sectionName: https
       hostnames:
         - kromgo.internal.oreillys.io
+        - kromgo.oreillys.io
 
     monitoring:
       serviceMonitor:
