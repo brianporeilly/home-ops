@@ -5,18 +5,26 @@ kind: ConfigMap
 metadata:
   name: authentik-blueprints-oauth-sources
 data:
-  # Authentik's own GitOps-native config mechanism - auto-discovered and
-  # continuously reconciled from /blueprints (see helmrelease.yaml's
-  # global.volumeMounts; mounted at /blueprints/sources, a subdirectory,
-  # not /blueprints itself, so it doesn't shadow the image's own built-in
-  # blueprints there). !Env pulls consumer_key/consumer_secret from
-  # environment variables at apply time (see global.env in helmrelease.yaml)
-  # rather than embedding OAuth client secrets directly in this ConfigMap -
-  # verified against authentik/blueprints/v1/common.py's Env YAMLTag class.
-  # Schema confirmed against a real shipped blueprint
-  # (blueprints/default/default-brand.yaml) and the
-  # authentik_sources_oauth.oauthsource model's blueprint test fixture,
-  # not guessed.
+  # Authentik's own GitOps-native config mechanism - mounted via the chart's
+  # blueprints.configMaps value (helmrelease.yaml), which lands this at
+  # /blueprints/mounted/cm-<name>/ on the worker only (blueprint discovery
+  # is a background task, not something the server process needs). !Env
+  # pulls consumer_key/consumer_secret from environment variables at apply
+  # time (see global.env in helmrelease.yaml) rather than embedding OAuth
+  # client secrets directly in this ConfigMap - verified against
+  # authentik/blueprints/v1/common.py's Env YAMLTag class.
+  #
+  # Creating the OAuthSource objects alone isn't enough for them to appear
+  # as login buttons - confirmed live (PR #523 merged, sources existed and
+  # were enabled, but nothing showed on the login page). The default
+  # authentication flow's IdentificationStage has its own `sources` M2M
+  # field, separate from each Source's own `enabled` flag, and starts
+  # empty - the last entry below adds ours to it, matched by !Find rather
+  # than a hardcoded PK. Schema for all of this confirmed against real
+  # shipped blueprints and each model's own blueprint test fixtures in
+  # goauthentik/authentik, not guessed - see also the live DB check that
+  # caught this gap: `ak shell` -> IdentificationStage.objects.first().sources.all()
+  # returned [] despite both OAuthSource rows existing.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
@@ -38,3 +46,10 @@ data:
           provider_type: github
           consumer_key: !Env GITHUB_OAUTH_CLIENT_ID
           consumer_secret: !Env GITHUB_OAUTH_CLIENT_SECRET
+      - model: authentik_stages_identification.identificationstage
+        identifiers:
+          name: default-authentication-identification
+        attrs:
+          sources:
+            - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
+            - !Find [authentik_sources_oauth.oauthsource, [slug, github]]
