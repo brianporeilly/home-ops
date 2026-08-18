@@ -54,9 +54,9 @@ rationale).
 
 | Hostname | Role | Old name | Chassis | CPU | RAM | IP | NIC |
 |----------|------|----------|---------|-----|-----|----|----|
-| `cp-gurloes`   | control-plane (etcd) | k8s-test-01   | Dell OptiPlex 7050 | i7-7700 | 8 GB  | 10.20.10.11 | 1GbE |
-| `cp-malrubius` | control-plane (etcd) | k8s-wk-02     | Dell OptiPlex 7050 | i7-7700 | 8 GB  | 10.20.10.12 | 1GbE |
-| `cp-palaemon`  | control-plane (etcd) | — (new spare) | Lenovo ThinkCentre M900 Tiny (10MR0047US) | i5-6500T | 8 GB  | 10.20.10.13 | 1GbE |
+| `cp-gurloes`   | control-plane (etcd) | k8s-test-01   | Dell OptiPlex 7050 | i7-7700 | 16 GB | 10.20.10.11 | 1GbE |
+| `cp-malrubius` | control-plane (etcd) | k8s-wk-02     | Dell OptiPlex 7050 | i7-7700 | 16 GB | 10.20.10.12 | 1GbE |
+| `cp-palaemon`  | control-plane (etcd) | — (new spare) | Lenovo ThinkCentre M900 Tiny (10MR0047US) | i5-6500T | 16 GB | 10.20.10.13 | 1GbE |
 | `wk-severian`  | worker (Ceph SSD OSD)      | k8s-cp-01 | Dell OptiPlex 9020 | i7-4770 (Haswell) | 32 GB | 10.20.20.11 | 10GbE |
 | `wk-drotte`    | worker (Ceph HDD+SSD OSD, **GPU**) | k8s-cp-02 | Dell OptiPlex 9020 | i7-4790 (Haswell) | 32 GB | 10.20.20.12 | 10GbE |
 | `wk-roche`     | worker (Ceph HDD OSD, **GPU**)     | k8s-cp-03 | Dell OptiPlex 9020 | i7-4790 (Haswell) | 32 GB | 10.20.20.13 | 10GbE |
@@ -84,15 +84,18 @@ not the 10GbE add-in card. 10GbE NICs are Intel dual-port; only port-0 (`f0`) is
 
 ## Nodes — RAM / DIMMs (upgrade headroom)
 
-From `dmidecode -t 16/17`, 2026-07-29. "Board max" is what SMBIOS type-16 reports (= the
-CPU/platform ceiling on these). Decision input for Future-upgrade #4 ("RAM only if metrics
-say so"): the **DDR3 boxes are hard-capped**; the cheap headroom is on the CP nodes.
+CP nodes upgraded 2026-08-19 (cannibalized DIMMs from other machines) to relieve control-plane
+`KubeNodeEviction`/`MemoryPressure` — `kube-apiserver` alone was running 2.2-3.1 GB RSS against an
+8 GB node with only ~5.1 GB Allocatable, and climbing; see chat history for the full
+diagnosis. From `dmidecode -t 16/17` via `toolbox` (not installed on the bare Flatcar host, so
+`sudo toolbox bash -c "dnf install -y dmidecode; dmidecode -t 17"`), captured 2026-08-19. "Board
+max" is what SMBIOS type-16 reports (= the CPU/platform ceiling on these).
 
 | Hostname | Installed | Slots | Modules | Type / speed | Board max | Headroom |
 |----------|-----------|-------|---------|--------------|-----------|----------|
-| `cp-gurloes`   | 8 GB  | 1 / 4 | 1×8 GB | DDR4-2400 UDIMM   | 64 GB | **3 slots free** — cheapest add |
-| `cp-malrubius` | 8 GB  | 1 / 4 | 1×8 GB | DDR4-2400 UDIMM   | 64 GB | **3 slots free** — cheapest add |
-| `cp-palaemon`  | 8 GB  | 1 / 2 | 1×8 GB | DDR4-2133 SODIMM  | 32 GB | **1 slot free** — cheap add |
+| `cp-gurloes`   | 16 GB | 2 / 4 | 2×8 GB DIMM1+DIMM2 (dual-channel) | DDR4-2400 UDIMM, configured 2400 MT/s | 64 GB | **2 slots free** — cheapest add |
+| `cp-malrubius` | 16 GB | 1 / 4 | 1×16 GB DIMM1 (single-channel — DIMM2-4 empty) | DDR4-2400 UDIMM, configured 2400 MT/s | 64 GB | **3 slots free**; adding an 8GB+ stick to DIMM2 would also pick up dual-channel |
+| `cp-palaemon`  | 16 GB | 2 / 2 | 2×8 GB SODIMM, ChannelA+ChannelB (dual-channel, mismatched speed ratings: 2400 + 2667, both negotiated down to 2133 MT/s) | DDR4-2133 SODIMM | 32 GB | **0 slots free** — maxed for this DIMM size; reaching the 32 GB board ceiling needs swapping *both* to 16 GB modules |
 | `wk-severian`  | 32 GB | 4 / 4 | 4×8 GB | DDR3-1600         | 32 GB | **maxed** — platform ceiling (DDR3) |
 | `wk-drotte`    | 32 GB | 4 / 4 | 4×8 GB | DDR3-1600         | 32 GB | **maxed** — platform ceiling (DDR3) |
 | `wk-roche`     | 32 GB | 4 / 4 | 4×8 GB | DDR3-1600         | 32 GB | **maxed** — platform ceiling (DDR3) |
@@ -102,8 +105,10 @@ say so"): the **DDR3 boxes are hard-capped**; the cheap headroom is on the CP no
 
 **Takeaways:** (1) the three DDR3 Haswell workers + the NAS are at their hard ceiling — more
 worker/ARC RAM there means a board/CPU swap, not DIMMs. (2) Only DDR4 nodes can grow: `wk-eata`
-(→64 GB) and `wk-jonas` (→32 GB) via *swaps* (slots full); the CP nodes grow by *adding* to empty
-DDR4 slots — by far the cheapest headroom if 8 GB ever proves tight for etcd/control plane.
+(→64 GB) and `wk-jonas` (→32 GB) via *swaps* (slots full). (3) CP nodes were bumped 8→16 GB each
+2026-08-19 (see table above) - `gurloes`/`malrubius` still have free DDR4 UDIMM slots for another
+round if 16 GB ever proves tight again; `palaemon` is out of slots and would need a swap to
+16 GB SODIMMs to grow further.
 
 ## Nodes — storage
 
