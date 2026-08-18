@@ -11,6 +11,7 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/authentik/protect
+    - ../../../../components/authentik/protect-external
   interval: 1h
   path: ./kubernetes/apps/network/echo/app
   postBuild:
@@ -19,6 +20,8 @@ spec:
       HTTPROUTE_NAME: echo
       HOSTNAME: echo.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
+      EXTERNAL_HTTPROUTE_NAME: echo-external
+      EXTERNAL_HOSTNAME: echo.oreillys.io
       OIDC_CLIENT_ID: ccf8e9cebe8abbcfd1ba325730f1db15371be26c
   prune: true
   retryInterval: 2m

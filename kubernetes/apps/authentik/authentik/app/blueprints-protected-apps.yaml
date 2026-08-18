@@ -55,6 +55,9 @@ data:
             - matching_mode: strict
               url: https://echo.internal.oreillys.io/oauth2/callback
               redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://echo.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
           grant_types:
             - authorization_code
             - refresh_token
