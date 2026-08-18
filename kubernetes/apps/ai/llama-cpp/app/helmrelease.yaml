@@ -154,8 +154,10 @@ spec:
           # static webui bundled in this image). /health is the correct
           # check target and returns 200 once the server's up.
           gatus.home-operations.com/endpoint: |-
-            url: https://llama-cpp.internal.oreillys.io/health
+            url: https://ai.internal.oreillys.io/health
         hostnames:
+          - ai.internal.oreillys.io
+          - llm.internal.oreillys.io
           - llama-cpp.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
