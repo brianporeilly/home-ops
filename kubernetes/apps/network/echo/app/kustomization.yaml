@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./securitypolicy.yaml
+  - ./oidc-client-secret.yaml

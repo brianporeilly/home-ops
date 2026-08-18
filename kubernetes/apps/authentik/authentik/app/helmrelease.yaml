@@ -35,6 +35,7 @@ spec:
     blueprints:
       configMaps:
         - authentik-blueprints-oauth-sources
+        - authentik-blueprints-provider-echo
     authentik:
       postgresql:
         host: authentik-postgres-rw
@@ -100,6 +101,17 @@ spec:
             secretKeyRef:
               name: authentik-oauth-sources-secret
               key: GITHUB_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-echo.yaml blueprint (blueprints-provider-echo.yaml).
+        - name: ECHO_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-echo-provider-secret
+              key: ECHO_OAUTH_CLIENT_ID
+        - name: ECHO_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-echo-provider-secret
+              key: ECHO_OAUTH_CLIENT_SECRET
     server:
       replicas: 1
       route:

@@ -9,6 +9,8 @@ resources:
   - ./secret.yaml
   - ./oauth-sources-secret.yaml
   - ./blueprints-configmap.yaml
+  - ./echo-provider-secret.yaml
+  - ./blueprints-provider-echo.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
