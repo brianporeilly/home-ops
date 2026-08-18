@@ -13,10 +13,17 @@ data:
   # Schema confirmed against a real shipped blueprint
   # (blueprints/testing/oidc-conformance.yaml) and the default scope
   # mappings (blueprints/system/providers-oauth2.yaml), not guessed.
-  # Flow slugs: default-provider-authorization-explicit-consent (not the
-  # implicit-consent variant used in the OIDC-conformance *testing*
-  # blueprint - that one deliberately uses the legacy implicit grant for
-  # conformance-suite purposes) and default-provider-invalidation-flow.
+  # Flow slugs: default-provider-authorization-implicit-consent (skips the
+  # "do you want to share your info with echo?" click - confirmed by
+  # reading both flows: explicit-consent binds one extra ConsentStage,
+  # implicit-consent has zero stages bound at all, immediate pass-through.
+  # Both still require authentication: require_authenticated - this only
+  # removes the consent click, not any actual auth check. Fine for apps
+  # we control ourselves; started on explicit-consent, switched after
+  # testing showed the click was pure friction here. Not to be confused
+  # with the OAuth2 "implicit" *grant type* below - unrelated "implicit",
+  # this provider only uses authorization_code/refresh_token grants) and
+  # default-provider-invalidation-flow.
   #
   # Issuer URL confirmed from authentik/providers/oauth2/{models,apps,urls}.py:
   # mountpoint application/o/ + <application_slug>/, default issuer_mode
@@ -41,7 +48,7 @@ data:
           name: echo
         id: echo-provider
         attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_id: !Env ECHO_OAUTH_CLIENT_ID
           client_secret: !Env ECHO_OAUTH_CLIENT_SECRET
