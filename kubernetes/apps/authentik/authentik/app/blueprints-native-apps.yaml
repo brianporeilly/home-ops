@@ -61,3 +61,68 @@ data:
       - model: authentik_core.group
         identifiers:
           name: grafana-admins
+  provider-nebraska.yaml: |
+    metadata:
+      name: OIDC Provider - nebraska
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: nebraska
+        id: nebraska-provider
+        attrs:
+          # Public client, no client_secret - nebraska's own architecture:
+          # the frontend SPA does the entire authorization_code+PKCE
+          # exchange itself, browser-to-Authentik (confirmed against
+          # frontend/src/utils/oidc.ts - code_challenge/S256, no
+          # client_secret sent anywhere). The Go backend only validates
+          # the resulting access token as a bearer token, it never
+          # participates in the OAuth flow (confirmed against
+          # backend/pkg/auth/oidc.go - LoginCb/Login both explicitly
+          # return 501, "frontend handles OAuth flow directly"). Confirmed
+          # Authentik's own token endpoint only checks client_secret when
+          # client_type == CONFIDENTIAL (providers/oauth2/token/base.py) -
+          # public skips that check entirely, so this is safe without one.
+          client_type: public
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          # Plain literal, not !Env - no secret backs this at all (public
+          # client, no client_secret anywhere), so there's no reason to
+          # route it through a Secret + global.env entry like every other
+          # provider does. Just needs to match nebraska's own helmrelease.yaml
+          # config.auth.oidc.clientID exactly.
+          client_id: "05e3a848335180ba305a18a3fa75a926395937e1"
+          redirect_uris:
+            - matching_mode: strict
+              # frontend/src/utils/auth.ts: window.location.origin + '/auth/callback'
+              url: https://nebraska.internal.oreillys.io/auth/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: nebraska
+        attrs:
+          name: Nebraska
+          provider: !KeyOf nebraska-provider
+      # Empty membership by default - add yourself/others via the
+      # Authentik UI. nebraska's own adminRoles (helmrelease.yaml) grants
+      # admin to anyone in this group.
+      - model: authentik_core.group
+        identifiers:
+          name: nebraska-admins
+      # This chart's app version (3.0.0) requires viewerRoles to be
+      # non-empty even if unused (config.go's Validate() rejects an empty
+      # string outright) - but it also maps to a real capability, unlike
+      # the SecurityPolicy-wrapped apps' binary gate: read-only views
+      # beyond what commonPaths already exempts unauthenticated (see
+      # nebraska's own auth middleware) get gated behind this group
+      # instead of admin.
+      - model: authentik_core.group
+        identifiers:
+          name: nebraska-viewers
