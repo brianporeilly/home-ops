@@ -11,6 +11,8 @@ resources:
   - ./blueprints-configmap.yaml
   - ./echo-provider-secret.yaml
   - ./blueprints-provider-echo.yaml
+  - ./kopiur-ui-provider-secret.yaml
+  - ./blueprints-provider-kopiur-ui.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
