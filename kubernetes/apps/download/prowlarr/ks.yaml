@@ -11,6 +11,7 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+    - ../../../../components/authentik/protect
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -24,6 +25,10 @@ spec:
     substitute:
       APP: prowlarr
       PVC: prowlarr-config
+      HTTPROUTE_NAME: prowlarr
+      HOSTNAME: prowlarr.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
+      OIDC_CLIENT_ID: 4912418b66c517c157747cd016b16beec94577d8
   prune: true
   retryInterval: 2m
   sourceRef:
