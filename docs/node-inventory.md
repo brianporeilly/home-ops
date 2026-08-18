@@ -16,6 +16,7 @@ at `.11`**. Keep static node IPs out of any DHCP dynamic pool. Blanks = not yet 
 | `10.20.20.0/24`  | Workers (storage / compute) |
 | `10.20.30.0/24`  | NAS / storage appliances |
 | `10.20.40.0/24`  | GPU / accelerator nodes — **reserved (future)**; current GPU boxes are tier-20 workers |
+| `10.20.50.0/24`  | **Onboard/management NICs on dual-NIC worker boxes** — see "Nodes with a separate mgmt NIC" below. Not a cluster-traffic tier; kubelet must **never** report an address here as its node IP. |
 | `10.20.100.0/24` | DHCP dynamic pool — shrink OPNsense scope to here; nodes stay static reservations in tiers |
 | `10.21.0.0/16`   | LoadBalancer pool (kube-vip-cloud-provider `cidr-global`); routed via OPNsense static route, deliberately off-link from `10.20.0.0/16` so it's not affected by the ARP/L2-adjacency issue the old, now-removed `10.20.250.0/24` pool had with kube-vip's BGP-only VIPs |
 | `10.20.254.0/24` | Cluster VIPs (existing — API `10.20.254.100`) |
@@ -81,6 +82,36 @@ not the 10GbE add-in card. 10GbE NICs are Intel dual-port; only port-0 (`f0`) is
 | `wk-eata`      | enp0s31f6 | `18:66:da:08:16:57` | ⚠ none detected | — | 2.22.0 |
 | `wk-jonas`     | eno1      | `ec:8e:b5:6e:71:17` | — | — | N21 v02.19 |
 | `nas-ultan`    | enp0s25   | `bc:5f:f4:fd:ec:92` | enp2s0f0 (link down) | `a0:36:9f:e5:70:78` | P1.70 |
+
+## Nodes with a separate mgmt NIC — kubelet `--node-ip` pinning required
+
+Dual-NIC boxes (10GbE-equipped workers) carry **two live addresses**: the onboard 1GbE NIC sits
+on the `10.20.50.0/24` mgmt tier, the 10GbE add-in card sits on the real `10.20.20.0/24` data
+tier. Both are up and routable, so kubelet's IP auto-detection can pick either one - it must be
+pinned explicitly via `KUBELET_KUBEADM_ARGS="--node-ip=<data-IP>"` in
+`/var/lib/kubelet/kubeadm-flags.env`, or kubelet may register the node with the **mgmt** IP as
+`status.addresses[InternalIP]`. Since hostNetwork pods (Ceph mgr, etc.) inherit that IP as their
+own `status.podIP`, a wrong pin/no pin means anything routing to that pod via the Service (e.g.
+the `rook-ceph-mgr-dashboard` HTTPRoute) silently breaks even though the pod itself is healthy
+and actually listening correctly on the data IP - confirmed live 2026-08-19 on `wk-roche` (see
+incident note below).
+
+| Hostname | Data NIC (pin this) | Mgmt NIC (never pin this) |
+|----------|----------------------|----------------------------|
+| `wk-severian` | `enp1s0f0` → `10.20.20.11` | `eno1` → `10.20.50.11` |
+| `wk-drotte`   | `enp5s0f0` → `10.20.20.12` | `eno1` → `10.20.50.12` |
+| `wk-roche`    | `eth0` → `10.20.20.13`     | `eth3` → `10.20.50.13` |
+
+**Incident (2026-08-19):** `wk-roche` was reinstalled/rejoined without the `--node-ip` pin (its
+`kubeadm-flags.env` had an empty `KUBELET_KUBEADM_ARGS`, unlike its siblings above) - a config
+template step got skipped during the reinstall. Kubelet auto-detected the mgmt NIC as its node
+IP, which broke the Ceph dashboard route (Service → Endpoint pointed at the mgmt IP, which the
+mgr's hostNetwork listener wasn't actually reachable on) while every other symptom looked fine
+(pod `3/3 Running`, `ceph health` clean). Also worth noting: `wk-roche` came back with generic
+`eth0`/`eth3` interface names instead of the predictable `enoX`/`enpXsXfX` names its siblings
+have - possibly the same skipped template, worth checking against a fresh install if it recurs.
+**Any future node reinstall/rejoin on a dual-NIC box must explicitly set `--node-ip` to the data
+IP** - don't rely on auto-detection.
 
 ## Nodes — RAM / DIMMs (upgrade headroom)
 
