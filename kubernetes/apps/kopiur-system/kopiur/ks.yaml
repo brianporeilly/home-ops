@@ -36,11 +36,18 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app2
+  components:
+    - ../../../../components/authentik/protect
   dependsOn:
     - name: kopiur
       namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/kopiur-system/kopiur/repository
+  postBuild:
+    substitute:
+      APP: kopiur-ui
+      HOSTNAME: kopiur.internal.oreillys.io
+      OIDC_CLIENT_ID: 64597875c17005e612d969823d3e98fe2155cbb0
   prune: true
   retryInterval: 2m
   sourceRef:

@@ -10,9 +10,8 @@ resources:
   - ./oauth-sources-secret.yaml
   - ./blueprints-configmap.yaml
   - ./echo-provider-secret.yaml
-  - ./blueprints-provider-echo.yaml
   - ./kopiur-ui-provider-secret.yaml
-  - ./blueprints-provider-kopiur-ui.yaml
+  - ./blueprints-protected-apps.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
