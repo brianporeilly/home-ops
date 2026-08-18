@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
+# External twin of components/authentik/protect - see that file for the
+# full rationale. Consumed alongside it for an app that needs SSO on both
+# an internal and external route; always targets auth.oreillys.io (fixed,
+# unlike protect's AUTH_HOSTNAME var - there's only one external hostname).
+# Worked example (route.app/route.internal naming per grocy's helmrelease.yaml):
+#   spec:
+#     components:
+#       - ../../../../components/authentik/protect
+#       - ../../../../components/authentik/protect-external
+#     postBuild:
+#       substitute:
+#         APP: grocy
+#         HTTPROUTE_NAME: grocy-internal
+#         HOSTNAME: grocy.internal.oreillys.io
+#         AUTH_HOSTNAME: auth.internal.oreillys.io
+#         EXTERNAL_HTTPROUTE_NAME: grocy-app
+#         EXTERNAL_HOSTNAME: grocy.oreillys.io
+#         OIDC_CLIENT_ID: <shared client ID - same provider, two redirect_uris>
+#
+# UNVERIFIED against a live app as of writing - nothing consumes this yet.
+# Specifically unverified: whether the router supports NAT hairpin/
+# reflection for auth.oreillys.io traffic originating from inside the LAN/
+# cluster (Envoy's own token-exchange call, not just the user's browser
+# redirect) - test this end-to-end the first time this component is
+# actually wired up, don't assume it works because the browser leg does.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: ${EXTERNAL_HTTPROUTE_NAME}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ${EXTERNAL_HTTPROUTE_NAME}
+  oidc:
+    provider:
+      issuer: "https://auth.oreillys.io/application/o/${APP}/"
+      authorizationEndpoint: "https://auth.oreillys.io/application/o/authorize/"
+      tokenEndpoint: "https://auth.oreillys.io/application/o/token/"
+      endSessionEndpoint: "https://auth.oreillys.io/application/o/${APP}/end-session/"
+    clientID: "${OIDC_CLIENT_ID}"
+    clientSecret:
+      name: ${APP}-oidc-client-secret
+    redirectURL: "https://${EXTERNAL_HOSTNAME}/oauth2/callback"
+    logoutPath: "/logout"

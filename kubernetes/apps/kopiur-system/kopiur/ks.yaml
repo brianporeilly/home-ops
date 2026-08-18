@@ -46,7 +46,9 @@ spec:
   postBuild:
     substitute:
       APP: kopiur-ui
+      HTTPROUTE_NAME: kopiur-ui
       HOSTNAME: kopiur.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
       OIDC_CLIENT_ID: 64597875c17005e612d969823d3e98fe2155cbb0
   prune: true
   retryInterval: 2m

@@ -16,7 +16,9 @@ spec:
   postBuild:
     substitute:
       APP: echo
+      HTTPROUTE_NAME: echo
       HOSTNAME: echo.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
       OIDC_CLIENT_ID: ccf8e9cebe8abbcfd1ba325730f1db15371be26c
   prune: true
   retryInterval: 2m
