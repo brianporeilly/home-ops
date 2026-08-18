@@ -1,8 +1,6 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
-# Reusable component. Consume from the protected app's ks.yaml (not its
-# local kustomization.yaml) - see kubernetes/apps/network/echo/ks.yaml for a
-# worked example (single-route app, internal-only):
+# Reusable component, consumed from the protected app's ks.yaml:
 #   spec:
 #     components:
 #       - ../../../../components/authentik/protect
@@ -13,107 +11,66 @@
 #         HOSTNAME: echo.internal.oreillys.io
 #         AUTH_HOSTNAME: auth.internal.oreillys.io
 #         OIDC_CLIENT_ID: ccf8e9cebe8abbcfd1ba325730f1db15371be26c
-# All five are required (no defaults), substituted via Flux's
-# postBuild.substitute.
 #
-# HTTPROUTE_NAME is deliberately separate from APP: bjw-s app-template's
-# named route.<key> blocks (e.g. route.app + route.internal, for an app
-# exposed both internally and externally - see grocy's helmrelease.yaml)
-# produce HTTPRoute objects named <release>-<key>, e.g. grocy-internal -
-# confirmed via `helm template` against the real chart, not assumed. Only
-# single-route apps (echo, kopiur-ui) happen to have HTTPROUTE_NAME == APP.
+# HTTPROUTE_NAME is separate from APP because bjw-s app-template's named
+# route.<key> blocks (route.app + route.internal, e.g. grocy's
+# helmrelease.yaml) produce HTTPRoute objects named <release>-<key>, not
+# <release> or the app slug (confirmed via `helm template`). Single-route
+# apps (echo, kopiur-ui) just happen to have HTTPROUTE_NAME == APP.
 #
-# AUTH_HOSTNAME is deliberately a var, not hardcoded, so this same
-# component also serves the external leg of a dual-exposure app: pair it
-# with kubernetes/components/authentik/protect-external (auth.oreillys.io,
-# fixed) for the second HTTPRoute, both consumed together in the same
-# app's ks.yaml. Envoy's own backend calls (token exchange, now via
-# pinned authorizationEndpoint/tokenEndpoint below - see that comment)
-# always run cluster-side, so an external instance's calls to
-# auth.oreillys.io depend on the router supporting NAT hairpin/reflection
-# for LAN-to-public-IP traffic - not yet verified against a real app, since
-# nothing uses protect-external yet. Verify this specifically the first
-# time it's actually wired up to a live external+SSO app.
+# AUTH_HOSTNAME is a var (not hardcoded) so this component also covers the
+# external leg of a dual-exposure app - pair with
+# components/authentik/protect-external (fixed to auth.oreillys.io) for
+# the second HTTPRoute. See that component for the external-specific
+# caveats.
 #
-# Three things this component doesn't cover, still needed per-app:
-# 1. An `${APP}-oidc-client-secret` Secret in the app's own namespace (key
-#    `client-secret`, sops-encrypted) - see
-#    kubernetes/apps/network/echo/app/oidc-client-secret.yaml. Kept as a
-#    real per-app file rather than templated, since each app's client
-#    secret value is genuinely unique (unlike, say, kopiur's shared backup
-#    repository credentials). Shared across both the internal and external
-#    SecurityPolicy instances of the same app - one OAuth2Provider, two
-#    valid redirect_uris.
-# 2. A matching OAuth2Provider/Application blueprint entry on the Authentik
-#    side (kubernetes/apps/authentik/authentik/app/blueprints-protected-apps.yaml)
-#    - Authentik's own chart mounts blueprint ConfigMaps via a fixed list in
-#    its HelmRelease values, which lives in a different Flux Kustomization
-#    entirely and can't be reached from here. A dual-exposure app needs
-#    both hostnames' callback URLs in that entry's redirect_uris list.
-# 3. If protecting the external leg too: the matching redirect URIs also
-#    need registering wherever OIDC_CLIENT_ID's app is otherwise reachable
-#    from - not applicable to this component directly, just a reminder
-#    this is one piece of a larger per-app setup.
+# Not covered here, still needed per-app: an `${APP}-oidc-client-secret`
+# Secret in the app's own namespace (key `client-secret`, sops-encrypted -
+# see network/echo/app/oidc-client-secret.yaml), and a matching
+# OAuth2Provider/Application entry in
+# authentik/authentik/app/blueprints-protected-apps.yaml (Authentik's
+# blueprint ConfigMaps are a fixed list on its own HelmRelease, in a
+# different Kustomization, unreachable from here).
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
   name: ${HTTPROUTE_NAME}
 spec:
-  # Must live in the same namespace as its target - confirmed via
-  # `kubectl explain securitypolicy.spec.targetRef` ("This policy and the
-  # TargetRef MUST be in the same namespace for this Policy to have
-  # effect"). Flux targets this at the protected app's own namespace via
-  # spec.targetNamespace on its ks.yaml, same as every other resource this
-  # component's consumer creates.
+  # Must live in the same namespace as its target (kubectl explain
+  # securitypolicy.spec.targetRef) - Flux's spec.targetNamespace handles
+  # that for every resource this component's consumer creates.
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: ${HTTPROUTE_NAME}
   oidc:
-    # No provider.backendRef - confirmed unnecessary end-to-end (including
-    # the token-exchange leg) on both echo and kopiur-ui against
-    # auth.internal.oreillys.io. Envoy just resolves it like any HTTPS
-    # client, same as Envoy Gateway's own canonical docs example (which
-    # authenticates against https://accounts.google.com with no backendRef
-    # at all).
-    #
+    # No provider.backendRef needed - Envoy just resolves AUTH_HOSTNAME
+    # like any HTTPS client (confirmed end-to-end on echo/kopiur-ui).
     # AUTH_HOSTNAME must exactly match a hostname actually routed to
-    # Authentik (kubernetes/apps/authentik/authentik/app/helmrelease.yaml's
-    # server.route.main.hostnames, or httproute-external.yaml for
-    # auth.oreillys.io) - Authentik's issuer_mode: per_provider computes
-    # the issuer from the request's own Host header, so a mismatch fails
-    # OIDC discovery's issuer-match check.
+    # Authentik, since issuer_mode: per_provider derives the issuer from
+    # the request's Host header - a mismatch fails OIDC's issuer check.
     #
-    # authorizationEndpoint/tokenEndpoint set explicitly (not left to
-    # discovery) to route around a real, confirmed-live failure mode:
-    # Envoy Gateway's *control-plane* controller does a one-shot HTTP
-    # fetch of .well-known/openid-configuration at reconcile time to
-    # resolve these two fields, and if that fetch times out (e.g.
-    # Authentik mid-restart from an unrelated upgrade), it latches a
-    # permanent error into this SecurityPolicy's status - "setting 500
-    # direct response in routes due to errors in SecurityPolicy" - with no
-    # automatic retry once Authentik comes back healthy; only a spec
-    # change (forcing re-reconcile) clears it. Both values are stable/
-    # shared across every provider on a given AUTH_HOSTNAME (confirmed by
-    # curling the discovery doc directly - unlike issuer/
-    # end_session_endpoint, these two don't include the app slug), so
-    # hardcoding them removes the fragile fetch entirely without losing
-    # anything. JWKS validation isn't affected - that happens on the data
-    # plane with its own retry/refresh handling, not this control-plane
-    # one-shot path.
+    # authorizationEndpoint/tokenEndpoint are pinned rather than
+    # discovered: Envoy Gateway's control-plane does a one-shot fetch of
+    # .well-known/openid-configuration at reconcile time, and if that
+    # fetch times out (e.g. Authentik mid-restart) it latches a permanent
+    # 500 with no auto-retry until the next spec change. Both values are
+    # stable and shared across every provider on a given AUTH_HOSTNAME, so
+    # pinning them removes the fetch entirely. JWKS isn't affected - that
+    # validation happens on the data plane with its own retry handling.
     provider:
       issuer: "https://${AUTH_HOSTNAME}/application/o/${APP}/"
       authorizationEndpoint: "https://${AUTH_HOSTNAME}/application/o/authorize/"
       tokenEndpoint: "https://${AUTH_HOSTNAME}/application/o/token/"
-      # Per-app (includes the slug), unlike the two above - and must be set
-      # explicitly too: EG only auto-discovers this when authorizationEndpoint
-      # or tokenEndpoint is ALSO missing, so providing those two above would
-      # otherwise silently leave this unset and break logout.
+      # Per-app (includes the slug), unlike the two above. Must also be
+      # explicit: EG only auto-discovers this when authorizationEndpoint
+      # or tokenEndpoint is missing, so pinning those two above would
+      # otherwise silently break logout.
       endSessionEndpoint: "https://${AUTH_HOSTNAME}/application/o/${APP}/end-session/"
     clientID: "${OIDC_CLIENT_ID}"
     clientSecret:
       name: ${APP}-oidc-client-secret
-    # Envoy Gateway's own callback convention: <route-path-prefix>/oauth2/callback.
-    # Must match a redirect_uris entry in this app's Authentik blueprint.
+    # Envoy Gateway's own callback convention. Must match a redirect_uris
+    # entry in this app's Authentik blueprint.
     redirectURL: "https://${HOSTNAME}/oauth2/callback"
     logoutPath: "/logout"

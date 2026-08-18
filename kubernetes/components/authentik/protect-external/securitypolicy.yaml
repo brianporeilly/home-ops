@@ -1,13 +1,10 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
-# External twin of kubernetes/components/authentik/protect - see that
-# file's header comment for the full rationale (both are usually consumed
-# together, for an app exposed both internally and externally). This one
-# always targets auth.oreillys.io (not a var - there's only one external
-# Authentik hostname, unlike the internal side which the two-component
-# split exists to parameterize independently). Worked example, an app with
-# both route.app (external) and route.internal (bjw-s app-template naming,
-# see grocy's helmrelease.yaml) wanting SSO on both:
+# External twin of components/authentik/protect - see that file for the
+# full rationale. Consumed alongside it for an app that needs SSO on both
+# an internal and external route; always targets auth.oreillys.io (fixed,
+# unlike protect's AUTH_HOSTNAME var - there's only one external hostname).
+# Worked example (route.app/route.internal naming per grocy's helmrelease.yaml):
 #   spec:
 #     components:
 #       - ../../../../components/authentik/protect
