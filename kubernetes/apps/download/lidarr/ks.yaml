@@ -28,7 +28,6 @@ spec:
       HTTPROUTE_NAME: lidarr
       HOSTNAME: lidarr.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
-      OIDC_CLIENT_ID: 977a7c4866ce49cbbd2d2fe6e225ac5fe0f3c81c
   prune: true
   retryInterval: 2m
   sourceRef:

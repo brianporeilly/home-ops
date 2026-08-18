@@ -24,14 +24,21 @@ spec:
       # Stays wired up as a break-glass fallback alongside SSO below -
       # deliberately not removed.
       existingSecret: grafana-admin-secret
-    # Sourced from an existing static Secret (grafana-oidc-secret,
-    # sops-encrypted) via the chart's own envValueFrom, not envRenderSecret
-    # - the latter bakes the value into a chart-templated Secret instead of
-    # a file this repo can sops-encrypt. Referenced below via grafana.ini's
-    # $__env{} interpolation - the chart's own assertNoLeakedSecrets check
-    # actively fails the render if auth.generic_oauth.client_secret is a
-    # raw value instead of that pattern.
+    # grafana-oidc-secret (oidc-secret.yaml, this dir) is a Reflector pull
+    # mirror of the canonical grafana-oidc-credentials Secret ESO generates
+    # in the authentik namespace - see components/authentik/protect for the
+    # same pattern on SecurityPolicy-wrapped apps. Referenced below via
+    # grafana.ini's $__env{} interpolation rather than envRenderSecret
+    # (which bakes the value into a chart-templated Secret) - the chart's
+    # own assertNoLeakedSecrets check actively fails the render if
+    # auth.generic_oauth.client_secret is a raw value instead of that
+    # pattern. client_id isn't sensitive but is sourced the same way for
+    # consistency, since it's no longer a fixed value we control.
     envValueFrom:
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+        secretKeyRef:
+          name: grafana-oidc-secret
+          key: client-id
       GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
         secretKeyRef:
           name: grafana-oidc-secret
@@ -52,17 +59,15 @@ spec:
         org_id: 1
         org_name: Main Org.
         org_role: Viewer
-      # client_id isn't sensitive on its own (matches this repo's
-      # convention for every other OIDC provider) so it's a plain value
-      # here; client_secret comes from envValueFrom above via $__env{} -
-      # required by the chart's own leak-check, see that comment. groups
-      # claim comes from Authentik's default profile scope mapping, no
-      # custom scope needed (confirmed against authentik's own shipped
+      # client_id/client_secret both come from envValueFrom above via
+      # $__env{} - see that comment. groups claim comes from Authentik's
+      # default profile scope mapping, no custom scope needed (confirmed
+      # against authentik's own shipped
       # blueprints/system/providers-oauth2.yaml).
       auth.generic_oauth:
         enabled: true
         name: Authentik
-        client_id: 75f0425fe2447fb615659126e7299ee9d86d18d9
+        client_id: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_ID}"
         client_secret: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}"
         scopes: "openid profile email"
         auth_url: https://auth.internal.oreillys.io/application/o/authorize/

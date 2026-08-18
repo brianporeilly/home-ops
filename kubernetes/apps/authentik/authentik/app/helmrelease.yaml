@@ -103,93 +103,99 @@ spec:
               name: authentik-oauth-sources-secret
               key: GITHUB_OAUTH_CLIENT_SECRET
         # Consumed by the provider-echo.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from echo-oidc-credentials.yaml (ExternalSecret, generated
+        # in-cluster by External Secrets Operator) instead of a git-declared
+        # sops secret - first app migrated to this pattern, see
+        # oidc-generators.yaml for the shared generators.
         - name: ECHO_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-echo-provider-secret
-              key: ECHO_OAUTH_CLIENT_ID
+              name: echo-oidc-credentials
+              key: client-id
         - name: ECHO_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-echo-provider-secret
-              key: ECHO_OAUTH_CLIENT_SECRET
+              name: echo-oidc-credentials
+              key: client-secret
         # Consumed by the provider-kopiur-ui.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from kopiur-ui-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
         - name: KOPIUR_UI_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-kopiur-ui-provider-secret
-              key: KOPIUR_UI_OAUTH_CLIENT_ID
+              name: kopiur-ui-oidc-credentials
+              key: client-id
         - name: KOPIUR_UI_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-kopiur-ui-provider-secret
-              key: KOPIUR_UI_OAUTH_CLIENT_SECRET
+              name: kopiur-ui-oidc-credentials
+              key: client-secret
         # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
         - name: CHANGEDETECTION_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-changedetection-provider-secret
-              key: CHANGEDETECTION_OAUTH_CLIENT_ID
+              name: changedetection-oidc-credentials
+              key: client-id
         - name: CHANGEDETECTION_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-changedetection-provider-secret
-              key: CHANGEDETECTION_OAUTH_CLIENT_SECRET
+              name: changedetection-oidc-credentials
+              key: client-secret
         # Consumed by the provider-sonarr.yaml key in blueprints-protected-apps.yaml.
         - name: SONARR_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-sonarr-provider-secret
-              key: SONARR_OAUTH_CLIENT_ID
+              name: sonarr-oidc-credentials
+              key: client-id
         - name: SONARR_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-sonarr-provider-secret
-              key: SONARR_OAUTH_CLIENT_SECRET
+              name: sonarr-oidc-credentials
+              key: client-secret
         # Consumed by the provider-radarr.yaml key in blueprints-protected-apps.yaml.
         - name: RADARR_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-radarr-provider-secret
-              key: RADARR_OAUTH_CLIENT_ID
+              name: radarr-oidc-credentials
+              key: client-id
         - name: RADARR_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-radarr-provider-secret
-              key: RADARR_OAUTH_CLIENT_SECRET
+              name: radarr-oidc-credentials
+              key: client-secret
         # Consumed by the provider-prowlarr.yaml key in blueprints-protected-apps.yaml.
         - name: PROWLARR_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-prowlarr-provider-secret
-              key: PROWLARR_OAUTH_CLIENT_ID
+              name: prowlarr-oidc-credentials
+              key: client-id
         - name: PROWLARR_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-prowlarr-provider-secret
-              key: PROWLARR_OAUTH_CLIENT_SECRET
+              name: prowlarr-oidc-credentials
+              key: client-secret
         # Consumed by the provider-lidarr.yaml key in blueprints-protected-apps.yaml.
         - name: LIDARR_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-lidarr-provider-secret
-              key: LIDARR_OAUTH_CLIENT_ID
+              name: lidarr-oidc-credentials
+              key: client-id
         - name: LIDARR_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-lidarr-provider-secret
-              key: LIDARR_OAUTH_CLIENT_SECRET
+              name: lidarr-oidc-credentials
+              key: client-secret
         # Consumed by the provider-grafana.yaml key in blueprints-native-apps.yaml.
         - name: GRAFANA_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: authentik-grafana-provider-secret
-              key: GRAFANA_OAUTH_CLIENT_ID
+              name: grafana-oidc-credentials
+              key: client-id
         - name: GRAFANA_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: authentik-grafana-provider-secret
-              key: GRAFANA_OAUTH_CLIENT_SECRET
+              name: grafana-oidc-credentials
+              key: client-secret
     server:
       replicas: 1
       route:

@@ -7,4 +7,3 @@ resources:
   - ./ocirepository.yaml
   - ./custom-definitions.yaml
   - ./secret.yaml
-  - ./oidc-client-secret.yaml

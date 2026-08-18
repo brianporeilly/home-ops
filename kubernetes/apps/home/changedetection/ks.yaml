@@ -24,7 +24,6 @@ spec:
       HTTPROUTE_NAME: changedetection
       HOSTNAME: changedetection.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
-      OIDC_CLIENT_ID: 6b3add39ea1dccde0d02f3f39a5346d677932cac
   prune: true
   retryInterval: 2m
   sourceRef:

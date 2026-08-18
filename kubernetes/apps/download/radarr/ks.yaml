@@ -33,7 +33,6 @@ spec:
       HTTPROUTE_NAME: radarr
       HOSTNAME: radarr.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
-      OIDC_CLIENT_ID: 99c554eafd883398cc48b3f8c373a00ea18e5257
   prune: true
   retryInterval: 2m
   sourceRef:
