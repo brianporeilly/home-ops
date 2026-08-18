@@ -46,8 +46,41 @@ spec:
           enabled: true
           storageClass: ceph-block
           size: 30Gi
+      # Nebraska's own auth middleware (backend/pkg/middleware/auth.go
+      # commonPaths) always exempts /v1/update (the Omaha device-update
+      # endpoint Flatcar nodes actually call) and /apps, /apps/*,
+      # /instances, /instances/* (read-only views) regardless of auth
+      # mode - so switching this to oidc only gates the write/management
+      # surface, node updates keep working unauthenticated.
       auth:
-        mode: noop
+        mode: oidc
+        oidc:
+          # Public client, no secret - see the matching comment on the
+          # Authentik blueprint (blueprints-native-apps.yaml,
+          # provider-nebraska.yaml) for the full architecture rationale.
+          # No existingSecret set: the chart auto-creates its own Secret
+          # wrapping this clientID (confirmed against
+          # charts/nebraska/templates/secrets.yaml) - nothing extra to
+          # manage here.
+          clientID: "05e3a848335180ba305a18a3fa75a926395937e1"
+          issuerURL: https://auth.internal.oreillys.io/application/o/nebraska/
+          managementURL: https://nebraska.internal.oreillys.io
+          logoutURL: https://auth.internal.oreillys.io/application/o/nebraska/end-session/
+          adminRoles: nebraska-admins
+          # Required non-empty by this chart's app version (3.0.0) even if
+          # you don't plan to use it - config.go's Validate() rejects an
+          # empty viewerRoles outright, confirmed live (crashloop,
+          # "invalid OIDC configuration", before adding this).
+          viewerRoles: nebraska-viewers
+          # Read straight from the JWT access token (this chart version -
+          # 2.0.0/app v3.0.0 - has no userinfo-fallback option at all, only
+          # a later unreleased version does). Confirmed via Authentik's own
+          # IDToken.to_access_token(): it's built from the same claims dict
+          # as the id_token (`id_dict.update(self.claims)`), so the access
+          # token carries the profile scope's groups claim too, not just
+          # minimal bearer-token fields.
+          rolesPath: groups
+          scopes: openid,profile,email
       database:
         host: nebraska-postgres-rw
         port: 5432
