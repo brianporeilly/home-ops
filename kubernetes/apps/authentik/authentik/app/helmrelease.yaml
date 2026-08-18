@@ -36,6 +36,7 @@ spec:
       configMaps:
         - authentik-blueprints-oauth-sources
         - authentik-blueprints-provider-echo
+        - authentik-blueprints-provider-kopiur-ui
     authentik:
       postgresql:
         host: authentik-postgres-rw
@@ -112,6 +113,17 @@ spec:
             secretKeyRef:
               name: authentik-echo-provider-secret
               key: ECHO_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-kopiur-ui.yaml blueprint (blueprints-provider-kopiur-ui.yaml).
+        - name: KOPIUR_UI_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-kopiur-ui-provider-secret
+              key: KOPIUR_UI_OAUTH_CLIENT_ID
+        - name: KOPIUR_UI_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-kopiur-ui-provider-secret
+              key: KOPIUR_UI_OAUTH_CLIENT_SECRET
     server:
       replicas: 1
       route:

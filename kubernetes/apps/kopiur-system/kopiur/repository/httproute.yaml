@@ -6,14 +6,19 @@ metadata:
   name: kopiur-ui
   namespace: kopiur-system
   annotations:
-    # kopia-ui enforces HTTP basic auth on every path including /, so a plain
-    # GET always returns 401 - that's correct behavior, not a failure. Not
-    # configuring Gatus with real credentials here (they'd sit in git as a
-    # plaintext annotation, unlike sops-encrypted secrets); a clean 401 is
-    # itself proof the service is up and enforcing auth, which is what the
-    # check actually needs to confirm.
+    # kopia-ui's own Basic Auth is disabled now (see ../clusterrepository.yaml -
+    # server.auth.insecure) since an Authentik SecurityPolicy fronts this
+    # route instead (../securitypolicy.yaml). An unauthenticated request now
+    # gets a 302 to Authentik's login, not a 401 from kopia-ui itself - same
+    # "prove the gate is up, not just that something eventually loads"
+    # intent as before. Gatus follows redirects by default
+    # (client.ignore-redirect: false), so ignore-redirect: true is needed to
+    # actually observe the 302 from the SecurityPolicy gate rather than
+    # whatever status Authentik's login page itself returns three hops later.
     gatus.home-operations.com/endpoint: |-
-      conditions: ["[STATUS] == 401"]
+      client:
+        ignore-redirect: true
+      conditions: ["[STATUS] == 302"]
 spec:
   hostnames:
     - kopiur.internal.oreillys.io

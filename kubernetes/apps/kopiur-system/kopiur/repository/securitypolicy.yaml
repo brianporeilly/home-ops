@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: kopiur-ui
+spec:
+  # Same namespace as its target (kopiur-system), required per
+  # `kubectl explain securitypolicy.spec.targetRef` - see
+  # kubernetes/apps/network/echo/app/securitypolicy.yaml for the full
+  # rationale/verification this pattern is built on.
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: kopiur-ui
+  oidc:
+    # No provider.backendRef - confirmed unnecessary end-to-end on echo,
+    # including the token-exchange leg (a live login was completed, not
+    # just the redirect verified).
+    provider:
+      issuer: "https://authentik.internal.oreillys.io/application/o/kopiur-ui/"
+    clientID: "64597875c17005e612d969823d3e98fe2155cbb0"
+    clientSecret:
+      name: kopiur-ui-oidc-client-secret
+    redirectURL: "https://kopiur.internal.oreillys.io/oauth2/callback"
+    logoutPath: "/logout"

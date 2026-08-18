@@ -1,0 +1,48 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-provider-kopiur-ui
+data:
+  # Second protected app, same shape as blueprints-provider-echo.yaml - see
+  # that file's comments for the full schema/issuer-URL/redirect-URI
+  # rationale, not repeated here. Two differences from echo:
+  # 1. implicit-consent flow from the start (echo started on explicit-
+  #    consent, switched after testing showed the click was pure friction -
+  #    no reason to repeat that discovery for every new app).
+  # 2. No Brand default_application entry - that's a singular "where do
+  #    external users land" designation, already claimed by echo. Only the
+  #    first protected app should set it.
+  provider-kopiur-ui.yaml: |
+    metadata:
+      name: OIDC Provider - kopiur-ui
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: kopiur-ui
+        id: kopiur-ui-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env KOPIUR_UI_OAUTH_CLIENT_ID
+          client_secret: !Env KOPIUR_UI_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://kopiur.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: kopiur-ui
+        attrs:
+          name: Kopiur UI
+          provider: !KeyOf kopiur-ui-provider

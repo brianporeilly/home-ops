@@ -66,6 +66,25 @@ data:
   # concern for Google/GitHub specifically, both verify email ownership
   # before exposing it via their OAuth APIs; would need reconsidering for
   # a source that doesn't.
+  #
+  # Auto-promote trusted emails to type=internal at enrollment time - by
+  # default SSO-enrolled users get type=external, which authentik's own
+  # BrandDefaultRedirectView (authentik/core/views/interface.py) hard-
+  # redirects away from BOTH /if/user/ (account settings, MFA, logout) and
+  # /if/admin/ to the Brand's default_application, with no way through -
+  # hit live testing echo, confirmed via `ak shell` that two enrolled test
+  # accounts had zero path to their own account settings despite both
+  # existing and being enabled. Traced the fix via
+  # authentik/stages/user_write/stage.py: UserWriteStage.update_user() does
+  # a generic setattr(user, key, value) for any key in the resolved
+  # profile properties that the User model has a real attribute for and
+  # isn't on its disallowed list (groups/id/pk) - same mechanism that
+  # already sets username from our own mapping above, "type" just isn't
+  # blocked. This only fires at first-time enrollment (UserWriteStage runs
+  # in the enrollment flow, not the authentication flow returning users
+  # take) - doesn't retroactively touch already-enrolled accounts, and an
+  # admin can always override any user's type by hand in the UI regardless
+  # of what this set at enrollment time.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
@@ -80,6 +99,26 @@ data:
             return {
                 "username": properties.get("email"),
             }
+      - model: authentik_sources_oauth.oauthsourcepropertymapping
+        identifiers:
+          name: "Custom - Internal type for trusted emails"
+        id: internal-type-for-trusted-emails
+        attrs:
+          expression: |
+            # Allowlist, not a denylist - default stays external (limited,
+            # app-only access) for anyone not listed here. Extend as more
+            # people/addresses become trusted; an admin can also just
+            # override a specific user's type by hand in the UI any time,
+            # regardless of what this sets at enrollment.
+            trusted_domains = ["oreillys.io"]
+            trusted_emails = ["brianporeilly@gmail.com"]
+
+            email = properties.get("email") or ""
+            domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+
+            if domain in trusted_domains or email in trusted_emails:
+                return {"type": "internal"}
+            return {}
       - model: authentik_sources_oauth.oauthsource
         identifiers:
           slug: google
@@ -92,6 +131,7 @@ data:
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
           user_property_mappings:
             - !KeyOf username-from-email
+            - !KeyOf internal-type-for-trusted-emails
           user_matching_mode: email_link
       - model: authentik_sources_oauth.oauthsource
         identifiers:
@@ -105,6 +145,7 @@ data:
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
           user_property_mappings:
             - !KeyOf username-from-email
+            - !KeyOf internal-type-for-trusted-emails
           user_matching_mode: email_link
       - model: authentik_stages_identification.identificationstage
         identifiers:
