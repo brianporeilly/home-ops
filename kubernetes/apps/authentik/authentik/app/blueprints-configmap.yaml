@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-oauth-sources
+data:
+  # Authentik's own GitOps-native config mechanism - auto-discovered and
+  # continuously reconciled from /blueprints (see helmrelease.yaml's
+  # global.volumeMounts; mounted at /blueprints/sources, a subdirectory,
+  # not /blueprints itself, so it doesn't shadow the image's own built-in
+  # blueprints there). !Env pulls consumer_key/consumer_secret from
+  # environment variables at apply time (see global.env in helmrelease.yaml)
+  # rather than embedding OAuth client secrets directly in this ConfigMap -
+  # verified against authentik/blueprints/v1/common.py's Env YAMLTag class.
+  # Schema confirmed against a real shipped blueprint
+  # (blueprints/default/default-brand.yaml) and the
+  # authentik_sources_oauth.oauthsource model's blueprint test fixture,
+  # not guessed.
+  oauth-sources.yaml: |
+    metadata:
+      name: OAuth sources (Google, GitHub)
+    version: 1
+    entries:
+      - model: authentik_sources_oauth.oauthsource
+        identifiers:
+          slug: google
+        attrs:
+          name: Google
+          provider_type: google
+          consumer_key: !Env GOOGLE_OAUTH_CLIENT_ID
+          consumer_secret: !Env GOOGLE_OAUTH_CLIENT_SECRET
+      - model: authentik_sources_oauth.oauthsource
+        identifiers:
+          slug: github
+        attrs:
+          name: GitHub
+          provider_type: github
+          consumer_key: !Env GITHUB_OAUTH_CLIENT_ID
+          consumer_secret: !Env GITHUB_OAUTH_CLIENT_SECRET

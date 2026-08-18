@@ -7,6 +7,8 @@ resources:
   - ./ocirepository.yaml
   - ./cluster.yaml
   - ./secret.yaml
+  - ./oauth-sources-secret.yaml
+  - ./blueprints-configmap.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
