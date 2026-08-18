@@ -37,11 +37,49 @@ data:
   # -> IdentificationStage.objects.first().sources.all() returned [], and
   # OAuthSource.objects.first().{authentication_flow,enrollment_flow} were
   # both None, despite the sources themselves existing and being enabled.
+  #
+  # Fully-silent enrollment (no "choose a username" prompt, username =
+  # email for both providers): authentik's own default enrollment flow
+  # (default-source-enrollment) already has a policy that SKIPS its prompt
+  # stage whenever `username` is already present in the resolved profile
+  # data (`'username' not in context.get('prompt_data', {})` - see
+  # goauthentik/authentik's flow-default-source-enrollment.yaml) - so no
+  # custom flow is needed, just a property mapping that resolves username
+  # ourselves. GitHub already sets username to the user's GitHub handle by
+  # default (get_base_user_properties in sources/oauth/types/github.py);
+  # Google has no username concept at all and always prompted. The mapping
+  # below overrides both to the same email-derived value for consistency
+  # regardless of which provider was used, keying off `properties.get`
+  # (the already-resolved base properties, including GitHub's fallback
+  # email-list lookup when no public email is set) rather than the raw
+  # `info` dict directly. Verified by exercising authentik's own
+  # SourceMapper.build_object_properties() in `ak shell` with synthetic
+  # profile data for both providers - confirmed username resolves to the
+  # email in both cases, correctly overriding GitHub's handle-based default.
+  #
+  # user_matching_mode: email_link on both - default is `identifier`
+  # (source-specific ID, e.g. Google's sub / GitHub's numeric id), which
+  # would create a SEPARATE account per source even for the same person's
+  # email. email_link resolves both to the same account instead. authentik's
+  # own docs flag a security caveat for this mode ("can have security
+  # implications when a source doesn't validate email addresses") - not a
+  # concern for Google/GitHub specifically, both verify email ownership
+  # before exposing it via their OAuth APIs; would need reconsidering for
+  # a source that doesn't.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
     version: 1
     entries:
+      - model: authentik_sources_oauth.oauthsourcepropertymapping
+        identifiers:
+          name: "Custom - Username from email"
+        id: username-from-email
+        attrs:
+          expression: |
+            return {
+                "username": properties.get("email"),
+            }
       - model: authentik_sources_oauth.oauthsource
         identifiers:
           slug: google
@@ -52,6 +90,9 @@ data:
           consumer_secret: !Env GOOGLE_OAUTH_CLIENT_SECRET
           authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          user_property_mappings:
+            - !KeyOf username-from-email
+          user_matching_mode: email_link
       - model: authentik_sources_oauth.oauthsource
         identifiers:
           slug: github
@@ -62,6 +103,9 @@ data:
           consumer_secret: !Env GITHUB_OAUTH_CLIENT_SECRET
           authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          user_property_mappings:
+            - !KeyOf username-from-email
+          user_matching_mode: email_link
       - model: authentik_stages_identification.identificationstage
         identifiers:
           name: default-authentication-identification
