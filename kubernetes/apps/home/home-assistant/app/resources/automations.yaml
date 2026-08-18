@@ -3,10 +3,10 @@
   description: "Notify on real open/closed transitions, ignoring blips from unavailable/unknown"
   triggers:
     - trigger: state
-      entity_id: binary_sensor.garage_door
+      entity_id: binary_sensor.garage_garage_door
       to: "on"
     - trigger: state
-      entity_id: binary_sensor.garage_door
+      entity_id: binary_sensor.garage_garage_door
       to: "off"
   conditions:
     - condition: template
@@ -24,7 +24,7 @@
   description: "Alert if the garage has been continuously open for 30+ minutes"
   triggers:
     - trigger: state
-      entity_id: binary_sensor.garage_door
+      entity_id: binary_sensor.garage_garage_door
       to: "on"
       for:
         minutes: 30
