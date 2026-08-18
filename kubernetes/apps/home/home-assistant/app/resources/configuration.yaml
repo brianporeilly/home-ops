@@ -11,11 +11,6 @@ homeassistant:
   currency: USD
   country: US
 
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 10.246.0.0/16
-
 # DB connection configured via DB_URL env var from CNPG auto-generated secret.
 recorder:
   auto_purge: true
