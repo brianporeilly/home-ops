@@ -11,6 +11,11 @@ resources:
   - ./blueprints-configmap.yaml
   - ./echo-provider-secret.yaml
   - ./kopiur-ui-provider-secret.yaml
+  - ./changedetection-provider-secret.yaml
+  - ./sonarr-provider-secret.yaml
+  - ./radarr-provider-secret.yaml
+  - ./prowlarr-provider-secret.yaml
+  - ./lidarr-provider-secret.yaml
   - ./blueprints-protected-apps.yaml
   - ./httproute-external.yaml
   - ./obc.yaml

@@ -123,6 +123,61 @@ spec:
             secretKeyRef:
               name: authentik-kopiur-ui-provider-secret
               key: KOPIUR_UI_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
+        - name: CHANGEDETECTION_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-changedetection-provider-secret
+              key: CHANGEDETECTION_OAUTH_CLIENT_ID
+        - name: CHANGEDETECTION_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-changedetection-provider-secret
+              key: CHANGEDETECTION_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-sonarr.yaml key in blueprints-protected-apps.yaml.
+        - name: SONARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-sonarr-provider-secret
+              key: SONARR_OAUTH_CLIENT_ID
+        - name: SONARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-sonarr-provider-secret
+              key: SONARR_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-radarr.yaml key in blueprints-protected-apps.yaml.
+        - name: RADARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-radarr-provider-secret
+              key: RADARR_OAUTH_CLIENT_ID
+        - name: RADARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-radarr-provider-secret
+              key: RADARR_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-prowlarr.yaml key in blueprints-protected-apps.yaml.
+        - name: PROWLARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-prowlarr-provider-secret
+              key: PROWLARR_OAUTH_CLIENT_ID
+        - name: PROWLARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-prowlarr-provider-secret
+              key: PROWLARR_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-lidarr.yaml key in blueprints-protected-apps.yaml.
+        - name: LIDARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-lidarr-provider-secret
+              key: LIDARR_OAUTH_CLIENT_ID
+        - name: LIDARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-lidarr-provider-secret
+              key: LIDARR_OAUTH_CLIENT_SECRET
     server:
       replicas: 1
       route:
