@@ -56,8 +56,31 @@ spec:
     # (kubernetes/apps/authentik/authentik/app/helmrelease.yaml's
     # server.route.main.hostnames) or OIDC discovery's issuer-match check
     # will reject it.
+    # authorizationEndpoint/tokenEndpoint set explicitly (not left to
+    # discovery) to route around a real, confirmed-live failure mode:
+    # Envoy Gateway's *control-plane* controller does a one-shot HTTP
+    # fetch of .well-known/openid-configuration at reconcile time to
+    # resolve these two fields, and if that fetch times out (e.g.
+    # Authentik mid-restart from an unrelated upgrade), it latches a
+    # permanent error into this SecurityPolicy's status - "setting 500
+    # direct response in routes due to errors in SecurityPolicy" - with no
+    # automatic retry once Authentik comes back healthy; only a spec
+    # change (forcing re-reconcile) clears it. Both values are stable/
+    # shared across every provider (confirmed by curling the discovery doc
+    # directly - unlike issuer/end_session_endpoint, these two don't
+    # include the app slug), so hardcoding them removes the fragile fetch
+    # entirely without losing anything. JWKS validation isn't affected -
+    # that happens on the data plane with its own retry/refresh handling,
+    # not this control-plane one-shot path.
     provider:
       issuer: "https://auth.internal.oreillys.io/application/o/${APP}/"
+      authorizationEndpoint: "https://auth.internal.oreillys.io/application/o/authorize/"
+      tokenEndpoint: "https://auth.internal.oreillys.io/application/o/token/"
+      # Per-app (includes the slug), unlike the two above - and must be set
+      # explicitly too: EG only auto-discovers this when authorizationEndpoint
+      # or tokenEndpoint is ALSO missing, so providing those two above would
+      # otherwise silently leave this unset and break logout.
+      endSessionEndpoint: "https://auth.internal.oreillys.io/application/o/${APP}/end-session/"
     clientID: "${OIDC_CLIENT_ID}"
     clientSecret:
       name: ${APP}-oidc-client-secret
