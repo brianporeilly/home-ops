@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/main/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml
+# Unauthenticated (at the Gateway level) path for API clients that call
+# Sonarr's REST API directly with an API key (LunaSea etc.) rather than a
+# browser - they can't complete an OIDC redirect, so the SSO-wrapped
+# sonarr HTTPRoute (components/authentik/protect) breaks them. This
+# route's /api PathPrefix match is more specific than that route's `/`
+# match, so Gateway API's cross-route precedence rules (longest path
+# match wins regardless of which HTTPRoute object it's defined in) send
+# /api traffic here instead, bypassing the SecurityPolicy entirely.
+# Still gated by Sonarr's own API key - confirmed live that /api/v3/*
+# returns 401 without one even for in-cluster requests, so this isn't a
+# net new exposure versus the pre-SSO baseline for this path.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sonarr-api
+spec:
+  hostnames:
+    - sonarr.internal.oreillys.io
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: sonarr
+          port: 8989

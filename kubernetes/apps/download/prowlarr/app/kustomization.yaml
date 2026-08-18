@@ -7,3 +7,4 @@ resources:
   - ./ocirepository.yaml
   - ./custom-definitions.yaml
   - ./secret.yaml
+  - ./api-route.yaml
