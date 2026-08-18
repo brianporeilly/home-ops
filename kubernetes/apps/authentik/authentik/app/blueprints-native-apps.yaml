@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-native-apps
+data:
+  # Authentik acting as the OIDC Identity Provider FOR apps that talk OIDC
+  # directly themselves (native client, no Envoy SecurityPolicy gate) -
+  # separate ConfigMap from blueprints-protected-apps.yaml so the two
+  # consumption patterns (SecurityPolicy-wrapped vs native-client) don't
+  # get conflated under one name, even though the blueprint shape itself
+  # is the same. One data key per app, same consolidation rationale as
+  # blueprints-protected-apps.yaml.
+  #
+  # No custom "groups" scope mapping needed: Authentik's own default
+  # profile scope mapping (blueprints/system/providers-oauth2.yaml,
+  # scope-profile) already returns a `groups` claim -
+  # `[group.name for group in request.user.groups.all()]` - confirmed
+  # against that shipped blueprint directly, not assumed. Every provider
+  # here requests the same openid/email/profile scopes as every
+  # SecurityPolicy-wrapped provider, so RBAC-by-group works for free.
+  provider-grafana.yaml: |
+    metadata:
+      name: OIDC Provider - grafana
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: grafana
+        id: grafana-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env GRAFANA_OAUTH_CLIENT_ID
+          client_secret: !Env GRAFANA_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # Grafana's fixed generic_oauth callback path - not the
+              # /oauth2/callback convention SecurityPolicy-wrapped apps
+              # use, since Grafana is its own OIDC client.
+              url: https://grafana.internal.oreillys.io/login/generic_oauth
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: grafana
+        attrs:
+          name: Grafana
+          provider: !KeyOf grafana-provider
+      # Empty membership by default - add yourself/others via the
+      # Authentik UI. Grafana's role_attribute_path (helmrelease.yaml)
+      # grants the Admin role to anyone in this group, Viewer otherwise.
+      - model: authentik_core.group
+        identifiers:
+          name: grafana-admins

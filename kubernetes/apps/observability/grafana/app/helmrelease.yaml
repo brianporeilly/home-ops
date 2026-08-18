@@ -21,7 +21,21 @@ spec:
     deploymentStrategy:
       type: Recreate
     admin:
+      # Stays wired up as a break-glass fallback alongside SSO below -
+      # deliberately not removed.
       existingSecret: grafana-admin-secret
+    # Sourced from an existing static Secret (grafana-oidc-secret,
+    # sops-encrypted) via the chart's own envValueFrom, not envRenderSecret
+    # - the latter bakes the value into a chart-templated Secret instead of
+    # a file this repo can sops-encrypt. Referenced below via grafana.ini's
+    # $__env{} interpolation - the chart's own assertNoLeakedSecrets check
+    # actively fails the render if auth.generic_oauth.client_secret is a
+    # raw value instead of that pattern.
+    envValueFrom:
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: grafana-oidc-secret
+          key: client-secret
     env:
       GF_DATE_FORMATS_USE_BROWSER_LOCALE: true
       GF_EXPLORE_ENABLED: true
@@ -38,6 +52,25 @@ spec:
         org_id: 1
         org_name: Main Org.
         org_role: Viewer
+      # client_id isn't sensitive on its own (matches this repo's
+      # convention for every other OIDC provider) so it's a plain value
+      # here; client_secret comes from envValueFrom above via $__env{} -
+      # required by the chart's own leak-check, see that comment. groups
+      # claim comes from Authentik's default profile scope mapping, no
+      # custom scope needed (confirmed against authentik's own shipped
+      # blueprints/system/providers-oauth2.yaml).
+      auth.generic_oauth:
+        enabled: true
+        name: Authentik
+        client_id: 75f0425fe2447fb615659126e7299ee9d86d18d9
+        client_secret: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}"
+        scopes: "openid profile email"
+        auth_url: https://auth.internal.oreillys.io/application/o/authorize/
+        token_url: https://auth.internal.oreillys.io/application/o/token/
+        api_url: https://auth.internal.oreillys.io/application/o/userinfo/
+        role_attribute_path: "contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'"
+        role_attribute_strict: false
+        allow_sign_up: true
       news:
         news_feed_enabled: false
     datasources:

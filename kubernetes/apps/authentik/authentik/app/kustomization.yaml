@@ -16,7 +16,9 @@ resources:
   - ./radarr-provider-secret.yaml
   - ./prowlarr-provider-secret.yaml
   - ./lidarr-provider-secret.yaml
+  - ./grafana-provider-secret.yaml
   - ./blueprints-protected-apps.yaml
+  - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
   - ./obc.yaml
   - ./objectstore.yaml

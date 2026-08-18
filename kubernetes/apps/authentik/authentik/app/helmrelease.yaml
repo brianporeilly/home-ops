@@ -36,6 +36,7 @@ spec:
       configMaps:
         - authentik-blueprints-oauth-sources
         - authentik-blueprints-protected-apps
+        - authentik-blueprints-native-apps
     authentik:
       postgresql:
         host: authentik-postgres-rw
@@ -178,6 +179,17 @@ spec:
             secretKeyRef:
               name: authentik-lidarr-provider-secret
               key: LIDARR_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-grafana.yaml key in blueprints-native-apps.yaml.
+        - name: GRAFANA_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-grafana-provider-secret
+              key: GRAFANA_OAUTH_CLIENT_ID
+        - name: GRAFANA_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-grafana-provider-secret
+              key: GRAFANA_OAUTH_CLIENT_SECRET
     server:
       replicas: 1
       route:
