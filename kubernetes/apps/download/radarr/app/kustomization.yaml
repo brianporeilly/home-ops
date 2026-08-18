@@ -6,4 +6,3 @@ resources:
   - ./secret.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
-  - ./api-route.yaml

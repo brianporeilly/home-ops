@@ -30,7 +30,7 @@ spec:
     substitute:
       APP: radarr
       PVC: radarr-config
-      HTTPROUTE_NAME: radarr
+      HTTPROUTE_NAME: radarr-app
       HOSTNAME: radarr.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
   prune: true

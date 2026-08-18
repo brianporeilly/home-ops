@@ -25,7 +25,7 @@ spec:
     substitute:
       APP: sonarr
       PVC: sonarr-config
-      HTTPROUTE_NAME: sonarr
+      HTTPROUTE_NAME: sonarr-app
       HOSTNAME: sonarr.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
   prune: true

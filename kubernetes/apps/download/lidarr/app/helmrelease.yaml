@@ -85,6 +85,26 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # See sonarr/app/helmrelease.yaml for the full rationale - same
+      # pattern, unauthenticated-at-the-Gateway /api path for direct API
+      # clients, still gated by Lidarr's own API key. Adding this second
+      # route key renames the one above from `lidarr` to `lidarr-app`
+      # (see ks.yaml's HTTPROUTE_NAME).
+      api:
+        hostnames:
+          - lidarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
 
     persistence:
       config:

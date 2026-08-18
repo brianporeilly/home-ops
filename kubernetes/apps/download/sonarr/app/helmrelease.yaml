@@ -80,6 +80,31 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # Unauthenticated (at the Gateway level) path for direct API clients
+      # (LunaSea etc.) that can't complete an OIDC redirect - Gateway
+      # API's cross-route precedence (longest path match wins) sends
+      # /api traffic here instead of through the SecurityPolicy-protected
+      # app route below. Adding this second route key renames that one
+      # from `sonarr` to `sonarr-app` (see ks.yaml's HTTPROUTE_NAME) -
+      # confirmed via `helm template` against this chart version. Still
+      # gated by Sonarr's own API key - confirmed live that /api/v3/*
+      # returns 401 without one even for in-cluster requests, so this
+      # isn't a net new exposure versus the pre-SSO baseline.
+      api:
+        hostnames:
+          - sonarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
     persistence:
       config:
         suffix: config
