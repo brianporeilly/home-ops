@@ -1,0 +1,71 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-provider-echo
+data:
+  # Authentik acting as the OIDC Identity Provider FOR echo - separate
+  # concern (and separate blueprint file) from oauth-sources.yaml, where
+  # Google/GitHub act as IdPs FOR authentik. One file per protected app
+  # keeps each independently addable/removable.
+  #
+  # Schema confirmed against a real shipped blueprint
+  # (blueprints/testing/oidc-conformance.yaml) and the default scope
+  # mappings (blueprints/system/providers-oauth2.yaml), not guessed.
+  # Flow slugs: default-provider-authorization-explicit-consent (not the
+  # implicit-consent variant used in the OIDC-conformance *testing*
+  # blueprint - that one deliberately uses the legacy implicit grant for
+  # conformance-suite purposes) and default-provider-invalidation-flow.
+  #
+  # Issuer URL confirmed from authentik/providers/oauth2/{models,apps,urls}.py:
+  # mountpoint application/o/ + <application_slug>/, default issuer_mode
+  # (per_provider, not global) - https://authentik.internal.oreillys.io/application/o/echo/
+  #
+  # Redirect URI matches Envoy Gateway's own OIDC callback convention
+  # (<route-path-prefix>/oauth2/callback, confirmed against envoyproxy/gateway's
+  # own docs example) - see kubernetes/apps/network/echo/app/securitypolicy.yaml.
+  #
+  # Also sets this Application as the default Brand's default_application -
+  # fixes the "Interface can only be accessed by internal users" lockout
+  # hit testing SSO enrollment: external-type (SSO-enrolled) users are
+  # denied both /if/admin/ and /if/user/ unless the Brand has one set
+  # (authentik/core/views/interface.py's BrandDefaultRedirectView).
+  provider-echo.yaml: |
+    metadata:
+      name: OIDC Provider - echo
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: echo
+        id: echo-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-explicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env ECHO_OAUTH_CLIENT_ID
+          client_secret: !Env ECHO_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://echo.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: echo
+        id: echo-application
+        attrs:
+          name: Echo
+          provider: !KeyOf echo-provider
+      - model: authentik_brands.brand
+        identifiers:
+          domain: authentik-default
+        attrs:
+          default_application: !KeyOf echo-application
