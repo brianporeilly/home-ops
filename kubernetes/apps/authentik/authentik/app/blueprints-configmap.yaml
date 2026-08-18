@@ -19,12 +19,24 @@ data:
   # were enabled, but nothing showed on the login page). The default
   # authentication flow's IdentificationStage has its own `sources` M2M
   # field, separate from each Source's own `enabled` flag, and starts
-  # empty - the last entry below adds ours to it, matched by !Find rather
-  # than a hardcoded PK. Schema for all of this confirmed against real
-  # shipped blueprints and each model's own blueprint test fixtures in
-  # goauthentik/authentik, not guessed - see also the live DB check that
-  # caught this gap: `ak shell` -> IdentificationStage.objects.first().sources.all()
-  # returned [] despite both OAuthSource rows existing.
+  # empty - the identification-stage entry below adds ours to it, matched
+  # by !Find rather than a hardcoded PK.
+  #
+  # Nor is that enough on its own: a first-time login via an external
+  # source with no authentication_flow/enrollment_flow set fails post-
+  # callback with "source is not configured for enrollment" - both fields
+  # (on the base Source model, authentik/core/models.py) default to null.
+  # Pointed at authentik's own shipped default-source-authentication /
+  # default-source-enrollment flows - confirmed live (PR #524 fixed the
+  # sources-not-showing gap, then this exact error surfaced on the actual
+  # callback once a real login was attempted).
+  #
+  # Schema for all of this confirmed against real shipped blueprints and
+  # each model's own blueprint test fixtures in goauthentik/authentik, not
+  # guessed - see also the live DB checks that caught both gaps: `ak shell`
+  # -> IdentificationStage.objects.first().sources.all() returned [], and
+  # OAuthSource.objects.first().{authentication_flow,enrollment_flow} were
+  # both None, despite the sources themselves existing and being enabled.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
@@ -38,6 +50,8 @@ data:
           provider_type: google
           consumer_key: !Env GOOGLE_OAUTH_CLIENT_ID
           consumer_secret: !Env GOOGLE_OAUTH_CLIENT_SECRET
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
+          enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
       - model: authentik_sources_oauth.oauthsource
         identifiers:
           slug: github
@@ -46,6 +60,8 @@ data:
           provider_type: github
           consumer_key: !Env GITHUB_OAUTH_CLIENT_ID
           consumer_secret: !Env GITHUB_OAUTH_CLIENT_SECRET
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
+          enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
       - model: authentik_stages_identification.identificationstage
         identifiers:
           name: default-authentication-identification
