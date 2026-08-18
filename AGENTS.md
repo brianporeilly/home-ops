@@ -234,6 +234,7 @@ The read-write service is always `<cluster-name>-rw` (e.g., `immich-postgres-rw`
 | `cert-manager` | cert-manager |
 | `database` | postgres-operator, mariadb-operator |
 | `download` | sabnzbd, sonarr, radarr, prowlarr, recyclarr |
+| `external-secrets` | external-secrets |
 | `home` | home-assistant, frigate, grocy |
 | `immich` | immich |
 | `kube-system` | kube-vip, kube-vip-cloud-provider, metrics-server, kured, reloader, snapshot-controller |
