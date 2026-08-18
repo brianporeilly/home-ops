@@ -6,3 +6,4 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./oidc-client-secret.yaml
+  - ./httproute-external.yaml
