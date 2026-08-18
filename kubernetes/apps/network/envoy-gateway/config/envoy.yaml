@@ -92,7 +92,7 @@ spec:
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: *hostname
-      # Was 10.20.250.1 - migrating to the routed 10.21.0.0/16 pool (see
+      # Was 10.20.250.1 - migrated to the routed 10.21.0.0/16 pool (see
       # kube-vip-cloud-provider HelmRelease). external-dns keeps
       # external.oreillys.io pointed at whatever this resolves to, but if
       # OPNsense has a WAN port-forward pinned to the old literal IP rather
@@ -131,7 +131,7 @@ spec:
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: *hostname
-      # Was 10.20.250.2 - migrating to the routed 10.21.0.0/16 pool (see
+      # Was 10.20.250.2 - migrated to the routed 10.21.0.0/16 pool (see
       # kube-vip-cloud-provider HelmRelease). LAN-only + external-dns-managed
       # (internal.oreillys.io), lower risk than envoy-external.
       kube-vip.io/loadbalancerIPs: "10.21.0.2"

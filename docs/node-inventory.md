@@ -17,7 +17,7 @@ at `.11`**. Keep static node IPs out of any DHCP dynamic pool. Blanks = not yet 
 | `10.20.30.0/24`  | NAS / storage appliances |
 | `10.20.40.0/24`  | GPU / accelerator nodes — **reserved (future)**; current GPU boxes are tier-20 workers |
 | `10.20.100.0/24` | DHCP dynamic pool — shrink OPNsense scope to here; nodes stay static reservations in tiers |
-| `10.20.250.0/24` | LoadBalancer pool (existing, kube-vip-cloud-provider) |
+| `10.21.0.0/16`   | LoadBalancer pool (kube-vip-cloud-provider `cidr-global`); routed via OPNsense static route, deliberately off-link from `10.20.0.0/16` so it's not affected by the ARP/L2-adjacency issue the old, now-removed `10.20.250.0/24` pool had with kube-vip's BGP-only VIPs |
 | `10.20.254.0/24` | Cluster VIPs (existing — API `10.20.254.100`) |
 
 ## Reserved / infrastructure IPs
@@ -26,19 +26,29 @@ at `.11`**. Keep static node IPs out of any DHCP dynamic pool. Blanks = not yet 
 |----|---------|
 | 10.20.0.1 | Gateway / router (kube-vip BGP peer) |
 | 10.20.254.100 | Kubernetes API VIP (kube-vip) — **existing, keep** |
-| 10.20.250.0/24 | LoadBalancer pool (kube-vip-cloud-provider `cidr-global`) |
+| 10.21.0.0/16 | LoadBalancer pool (kube-vip-cloud-provider `cidr-global`); requires an OPNsense static route (`10.21.0.0/16` via `10.2.0.2`) |
 
-## LoadBalancer service IPs (`10.20.250.0/24`)
+## LoadBalancer service IPs (`10.21.0.0/16`)
 
-| IP | Service |
-|----|---------|
-| 10.20.250.1 | envoy-external (gateway) |
-| 10.20.250.2 | envoy-internal (gateway) |
-| 10.20.250.3 | omada-controller |
-| 10.20.250.4 | fluent-bit |
-| 10.20.250.6 | akvorado |
-| 10.20.250.10 | minecraft |
-| 10.20.250.11 | frigate |
+Auto-assigned sequentially by kube-vip-cloud-provider unless otherwise noted (sourced live via
+`kubectl get svc -A --field-selector spec.type=LoadBalancer`, captured 2026-08-19). The old
+`10.20.250.0/24` pool has been fully retired — nothing uses it, removed from
+`cidr-global` entirely (was a sub-range of the node subnet, so kube-vip's BGP-only VIPs weren't
+reliably ARP-reachable there; see kube-vip-cloud-provider's `helmrelease.yaml` for the full
+rationale).
+
+| IP | Service | Namespace |
+|----|---------|-----------|
+| 10.21.0.1 | envoy-external (gateway) | network |
+| 10.21.0.2 | envoy-internal (gateway) | network |
+| 10.21.0.3 | omada-controller | network |
+| 10.21.0.4 | fluent-bit | observability |
+| 10.21.0.5 | loki | observability |
+| 10.21.0.6 | akvorado-inlet-flows | observability |
+| 10.21.0.10 | minecraft — **reserved, not currently deployed** (`kube-vip.io/loadbalancerIPs` pin, app disabled in `home/kustomization.yaml`) | home |
+| 10.21.0.11 | frigate | home |
+| 10.21.0.12 | slskd-soulseek | download |
+| 10.21.0.13 | forgejo-ssh | misc |
 
 ## Nodes — identity / compute / network
 
@@ -130,5 +140,6 @@ DDR4 slots — by far the cheapest headroom if 8 GB ever proves tight for etcd/c
   the pool. Reservations are honored during PXE, so each node PXE-boots straight onto its tier IP.
 - **Addressing:** third octet = tier; hosts from `.11` (`.1–.10` reserved per tier). Workers =
   apprentice quartet `.20.11–.14` (severian/drotte/roche/eata, eata youngest → last) + jonas `.15`;
-  drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool `10.20.250.0/24` (existing).
+  drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool `10.21.0.0/16` (the old
+  `10.20.250.0/24` pool has been fully retired - see addressing plan above).
 - Full rationale/history lives in `docs/disk-hardware-plan.md`; this file is the terse reference.

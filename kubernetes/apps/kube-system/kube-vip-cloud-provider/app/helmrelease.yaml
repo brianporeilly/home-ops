@@ -24,24 +24,21 @@ spec:
   values:
     cm:
       data:
-        # 10.21.0.0/16 is a second, DELIBERATELY non-overlapping pool - unlike
-        # 10.20.250.0/24, it isn't a sub-range of any host's own local subnet
-        # (10.20.0.0/16), so every client's kernel treats it as off-link and
-        # routes it via its default gateway automatically, no DHCP option /
-        # per-host static route needed anywhere. kube-vip's LB VIPs are
-        # BGP-only (vip_arp: false, see the kube-vip HelmRelease), so they
-        # were never actually guaranteed L2/ARP-reachable - a host that isn't
-        # L2-adjacent to whichever node currently holds a VIP in the old
-        # overlapping /24 can't ARP for it despite its own route saying
-        # on-link. See kube-vip-cloud-provider's docs (Multiple pools or
-        # ranges) - comma-separated CIDRs here is the documented way to add
-        # a pool without disturbing the existing one; nothing already using
-        # 10.20.250.0/24 needs to move.
+        # 10.21.0.0/16 replaced the old 10.20.250.0/24 pool - that range was
+        # a sub-range of a host's own local subnet (10.20.0.0/16), so every
+        # client's kernel treated it as on-link, but kube-vip's LB VIPs are
+        # BGP-only (vip_arp: false, see the kube-vip HelmRelease) and were
+        # never actually guaranteed L2/ARP-reachable - a host that isn't
+        # L2-adjacent to whichever node currently holds a VIP couldn't ARP
+        # for it despite its own route saying on-link. 10.21.0.0/16 is
+        # deliberately off-link from 10.20.0.0/16 instead, so it's always
+        # routed via the default gateway, no ARP dependency. Every service
+        # was migrated off the old pool before it was removed here -
+        # confirmed live, nothing left on 10.20.250.0/24.
         #
         # Requires an OPNsense static route (10.21.0.0/16 via 10.2.0.2,
         # mirroring the existing 10.20.0.0/16 one) - not tracked in this
         # repo, applied directly in OPNsense. No Mikrotik-side change
         # needed: its BGP peer filters are unrestricted, so it accepts
-        # whatever kube-vip advertises here same as it does for
-        # 10.20.250.0/24 today.
-        cidr-global: 10.20.250.0/24,10.21.0.0/16
+        # whatever kube-vip advertises here.
+        cidr-global: 10.21.0.0/16

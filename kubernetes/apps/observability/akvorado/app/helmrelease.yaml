@@ -303,7 +303,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          # Was 10.20.250.6 - migrating to the routed 10.21.0.0/16 pool (see
+          # Was 10.20.250.6 - migrated to the routed 10.21.0.0/16 pool (see
           # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
           # risk: this is a flow-collector RECEIVER - OPNsense/the Mikrotik
           # are presumably configured to actively export NetFlow/IPFIX to

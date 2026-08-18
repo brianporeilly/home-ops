@@ -83,7 +83,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          # Was 10.20.250.10 - migrating to the routed 10.21.0.0/16 pool
+          # Was 10.20.250.10 - migrated to the routed 10.21.0.0/16 pool
           # (see kube-vip-cloud-provider HelmRelease). Check before merging:
           # if this is exposed to friends outside the LAN, there's likely
           # an OPNsense WAN port-forward (25565/tcp) pinned to the old IP,

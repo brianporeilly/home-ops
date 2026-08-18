@@ -63,7 +63,7 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          # Was 10.20.250.3 - migrating to the routed 10.21.0.0/16 pool (see
+          # Was 10.20.250.3 - migrated to the routed 10.21.0.0/16 pool (see
           # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
           # risk: adopted Omada switches/APs have this controller's IP
           # baked into their inform/adopt URL - they'll likely need
