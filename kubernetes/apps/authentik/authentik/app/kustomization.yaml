@@ -12,6 +12,7 @@ resources:
   - ./echo-provider-secret.yaml
   - ./kopiur-ui-provider-secret.yaml
   - ./blueprints-protected-apps.yaml
+  - ./httproute-external.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
