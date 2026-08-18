@@ -175,7 +175,7 @@ spec:
     service:
       type: LoadBalancer
       annotations:
-        # Was 10.20.250.4 - migrating to the routed 10.21.0.0/16 pool (see
+        # Was 10.20.250.4 - migrated to the routed 10.21.0.0/16 pool (see
         # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
         # risk: this is a syslog RECEIVER - OPNsense and the Mikrotik are
         # both configured to actively push syslog to this exact IP

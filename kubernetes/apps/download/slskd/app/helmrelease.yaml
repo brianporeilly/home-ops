@@ -79,7 +79,7 @@ spec:
       soulseek:
         type: LoadBalancer
         annotations:
-          # Was 10.20.250.12 - migrating to the routed 10.21.0.0/16 pool
+          # Was 10.20.250.12 - migrated to the routed 10.21.0.0/16 pool
           # (see kube-vip-cloud-provider HelmRelease). HIGH
           # external-dependency risk: Soulseek needs inbound NAT traversal
           # to work well - there's almost certainly an OPNsense WAN
