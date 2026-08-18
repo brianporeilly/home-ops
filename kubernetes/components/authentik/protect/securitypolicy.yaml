@@ -10,7 +10,7 @@
 #         HTTPROUTE_NAME: echo
 #         HOSTNAME: echo.internal.oreillys.io
 #         AUTH_HOSTNAME: auth.internal.oreillys.io
-#         OIDC_CLIENT_ID: ccf8e9cebe8abbcfd1ba325730f1db15371be26c
+#         OIDC_CLIENT_ID: fbfc835d9e156b3410fbec77da601be1f0af24e0
 #
 # HTTPROUTE_NAME is separate from APP because bjw-s app-template's named
 # route.<key> blocks (route.app + route.internal, e.g. grocy's
