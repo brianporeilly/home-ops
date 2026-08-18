@@ -1,0 +1,60 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
+# Reusable component. Consume from the protected app's ks.yaml (not its
+# local kustomization.yaml) - see kubernetes/apps/network/echo/ks.yaml for a
+# worked example:
+#   spec:
+#     components:
+#       - ../../../../components/authentik/protect
+#     postBuild:
+#       substitute:
+#         APP: echo
+#         HOSTNAME: echo.internal.oreillys.io
+#         OIDC_CLIENT_ID: ccf8e9cebe8abbcfd1ba325730f1db15371be26c
+# ${APP}, ${HOSTNAME}, ${OIDC_CLIENT_ID} are required (no defaults),
+# substituted via Flux's postBuild.substitute. Two things this component
+# doesn't cover, still needed per-app:
+# 1. An `${APP}-oidc-client-secret` Secret in the app's own namespace (key
+#    `client-secret`, sops-encrypted) - see
+#    kubernetes/apps/network/echo/app/oidc-client-secret.yaml. Kept as a
+#    real per-app file rather than templated, since each app's client
+#    secret value is genuinely unique (unlike, say, kopiur's shared backup
+#    repository credentials).
+# 2. A matching OAuth2Provider/Application blueprint entry on the Authentik
+#    side (kubernetes/apps/authentik/authentik/app/blueprints-protected-apps.yaml)
+#    - Authentik's own chart mounts blueprint ConfigMaps via a fixed list in
+#    its HelmRelease values, which lives in a different Flux Kustomization
+#    entirely and can't be reached from here.
+# ${APP} must match the target HTTPRoute's name exactly (assumed identical -
+# true for every app protected so far) and the Authentik Application slug
+# used in the blueprint's issuer URL below.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: ${APP}
+spec:
+  # Must live in the same namespace as its target - confirmed via
+  # `kubectl explain securitypolicy.spec.targetRef` ("This policy and the
+  # TargetRef MUST be in the same namespace for this Policy to have
+  # effect"). Flux targets this at the protected app's own namespace via
+  # spec.targetNamespace on its ks.yaml, same as every other resource this
+  # component's consumer creates.
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ${APP}
+  oidc:
+    # No provider.backendRef - confirmed unnecessary end-to-end (including
+    # the token-exchange leg) on both echo and kopiur-ui. Envoy just
+    # resolves authentik.internal.oreillys.io like any HTTPS client, same
+    # as Envoy Gateway's own canonical docs example (which authenticates
+    # against https://accounts.google.com with no backendRef at all).
+    provider:
+      issuer: "https://authentik.internal.oreillys.io/application/o/${APP}/"
+    clientID: "${OIDC_CLIENT_ID}"
+    clientSecret:
+      name: ${APP}-oidc-client-secret
+    # Envoy Gateway's own callback convention: <route-path-prefix>/oauth2/callback.
+    # Must match the redirect_uris entry in this app's Authentik blueprint.
+    redirectURL: "https://${HOSTNAME}/oauth2/callback"
+    logoutPath: "/logout"
