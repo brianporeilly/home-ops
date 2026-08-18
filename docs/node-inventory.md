@@ -62,7 +62,7 @@ rationale).
 | `wk-roche`     | worker (Ceph HDD OSD, **GPU**)     | k8s-cp-03 | Dell OptiPlex 9020 | i7-4790 (Haswell) | 32 GB | 10.20.20.13 | 10GbE |
 | `wk-eata`      | worker (Ceph HDD OSD)      | k8s-wk-03 | Dell Precision Tower 3620 | Xeon E3-1270 v5 (Skylake, ECC-capable) | 32 GB | 10.20.20.14 | **1GbE ⚠** |
 | `wk-jonas`     | worker (Ceph SSD OSD / compute) | k8s-wk-01 | HP EliteDesk 800 G2 DM (65W) | i5-6500 (Skylake) | 16 GB | 10.20.20.15 | 1GbE |
-| `nas-ultan`    | NAS (ZFS)                  | ubuntu-01 | whitebox (ASRock, DMI OEM-blank) | Xeon E3-1230 v3 (Haswell, ECC) | 32 GB (4×8 DDR3-1333, **maxed**) | 10.20.30.11 | **1GbE ⚠** (10GbE present, link down) |
+| `nas-ultan`    | NAS (ZFS)                  | ubuntu-01 | whitebox (ASRock, DMI OEM-blank) | Xeon E3-1230 v3 (Haswell, ECC) | 32 GB (4×8 DDR3-1333, **maxed**) | 10.20.30.11 | 10GbE |
 
 ## Nodes — MAC addresses & firmware (for DHCP static reservations)
 
