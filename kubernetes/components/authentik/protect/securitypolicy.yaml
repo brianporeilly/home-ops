@@ -46,11 +46,18 @@ spec:
   oidc:
     # No provider.backendRef - confirmed unnecessary end-to-end (including
     # the token-exchange leg) on both echo and kopiur-ui. Envoy just
-    # resolves authentik.internal.oreillys.io like any HTTPS client, same
-    # as Envoy Gateway's own canonical docs example (which authenticates
+    # resolves auth.internal.oreillys.io like any HTTPS client, same as
+    # Envoy Gateway's own canonical docs example (which authenticates
     # against https://accounts.google.com with no backendRef at all).
+    # auth.internal.oreillys.io (not the longer authentik.internal.oreillys.io)
+    # is the canonical issuer hostname - Authentik's issuer_mode:
+    # per_provider computes the issuer from the request's own Host header,
+    # so this must exactly match a hostname actually routed to Authentik
+    # (kubernetes/apps/authentik/authentik/app/helmrelease.yaml's
+    # server.route.main.hostnames) or OIDC discovery's issuer-match check
+    # will reject it.
     provider:
-      issuer: "https://authentik.internal.oreillys.io/application/o/${APP}/"
+      issuer: "https://auth.internal.oreillys.io/application/o/${APP}/"
     clientID: "${OIDC_CLIENT_ID}"
     clientSecret:
       name: ${APP}-oidc-client-secret

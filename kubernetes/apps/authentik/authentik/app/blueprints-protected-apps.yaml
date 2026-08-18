@@ -31,7 +31,7 @@ data:
   #
   # Issuer URL confirmed from authentik/providers/oauth2/{models,apps,urls}.py:
   # mountpoint application/o/ + <application_slug>/, default issuer_mode
-  # (per_provider, not global) - https://authentik.internal.oreillys.io/application/o/<slug>/
+  # (per_provider, not global) - https://auth.internal.oreillys.io/application/o/<slug>/
   #
   # Redirect URI matches Envoy Gateway's own OIDC callback convention
   # (<route-path-prefix>/oauth2/callback, confirmed against envoyproxy/gateway's

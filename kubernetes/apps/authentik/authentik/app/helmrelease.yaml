@@ -130,7 +130,13 @@ spec:
           enabled: true
           # Internal only for Phase 1 - the IdP itself doesn't need external
           # exposure yet; some apps it protects might, in a later phase.
+          # auth.internal.oreillys.io is the short/canonical hostname - it's
+          # what every protected app's SecurityPolicy issuer now points at
+          # (components/authentik/protect/securitypolicy.yaml). The original
+          # authentik.internal.oreillys.io stays too, for direct human/
+          # bookmark access, but no longer backs any OIDC issuer URL.
           hostnames:
+            - auth.internal.oreillys.io
             - authentik.internal.oreillys.io
           parentRefs:
             - name: envoy-internal
