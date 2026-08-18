@@ -9,7 +9,8 @@ resources:
   - ./secret.yaml
   - ./oauth-sources-secret.yaml
   - ./blueprints-configmap.yaml
-  - ./echo-provider-secret.yaml
+  - ./oidc-generators.yaml
+  - ./echo-oidc-credentials.yaml
   - ./kopiur-ui-provider-secret.yaml
   - ./changedetection-provider-secret.yaml
   - ./sonarr-provider-secret.yaml

@@ -22,7 +22,6 @@ spec:
       AUTH_HOSTNAME: auth.internal.oreillys.io
       EXTERNAL_HTTPROUTE_NAME: echo-external
       EXTERNAL_HOSTNAME: echo.oreillys.io
-      OIDC_CLIENT_ID: fbfc835d9e156b3410fbec77da601be1f0af24e0
   prune: true
   retryInterval: 2m
   sourceRef:
