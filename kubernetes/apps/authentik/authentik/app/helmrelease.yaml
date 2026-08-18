@@ -27,6 +27,14 @@ spec:
     # duplicate-password approach).
     postgresql:
       enabled: false
+    # Chart-native blueprint mounting (confirmed against templates/worker/deployment.yaml -
+    # only the worker mounts these, since blueprint discovery/apply is a background
+    # task, not something the request-serving server process needs). Each name here
+    # is just the ConfigMap's name - the chart handles the volume/mount itself,
+    # auto-discovered under /blueprints/mounted/cm-<name>/.
+    blueprints:
+      configMaps:
+        - authentik-blueprints-oauth-sources
     authentik:
       postgresql:
         host: authentik-postgres-rw
@@ -70,6 +78,28 @@ spec:
           value: authentik-valkey
         - name: AUTHENTIK_REDIS__PORT
           value: "6379"
+        # Consumed by the oauth-sources.yaml blueprint (blueprints-configmap.yaml)
+        # via !Env - keeps OAuth client secrets out of the ConfigMap itself.
+        - name: GOOGLE_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GOOGLE_OAUTH_CLIENT_ID
+        - name: GOOGLE_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GOOGLE_OAUTH_CLIENT_SECRET
+        - name: GITHUB_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GITHUB_OAUTH_CLIENT_ID
+        - name: GITHUB_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GITHUB_OAUTH_CLIENT_SECRET
     server:
       replicas: 1
       route:
