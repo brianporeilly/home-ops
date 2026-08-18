@@ -56,6 +56,16 @@ data:
   # SourceMapper.build_object_properties() in `ak shell` with synthetic
   # profile data for both providers - confirmed username resolves to the
   # email in both cases, correctly overriding GitHub's handle-based default.
+  #
+  # user_matching_mode: email_link on both - default is `identifier`
+  # (source-specific ID, e.g. Google's sub / GitHub's numeric id), which
+  # would create a SEPARATE account per source even for the same person's
+  # email. email_link resolves both to the same account instead. authentik's
+  # own docs flag a security caveat for this mode ("can have security
+  # implications when a source doesn't validate email addresses") - not a
+  # concern for Google/GitHub specifically, both verify email ownership
+  # before exposing it via their OAuth APIs; would need reconsidering for
+  # a source that doesn't.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
@@ -82,6 +92,7 @@ data:
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
           user_property_mappings:
             - !KeyOf username-from-email
+          user_matching_mode: email_link
       - model: authentik_sources_oauth.oauthsource
         identifiers:
           slug: github
@@ -94,6 +105,7 @@ data:
           enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
           user_property_mappings:
             - !KeyOf username-from-email
+          user_matching_mode: email_link
       - model: authentik_stages_identification.identificationstage
         identifiers:
           name: default-authentication-identification
