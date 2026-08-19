@@ -18,9 +18,15 @@ spec:
       retries: 3
   values:
     fullnameOverride: reflector
+    # Original 32Mi/128Mi sizing was set when Reflector only mirrored one
+    # secret; it now watches secrets/configmaps/namespaces cluster-wide
+    # across ~8 mirrored OIDC credentials (protect component + native
+    # apps) - confirmed OOMKilled at 118Mi actual usage against the old
+    # 128Mi limit (2026-08-19). Sized with real headroom, not just
+    # enough to clear the current usage.
     resources:
       requests:
         cpu: 10m
-        memory: 32Mi
+        memory: 64Mi
       limits:
-        memory: 128Mi
+        memory: 256Mi
