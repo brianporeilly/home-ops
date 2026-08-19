@@ -73,6 +73,12 @@ data:
         attrs:
           name: Echo
           provider: !KeyOf echo-provider
+      # Deliberately no PolicyBinding here, unlike every other app below -
+      # echo is the test/demo app used to validate the auth pipeline
+      # itself, restricting it doesn't protect anything real and would
+      # just get in the way next time the SSO flow needs poking at. Any
+      # authenticated user can reach it.
+      #
       # Sets this Application as the default Brand's default_application -
       # fixes the "Interface can only be accessed by internal users"
       # lockout hit testing SSO enrollment: external-type (SSO-enrolled)
@@ -114,9 +120,18 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: kopiur-ui
+        id: kopiur-ui-application
         attrs:
           name: Kopiur UI
           provider: !KeyOf kopiur-ui-provider
+      # Gates who can complete the OIDC login for this app - group
+      # membership managed via the Authentik UI, see
+      # blueprints-groups.yaml for the rationale.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf kopiur-ui-application
+          group: !Find [authentik_core.group, [name, infra-users]]
   provider-changedetection.yaml: |
     metadata:
       name: OIDC Provider - changedetection
@@ -146,9 +161,19 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: changedetection
+        id: changedetection-application
         attrs:
           name: changedetection.io
           provider: !KeyOf changedetection-provider
+      # Dedicated group, not arr-users/media-users - changedetection has no
+      # per-user isolation (one shared watch list/session for everyone who
+      # can log in), so membership here is meant to stay small/deliberate
+      # rather than tier-wide.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf changedetection-application
+          group: !Find [authentik_core.group, [name, changedetection-users]]
   provider-sonarr.yaml: |
     metadata:
       name: OIDC Provider - sonarr
@@ -178,9 +203,15 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: sonarr
+        id: sonarr-application
         attrs:
           name: Sonarr
           provider: !KeyOf sonarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf sonarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
   provider-radarr.yaml: |
     metadata:
       name: OIDC Provider - radarr
@@ -210,9 +241,15 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: radarr
+        id: radarr-application
         attrs:
           name: Radarr
           provider: !KeyOf radarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf radarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
   provider-prowlarr.yaml: |
     metadata:
       name: OIDC Provider - prowlarr
@@ -242,9 +279,15 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: prowlarr
+        id: prowlarr-application
         attrs:
           name: Prowlarr
           provider: !KeyOf prowlarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf prowlarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
   provider-lidarr.yaml: |
     metadata:
       name: OIDC Provider - lidarr
@@ -274,6 +317,12 @@ data:
       - model: authentik_core.application
         identifiers:
           slug: lidarr
+        id: lidarr-application
         attrs:
           name: Lidarr
           provider: !KeyOf lidarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf lidarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
