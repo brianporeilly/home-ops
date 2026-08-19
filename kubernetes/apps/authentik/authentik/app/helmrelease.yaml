@@ -230,6 +230,17 @@ spec:
             secretKeyRef:
               name: forgejo-oidc-credentials
               key: client-secret
+        # Consumed by the provider-immich.yaml key in blueprints-native-apps.yaml.
+        - name: IMMICH_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: immich-oidc-credentials
+              key: client-id
+        - name: IMMICH_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: immich-oidc-credentials
+              key: client-secret
     server:
       replicas: 1
       route:

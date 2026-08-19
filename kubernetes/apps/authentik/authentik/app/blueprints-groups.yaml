@@ -42,3 +42,12 @@ data:
         identifiers:
           name: forgejo-users
         id: forgejo-users-group
+      # First real "tier" group (not a dedicated per-app group like the
+      # others above) - intended to be reused by other media apps
+      # (jellyfin, audiobookshelf, etc) as they get wired up. Carve a
+      # dedicated group out later if a specific media app needs narrower
+      # access than the rest of the tier.
+      - model: authentik_core.group
+        identifiers:
+          name: media-users
+        id: media-users-group
