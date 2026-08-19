@@ -13,6 +13,17 @@
 # GET the current full config first and only mutate .oauth in place
 # (via jq) so every other setting (storage template, ML, notifications,
 # etc) round-trips untouched.
+#
+# issuerUrl deliberately uses the EXTERNAL hostname (auth.oreillys.io),
+# not auth.internal.oreillys.io, even though this app has both an
+# internal and external route - Immich only supports one fixed issuer
+# (unlike SecurityPolicy-wrapped apps, which get a per-route issuer via
+# issuer_mode: per_provider), and auth.internal.oreillys.io has no
+# HTTPRoute on envoy-external at all, so it's simply unreachable for
+# anyone logging in from outside the LAN. auth.oreillys.io works
+# universally instead - confirmed live via NAT hairpin from inside the
+# immich pod (curl to auth.oreillys.io's discovery doc: 200 in ~80ms),
+# so internal/cluster-side calls (discovery, token exchange) work too.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -48,7 +59,7 @@ spec:
                   BASE="http://immich-app:2283/api"
                   CURRENT=$(curl -sf -H "x-api-key: $IMMICH_API_KEY" "$BASE/system-config")
                   UPDATED=$(printf '%s' "$CURRENT" | jq \
-                    --arg issuer "https://auth.internal.oreillys.io/application/o/immich/" \
+                    --arg issuer "https://auth.oreillys.io/application/o/immich/" \
                     --arg clientId "$OIDC_CLIENT_ID" \
                     --arg clientSecret "$OIDC_CLIENT_SECRET" \
                     '.oauth.enabled = true

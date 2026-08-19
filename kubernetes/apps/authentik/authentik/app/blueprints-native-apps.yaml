@@ -275,6 +275,9 @@ data:
               url: https://photos.internal.oreillys.io/auth/login
               redirect_uri_type: authorization
             - matching_mode: strict
+              url: https://photos.oreillys.io/auth/login
+              redirect_uri_type: authorization
+            - matching_mode: strict
               # Immich mobile app's actual redirect target - its own
               # custom URI scheme, requested directly (not the HTTP
               # /api/oauth/mobile-redirect bounce page guessed here
