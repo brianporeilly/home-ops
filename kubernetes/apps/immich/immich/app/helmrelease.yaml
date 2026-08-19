@@ -161,6 +161,17 @@ spec:
           - backendRefs:
               - name: "{{ .Release.Name }}-app"
                 port: 2283
+      external:
+        hostnames:
+          - photos.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 2283
 
     persistence:
       # retain the media volume across helm uninstall/remediation. Without this,
