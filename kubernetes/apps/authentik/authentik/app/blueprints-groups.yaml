@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-groups
+data:
+  # Shared access-tier groups, referenced via PolicyBinding on each
+  # protected app's authentik_core.application entry (blueprints-protected-apps.yaml)
+  # to gate WHO can complete the OIDC login for that app - separate from
+  # the per-app *-admins/*-viewers groups in blueprints-native-apps.yaml,
+  # which gate in-app ROLE after a login every authenticated user can
+  # already complete. Empty membership by default, same convention as
+  # those - add yourself/others via the Authentik UI, not blueprint-managed
+  # (keeps who-has-access out of a public git repo).
+  groups.yaml: |
+    metadata:
+      name: Access tier groups
+    version: 1
+    entries:
+      - model: authentik_core.group
+        identifiers:
+          name: arr-users
+        id: arr-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: infra-users
+        id: infra-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: changedetection-users
+        id: changedetection-users-group
