@@ -275,13 +275,13 @@ data:
               url: https://photos.internal.oreillys.io/auth/login
               redirect_uri_type: authorization
             - matching_mode: strict
-              # Immich mobile app's deep-link bounce, handled server-side
-              # by GET /api/oauth/mobile-redirect - not wired up yet
-              # (system-config's mobileOverrideEnabled left false by
-              # oidc-system-config-cronjob.yaml), included here so it's a
-              # config flip away rather than needing a provider edit too.
-              # Unlike the entry above, not live-verified yet.
-              url: https://photos.internal.oreillys.io/api/oauth/mobile-redirect
+              # Immich mobile app's actual redirect target - its own
+              # custom URI scheme, requested directly (not the HTTP
+              # /api/oauth/mobile-redirect bounce page guessed here
+              # originally, which the app never asked for - confirmed via
+              # Authentik's rejection log from a real Android login
+              # attempt: redirect_uri=app.immich:///oauth-callback).
+              url: app.immich:///oauth-callback
               redirect_uri_type: authorization
           grant_types:
             - authorization_code
