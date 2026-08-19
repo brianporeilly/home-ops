@@ -267,7 +267,12 @@ data:
           client_secret: !Env IMMICH_OAUTH_CLIENT_SECRET
           redirect_uris:
             - matching_mode: strict
-              url: https://photos.internal.oreillys.io/api/oauth/callback
+              # NOT /api/oauth/callback (that's a backend API path, not
+              # what the browser actually gets redirected to) - the web
+              # frontend's real redirect target, confirmed live via
+              # Authentik's own rejection log (cause: redirect_uri_no_match)
+              # after guessing wrong from the OpenAPI spec's path list alone.
+              url: https://photos.internal.oreillys.io/auth/login
               redirect_uri_type: authorization
             - matching_mode: strict
               # Immich mobile app's deep-link bounce, handled server-side
@@ -275,6 +280,7 @@ data:
               # (system-config's mobileOverrideEnabled left false by
               # oidc-system-config-cronjob.yaml), included here so it's a
               # config flip away rather than needing a provider edit too.
+              # Unlike the entry above, not live-verified yet.
               url: https://photos.internal.oreillys.io/api/oauth/mobile-redirect
               redirect_uri_type: authorization
           grant_types:
