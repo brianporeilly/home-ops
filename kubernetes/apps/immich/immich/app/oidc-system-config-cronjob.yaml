@@ -50,7 +50,7 @@ spec:
             runAsGroup: 1000
           containers:
             - name: sync
-              image: docker.io/alpine/k8s:1.34.1@sha256:67c5ed0a719316e9d0e74d3e58d95708dc8e21e3d9c6904f87c4fb01977630c8
+              image: docker.io/alpine/k8s:1.36.2@sha256:1af42341bac2392c9af30f79019aa94dd9d3be018c970383debfb3d6f76acf87
               command:
                 - /bin/sh
                 - -c
