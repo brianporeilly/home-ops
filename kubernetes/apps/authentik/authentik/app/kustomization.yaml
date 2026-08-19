@@ -19,6 +19,8 @@ resources:
   - ./prowlarr-oidc-credentials.yaml
   - ./lidarr-oidc-credentials.yaml
   - ./grafana-oidc-credentials.yaml
+  - ./paperless-ngx-oidc-credentials.yaml
+  - ./linkwarden-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml

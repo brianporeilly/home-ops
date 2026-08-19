@@ -197,6 +197,28 @@ spec:
             secretKeyRef:
               name: grafana-oidc-credentials
               key: client-secret
+        # Consumed by the provider-paperless-ngx.yaml key in blueprints-native-apps.yaml.
+        - name: PAPERLESS_NGX_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: paperless-ngx-oidc-credentials
+              key: client-id
+        - name: PAPERLESS_NGX_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: paperless-ngx-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-linkwarden.yaml key in blueprints-native-apps.yaml.
+        - name: LINKWARDEN_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: linkwarden-oidc-credentials
+              key: client-id
+        - name: LINKWARDEN_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: linkwarden-oidc-credentials
+              key: client-secret
     server:
       replicas: 1
       route:

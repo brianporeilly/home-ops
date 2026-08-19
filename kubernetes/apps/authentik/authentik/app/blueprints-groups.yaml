@@ -30,3 +30,11 @@ data:
         identifiers:
           name: changedetection-users
         id: changedetection-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: docs-users
+        id: docs-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: linkwarden-users
+        id: linkwarden-users-group

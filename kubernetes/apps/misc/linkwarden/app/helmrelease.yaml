@@ -29,6 +29,26 @@ spec:
             env:
               NEXTAUTH_URL: https://linkwarden.internal.oreillys.io/api/v1/auth
               NEXT_PUBLIC_DISABLE_REGISTRATION: "true"
+              # OIDC login via Authentik - password login stays enabled
+              # alongside it. DISABLE_NEW_SSO_USERS intentionally left unset
+              # (defaults to allowing auto-provisioning on first SSO login) -
+              # Authentik's own linkwarden-users PolicyBinding
+              # (blueprints-groups.yaml) already gates who can complete the
+              # OIDC flow, so anyone who reaches this app via SSO is already
+              # authorized.
+              NEXT_PUBLIC_OIDC_ENABLED: "true"
+              OIDC_CUSTOM_NAME: Authentik
+              OIDC_WELLKNOWN_URL: https://auth.internal.oreillys.io/application/o/linkwarden/.well-known/openid-configuration
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: linkwarden-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: linkwarden-oidc-secret
+                    key: client-secret
               DATABASE_URL:
                 valueFrom:
                   secretKeyRef:
