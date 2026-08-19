@@ -51,6 +51,21 @@ spec:
               # /run are always root-owned + world-writable, which fails s6's
               # ownership check under readOnlyRootFilesystem + non-root uid.
               S6_YES_I_WANT_A_WORLD_WRITABLE_RUN_BECAUSE_KUBERNETES: "1"
+              # OIDC login via Authentik - regular password login (createsuperuser
+              # account) stays enabled alongside it, not replaced, matching this
+              # cluster's convention of SSO for day-to-day use + a separate local
+              # admin account for actual administration. Auto-signup is safe here
+              # since Authentik's own docs-users PolicyBinding (blueprints-groups.yaml)
+              # already gates who can complete the OIDC flow at all - anyone who
+              # reaches this app via SSO is already authorized.
+              PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+              PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "true"
+              PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+              PAPERLESS_SOCIALACCOUNT_PROVIDERS:
+                valueFrom:
+                  secretKeyRef:
+                    name: paperless-ngx-oidc-secret
+                    key: socialaccount-providers.json
             envFrom:
               - secretRef:
                   name: "{{ .Release.Name }}-secret"
