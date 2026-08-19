@@ -219,6 +219,17 @@ spec:
             secretKeyRef:
               name: linkwarden-oidc-credentials
               key: client-secret
+        # Consumed by the provider-forgejo.yaml key in blueprints-native-apps.yaml.
+        - name: FORGEJO_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-oidc-credentials
+              key: client-id
+        - name: FORGEJO_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-oidc-credentials
+              key: client-secret
     server:
       replicas: 1
       route:

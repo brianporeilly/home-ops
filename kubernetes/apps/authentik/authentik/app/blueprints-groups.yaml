@@ -38,3 +38,7 @@ data:
         identifiers:
           name: linkwarden-users
         id: linkwarden-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: forgejo-users
+        id: forgejo-users-group
