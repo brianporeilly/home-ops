@@ -18,11 +18,10 @@ kind: CronJob
 metadata:
   name: immich-oidc-system-config-sync
 spec:
-  # Suspended until oidc-admin-api-key-secret.yaml's placeholder is
-  # replaced with a real key (see that file) - otherwise this fails every
-  # run (401) from the moment it merges. Flip to false (or remove) once
-  # the real key is in place and confirmed working.
-  suspend: true
+  # Real key is in place (oidc-admin-api-key-secret.yaml) - live-verified
+  # end-to-end: manual job run succeeded, system-config's oauth section
+  # confirmed correct via the API, and the real /oauth/authorize redirect
+  # chain resolves to Authentik with the right client_id.
   schedule: "23 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
