@@ -112,6 +112,121 @@ spec:
               limits:
                 memory: 1Gi
 
+      # Forgejo has no env-var/config-file mechanism for its OIDC auth
+      # source (unlike every other native-OIDC app in this repo) - only a
+      # CLI (`forgejo admin auth add-oauth`/`update-oauth`) with no
+      # built-in idempotent apply. Runs hourly against the same DB the
+      # main controller uses (same image, same FORGEJO__database__* env),
+      # self-healing on drift (credential rotation, a DB restore that
+      # loses the auth source row, etc.) instead of being a one-time
+      # manual step. list-then-upsert logic and exact CLI flags confirmed
+      # live against this exact chart/image version before being written
+      # here - Forgejo's add-oauth validates the OIDC discovery URL at
+      # creation time, so this only works once
+      # authentik/authentik/app/blueprints-native-apps.yaml's
+      # provider-forgejo.yaml entry already exists.
+      oidc-source-sync:
+        type: cronjob
+        cronjob:
+          schedule: "17 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: codeberg.org/forgejo/forgejo
+              tag: 16.0.2-rootless@sha256:23ccc146e6dc2cd1f5c5435909baae64db873201717f1726490dae649283e6cd
+            # forgejo's FORGEJO__section__KEY env-var config only gets turned
+            # into an app.ini by /usr/local/bin/docker-setup.sh, which runs as
+            # part of the image's own ENTRYPOINT (confirmed by reading it
+            # live) - overriding `command` bypasses that entirely, and
+            # GITEA_APP_INI's default location lives on the same PVC the main
+            # controller already holds RWO (Multi-Attach conflict - confirmed
+            # live). admin auth only needs DB connectivity, not the full
+            # server config, so this writes its own minimal app.ini to /tmp
+            # instead (INSTALL_LOCK = true is required - MustInstalled()
+            # rejects a config without it even with valid DB settings,
+            # confirmed live).
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -eu
+                cat > /tmp/app.ini <<CFG
+                [database]
+                DB_TYPE = $DB_TYPE
+                HOST    = $DB_HOST
+                NAME    = $DB_NAME
+                USER    = $DB_USER
+                PASSWD  = $DB_PASSWD
+
+                [security]
+                INSTALL_LOCK = true
+                CFG
+                LIST=$(forgejo admin auth list --config /tmp/app.ini --vertical-bars)
+                ID=$(printf '%s\n' "$LIST" | awk -F'|' '$2 ~ /authentik/ {gsub(/[ \t]/,"",$1); print $1}')
+                # Plain $ID here, deliberately not brace-wrapped with a bash
+                # default-value suffix - this Kustomization's postBuild.substitute
+                # (ks.yaml) string-replaces ANY dollar-brace pattern across the
+                # whole rendered manifest, comments included, and either mangles
+                # it (undefined var -> empty string) or hard-fails the build
+                # (invalid variable name) - confirmed both failure modes live via
+                # `flux build`. Brace-wrapped bash parameter expansion is unsafe
+                # anywhere inside a postBuild.substitute-enabled Kustomization.
+                if [ -n "$ID" ]; then
+                  echo "Updating existing auth source id=$ID"
+                  forgejo admin auth update-oauth --config /tmp/app.ini --id="$ID" --name=authentik --provider=openidConnect \
+                    --key="$OIDC_CLIENT_ID" --secret="$OIDC_CLIENT_SECRET" \
+                    --auto-discover-url="https://auth.internal.oreillys.io/application/o/forgejo/.well-known/openid-configuration" \
+                    --scopes="openid email profile groups"
+                else
+                  echo "Creating new auth source"
+                  forgejo admin auth add-oauth --config /tmp/app.ini --name=authentik --provider=openidConnect \
+                    --key="$OIDC_CLIENT_ID" --secret="$OIDC_CLIENT_SECRET" \
+                    --auto-discover-url="https://auth.internal.oreillys.io/application/o/forgejo/.well-known/openid-configuration" \
+                    --scopes="openid email profile groups"
+                fi
+            env:
+              DB_TYPE: postgres
+              DB_HOST: forgejo-postgres-rw:5432
+              DB_NAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: dbname
+              DB_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: username
+              DB_PASSWD:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: password
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -170,8 +285,14 @@ spec:
           apiGroup: kopiur.home-operations.com
           kind: Restore
           name: forgejo
-        globalMounts:
-          - path: /var/lib/gitea
+        # advancedMounts, not globalMounts - the oidc-source-sync CronJob
+        # controller below doesn't touch this PVC at all, and globalMounts
+        # would've mounted it there too, causing a Multi-Attach conflict
+        # with the main forgejo pod (both RWO) - confirmed live.
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /var/lib/gitea
       # Dynamically-provisioned NFS PVC (nfs-csi-driver) - repo/LFS data lives
       # here so Kubernetes owns its lifecycle instead of a hand-managed static
       # export; space is capped via a quota on the NAS-side parent dataset, not
@@ -182,9 +303,22 @@ spec:
         storageClass: "nfs-slow"
         accessMode: ReadWriteOnce
         size: "50Gi"
-        globalMounts:
-          - path: /data/git
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /data/git
       tmp:
         type: emptyDir
-        globalMounts:
-          - path: /tmp
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /tmp
+          # oidc-source-sync also needs a writable /tmp under
+          # readOnlyRootFilesystem - confirmed live: with none at all it
+          # exits immediately with no log output at all (forgejo's CLI
+          # needs somewhere to write). Safe to share this same emptyDir
+          # entry across controllers - unlike the RWO PVCs above, emptyDir
+          # is pod-local, no Multi-Attach concern.
+          oidc-source-sync:
+            app:
+              - path: /tmp
