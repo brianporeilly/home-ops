@@ -214,8 +214,8 @@ The read-write service is always `<cluster-name>-rw` (e.g., `immich-postgres-rw`
 
 - **Gateway API controller**: Envoy Gateway
 - **Gateways** (in `network` namespace):
-  - `envoy-external`: `*.external.oreillys.io`, IP `10.20.250.2`
-  - `envoy-internal`: `*.internal.oreillys.io`, same IP
+  - `envoy-external`: `*.external.oreillys.io`, IP `10.21.0.1`
+  - `envoy-internal`: `*.internal.oreillys.io`, IP `10.21.0.2`
 - **TLS**: Wildcard cert `*.oreillys.io` via cert-manager + Let's Encrypt DNS-01 (Cloudflare)
 - **Routes**: Apps create `HTTPRoute` resources via `route` block in app-template values
   - Internal: `parentRefs: [{ name: envoy-internal, namespace: network, sectionName: https }]`
