@@ -23,6 +23,13 @@
       matchUpdateTypes: ["patch", "pin", "digest"],
       matchManagers: ["flux", "helm-values", "regex", "kubernetes"],
       automerge: true,
+      // Branch protection on main requires a PR - branch-mode automerge (the
+      // upstream preset's default) tries a direct push, which that rule
+      // blocks outright. "pr" opens a real PR instead, so `pull_request`
+      // triggers CI normally and GitHub's native PR automerge (confirmed
+      // already enabling itself on manually-opened PRs) does the merge once
+      // required checks pass.
+      automergeType: "pr",
     },
   ],
 }
