@@ -73,6 +73,7 @@ spec:
               repository: docker.io/dgtlmoon/sockpuppetbrowser
               tag: 0.0.3@sha256:23a7be698216407648b6c78fc55de0411bde550635edc30347373c86a5176fad
             env:
+              CHROME_HEADFUL: "true"
               SCREEN_WIDTH: "1920"
               SCREEN_HEIGHT: "1024"
               SCREEN_DEPTH: "16"
