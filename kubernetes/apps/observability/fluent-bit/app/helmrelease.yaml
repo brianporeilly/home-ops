@@ -132,6 +132,11 @@ spec:
           structured_metadata container=$k_container_name, pod=$k_pod_name, host=$k_host
           compress gzip
           storage.total_limit_size 2G
+          # Default retry_limit (1) gives up after one retry ~5-10s later -
+          # too short for Loki's internal ingester blips (observed up to
+          # ~4m). 6 retries with the default exponential backoff covers a
+          # ~5m worst-case window before a chunk is dropped.
+          retry_limit 6
 
         [OUTPUT]
           name loki
@@ -143,6 +148,7 @@ spec:
           labels job=syslog, device=opnsense
           compress gzip
           storage.total_limit_size 512M
+          retry_limit 6
 
         [OUTPUT]
           name loki
@@ -154,6 +160,7 @@ spec:
           labels job=syslog, device=mikrotik
           compress gzip
           storage.total_limit_size 512M
+          retry_limit 6
     dashboards:
       enabled: true
     serviceMonitor:
