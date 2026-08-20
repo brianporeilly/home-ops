@@ -77,7 +77,7 @@ spec:
               - --n-gpu-layers
               - "-1"
               - --ctx-size
-              - "4096"
+              - "32000"
               # Prometheus-format /metrics - token throughput, KV/context
               # usage, requests processing/deferred. Off by default. Scraped
               # by the ServiceMonitor alongside this HelmRelease.
