@@ -30,7 +30,12 @@ spec:
       analytics:
         reporting_enabled: false
       commonConfig:
-        replication_factor: 1
+        # HA test: 3 ingesters, quorum write needs 2/3 - one ingester having
+        # a brief internal blip (the gRPC "client connection is closing"
+        # stalls we saw with RF=1) no longer fails the push. Ceph/RGW
+        # already covers chunk durability - this is purely about not
+        # dropping writes during a single ingester's transient hiccup.
+        replication_factor: 3
       compactor:
         working_directory: /var/loki/compactor/retention
         # Must match the object store (s3): with the filesystem object store gone,
@@ -131,7 +136,7 @@ spec:
                     read-back in the last 15m — Loki's ingest→object-store→query
                     path is dropping data.
     singleBinary:
-      replicas: 1
+      replicas: 3
       # -config.expand-env lets the S3 storage config above read the RGW
       # credentials from the loki-bucket OBC Secret as ${AWS_*} env vars.
       extraArgs:
@@ -177,9 +182,9 @@ spec:
       # loki_canary_* (latency + missing/spot-check entries) — the only true
       # write→flush→S3→read signal, valuable now chunks live in RGW.
       enabled: true
-      # Single Deployment, not the default per-node DaemonSet: SingleBinary with
-      # replication_factor 1 is one ingest path, so per-node canaries add pods +
-      # streams for no extra coverage.
+      # Single Deployment, not the default per-node DaemonSet: canary writes
+      # go through the same distributor regardless of ingester count, so
+      # per-node canaries would add pods + streams for no extra coverage.
       kind: Deployment
       push: true
       # The default target is loki-gateway, which we run at 0 replicas (no
