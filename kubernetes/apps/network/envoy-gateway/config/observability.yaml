@@ -83,14 +83,15 @@ spec:
               sum(rate(envoy_http_downstream_rq_xx{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*", envoy_response_code_class="4"}[15m]))
               /
               sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[15m]))
-            ) > 0.25
+            ) > 0.5
             and
             sum(rate(envoy_http_downstream_rq_total{pod=~"envoy-external-.*", envoy_http_conn_manager_prefix=~"http-.*|https-.*"}[15m])) > 0.1
-          for: 15m
+          for: 30m
           annotations:
             summary: >-
-              Over 25% of envoy-external's requests have been 4xx for 15m -
-              classic signature of scanning/probing (looking for /admin,
-              /.env, etc) rather than normal traffic.
+              Over 50% of envoy-external's requests have been 4xx for 30m -
+              longer/heavier than a routine scan CrowdSec would already have
+              banned, so likely a sustained probe it isn't catching or an
+              actual misconfiguration.
           labels:
             severity: warning
