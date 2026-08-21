@@ -18,7 +18,7 @@ gaps are worth closing before it does rather than after.
 - **§2.1 Authentik brute-force protection** — confirmed live (via `ak shell` against
   `default-authentication-flow`) that neither of its two default policy bindings do any
   throttling, and zero `ReputationPolicy` objects existed anywhere in the system. Added a
-  `ReputationPolicy` (threshold `-5`, checks both IP and username) gating a new `DenyStage` bound
+  `ReputationPolicy` (threshold `-3`, checks both IP and username) gating a new `DenyStage` bound
   between the identification and password stages
   (`kubernetes/apps/authentik/authentik/app/blueprints-brute-force.yaml`, branch
   `authentik-brute-force-protection`).
@@ -61,10 +61,12 @@ depends on, and it becomes a higher-value target once more apps sit behind it ex
 
 Confirmed live there was no throttling/lockout at all (see "Done so far" above) and fixed it with
 a `ReputationPolicy` + `DenyStage` in `blueprints-brute-force.yaml`, branch
-`authentik-brute-force-protection`. Threshold `-5` (roughly 5 failed attempts), checking both IP
-and username. Worth a real test once merged — log in with a wrong password 5+ times and confirm
-the deny message actually shows up, since this is the kind of thing that's easy to get subtly
-wrong (wrong stage order, policy not re-evaluating) and not notice until it matters.
+`authentik-brute-force-protection`. **Live-tested post-merge**: 12 failed logins against a `test`
+account only brought the reputation score to `-5`, not `-12` — the decrement isn't a flat
+`-1`/failure — so the threshold was retuned from `-5` to `-3` (branch
+`authentik-brute-force-threshold`) to land closer to the originally-intended "~3-5 attempts"
+range. Confirmed via `Reputation`/`Event` table queries (`ak shell`), not just visually — the
+`DenyStage` fired exactly once the score crossed the threshold, no earlier/later.
 
 ### 2.2 Network segmentation — the biggest structural gap
 
@@ -131,8 +133,8 @@ default-yes. Status as of 2026-08-20:
 
 ## 4. Suggested sequencing
 
-1. ~~**Authentik login-flow hardening** (§2.1)~~ — done, branch `authentik-brute-force-protection`.
-   Verify it actually works post-merge (see §2.1).
+1. ~~**Authentik login-flow hardening** (§2.1)~~ — done and live-tested, branches
+   `authentik-brute-force-protection` + `authentik-brute-force-threshold` (see §2.1).
 2. **Network segmentation, phased** (§2.2) — start observing flow data now on the namespaces about
    to gain external exposure, so policy work isn't blocking the app rollout below.
 3. **Finish copy-party** (in progress) and expose it, since the ACL redesign is already done.
@@ -150,6 +152,6 @@ default-yes. Status as of 2026-08-20:
 - Grimmory's auth model — native accounts? anything at all?
 - Whether the global 100 req/s external rate limit needs raising once more apps share it, or
   per-app policies make that moot.
-- Once `authentik-brute-force-protection` is merged: confirm the deny stage actually fires after
-  ~5 failed logins, and doesn't accidentally fire on legitimate use (shared household IP, someone
-  fat-fingering their password a few times).
+- Watch for the deny stage accidentally firing on legitimate use (shared household IP, someone
+  fat-fingering their password a few times) now that it's confirmed working — the `-3` threshold
+  is tighter than the original `-5`, worth revisiting if it turns out too trigger-happy in practice.
