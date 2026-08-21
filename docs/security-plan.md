@@ -30,6 +30,27 @@ gaps are worth closing before it does rather than after.
   externally-exposed apps' SSO logins depend on those
   (`kubernetes/apps/authentik/authentik/app/httproute-external.yaml` +
   `backendtrafficpolicy-admin-block.yaml`, branch `authentik-block-external-admin`).
+- **§2.1 SSO-except-break-glass made real** — `brian@oreillys.io` and
+  `brianporeilly@gmail.com` had their local passwords disabled live
+  (`set_unusable_password()`), leaving `akadmin` as the only account that can ever reach
+  `default-authentication-flow`'s password/MFA path. Paired with `not_configured_action:
+  configure` on the MFA stage (forces inline enrollment instead of silently skipping) and a new
+  `DenyStage` gating `default-source-enrollment` (no untrusted Google/GitHub account could
+  self-enroll before this — confirmed live, zero access gate existed) — branch
+  `authentik-sso-hardening-round2`, merged.
+- **§2.1 Password policy bound and tightened** — `default-password-change-password-policy`
+  shipped with authentik but was bound to nothing (confirmed live). Now bound via
+  `PromptStageValidationPolicy` to the password-change flow, length 14+/mixed-case/digit/symbol,
+  plus `check_zxcvbn` (pattern-strength, not just character classes) and
+  `check_have_i_been_pwned`. Only ever gates a future `akadmin` password change now that the two
+  personal accounts are SSO-only (`kubernetes/apps/authentik/authentik/app/blueprints-password-policy.yaml`).
+- **§2.1 Email wired to Maddy** — authentik had no SMTP configured at all (confirmed live -
+  default `email.host: localhost`), so the four shipped `NotificationRule`s already pointed at
+  `default-email-transport` (config-error/warning, update-available, exception) were silently
+  going nowhere. Same no-auth in-cluster relay pattern as forgejo
+  (`maddy.misc.svc.cluster.local:25`). **Not yet done**: those rules also have no
+  `destination_group` set (confirmed live), so they still won't reach anyone until one's created
+  and assigned.
 
 ---
 
@@ -80,19 +101,12 @@ Also found and fixed: the admin UI (`/if/admin/`) was reachable externally with 
 (see "Done so far" above) — blocked via a `BackendTrafficPolicy` fault-injection, scoped narrowly
 enough not to touch the OIDC/login surface other apps depend on.
 
-**Open, not yet decided:** `default-authentication-flow`'s MFA stage (and this brute-force
-protection) only applies to the direct username+password login path — anyone using an SSO source
-button (Google/GitHub) is routed through a completely separate flow
-(`default-source-authentication`) that never touches it. The intent has been "SSO for everyone
-except the break-glass `akadmin` account," but that isn't actually enforced at the credential
-level today: both `brian@oreillys.io` and `brianporeilly@gmail.com` still have a **usable local
-password** alongside their SSO link (`has_usable_password() == True`, confirmed live), so the
-password/MFA-less path is reachable for them too, not just `akadmin`. To make "SSO except
-break-glass" real rather than just the default habit, those two accounts' local passwords need to
-be disabled (`set_unusable_password()`), leaving `akadmin` as the only account that can ever reach
-that flow — at which point requiring MFA on that flow specifically becomes meaningful (right now
-zero MFA devices are enrolled anywhere in the system, including `akadmin`). Not done — this
-changes account access and needs a deliberate go-ahead, not a default-yes.
+**Resolved**: SSO-except-break-glass is now enforced at the credential level (see "Done so far"
+above), not just the default habit — `akadmin` is the only account that can reach the
+password/MFA path, that path now forces MFA enrollment instead of skipping it, enrollment itself
+is gated to trusted emails/domains, and the password policy for that one remaining path is bound
+and tightened. **Still open**: `akadmin` itself has zero MFA devices enrolled — the `configure`
+action will force this on next password login, but hasn't happened yet (owner task, in progress).
 
 ### 2.2 Network segmentation — the biggest structural gap
 

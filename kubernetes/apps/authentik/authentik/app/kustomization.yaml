@@ -13,6 +13,7 @@ resources:
   - ./blueprints-brute-force.yaml
   - ./blueprints-mfa-required.yaml
   - ./blueprints-sso-enrollment-allowlist.yaml
+  - ./blueprints-password-policy.yaml
   - ./blueprint-reapply-rbac.yaml
   - ./blueprint-reapply-cronjob.yaml
   - ./oidc-generators.yaml
