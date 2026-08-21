@@ -140,11 +140,23 @@ spec:
       # keyRotationPolicy stays KeyGeneration too - harmless with keyType
       # unset, and it's what makes a future rotation just a keyGeneration
       # bump + re-adding keyType instead of restoring this whole block.
+      # Phase 2 of docs/ceph-cephx-key-rotation-plan.md - rbd-mirror-peer key.
+      # RBD mirroring isn't configured in this cluster (no CephRBDMirror
+      # resource, both blockpools have mirroring.enabled unset) - Rook just
+      # creates this identity by default regardless, so this is essentially
+      # zero-risk: nothing actually uses the key being rotated. keyGeneration
+      # baseline confirmed live before writing this (status.cephx.rbdMirrorPeer
+      # was generation 1) - 2 is what actually triggers it, per the Phase 1
+      # keyGeneration: 1-was-a-no-op lesson above.
       security:
         cephx:
           daemon:
             keyRotationPolicy: KeyGeneration
             keyGeneration: 2
+          rbdMirrorPeer:
+            keyRotationPolicy: KeyGeneration
+            keyGeneration: 2
+            keyType: aes256k
       mgr:
         modules:
           - name: diskprediction_local
