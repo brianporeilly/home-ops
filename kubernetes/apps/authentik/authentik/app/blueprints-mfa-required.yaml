@@ -10,6 +10,19 @@ data:
   # with zero MFA devices enrolled anywhere. This flips it to "configure"
   # (force inline enrollment instead of silently skipping).
   #
+  # not_configured_action: configure requires configuration_stages to be
+  # set too (M2M to Stage, not Flow, despite the shipped setup objects
+  # being named/designated as flows) - omitting it fails blueprint
+  # validation outright ("you must set a configuration stage"). Confirmed
+  # live this silently broke every 15-minute reapply cycle since this file
+  # was first merged - the whole blueprint file applies in one DB
+  # transaction, so the failing entry rolled back, and
+  # not_configured_action was never actually "configure" in the live DB
+  # despite this file existing in git. Points at the TOTP and WebAuthn
+  # setup stages specifically (not the static/recovery-codes one - that's
+  # a backup method, not a primary second factor, forcing *only* that
+  # would just hand out backup codes with nothing to back up).
+  #
   # Only affects the direct username+password login path -
   # default-authentication-flow. Confirmed live that SSO logins never touch
   # this stage at all: a source's authentication_flow for returning users is
@@ -29,3 +42,6 @@ data:
           name: default-authentication-mfa-validation
         attrs:
           not_configured_action: configure
+          configuration_stages:
+            - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]
+            - !Find [authentik_stages_authenticator_webauthn.authenticatorwebauthnstage, [name, default-authenticator-webauthn-setup]]

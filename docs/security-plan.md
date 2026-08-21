@@ -37,20 +37,37 @@ gaps are worth closing before it does rather than after.
   configure` on the MFA stage (forces inline enrollment instead of silently skipping) and a new
   `DenyStage` gating `default-source-enrollment` (no untrusted Google/GitHub account could
   self-enroll before this — confirmed live, zero access gate existed) — branch
-  `authentik-sso-hardening-round2`, merged.
-- **§2.1 Password policy bound and tightened** — `default-password-change-password-policy`
-  shipped with authentik but was bound to nothing (confirmed live). Now bound via
-  `PromptStageValidationPolicy` to the password-change flow, length 14+/mixed-case/digit/symbol,
-  plus `check_zxcvbn` (pattern-strength, not just character classes) and
-  `check_have_i_been_pwned`. Only ever gates a future `akadmin` password change now that the two
-  personal accounts are SSO-only (`kubernetes/apps/authentik/authentik/app/blueprints-password-policy.yaml`).
+  `authentik-sso-hardening-round2`, merged. **Correction (2026-08-21)**: `not_configured_action:
+  configure` also requires `configuration_stages` to be set (M2M to `Stage`, not `Flow`) — omitting
+  it failed blueprint validation outright, and since a blueprint file applies as one DB
+  transaction, this was silently rolling back on every 15-minute reapply cycle since merge.
+  `not_configured_action` was never actually `configure` in the live DB despite the file existing
+  in git. Found via `KubeJobFailed` alerts on `authentik-blueprint-reapply`, fixed in
+  `fix-authentik-blueprint-validation-errors`.
+- **§2.1 Password policy tightened** — `default-password-change-password-policy` ships with
+  authentik already bound to the password-change `PromptStage` (`validation_policies` M2M,
+  length_min=8/no complexity by default) — **correction to an earlier claim here**: it was never
+  actually unbound, that conclusion checked `authentik_policies.PolicyBinding`, a different
+  mechanism entirely from `PromptStage.validation_policies`; the real gap was just that the
+  shipped default is weak, not that nothing was enforced. Tightened to length 14+/mixed-case/
+  digit/symbol plus `check_zxcvbn` (pattern-strength) and `check_have_i_been_pwned`. The original
+  version of this fix also tried to (re-)create the binding via a
+  `authentik_stages_prompt.promptstagevalidationpolicy` blueprint entry — not on authentik's
+  blueprint model allowlist at all (confirmed live, "Model ... not allowed"), which was silently
+  rolling back this file's otherwise-valid `PasswordPolicy` attrs update too, for the same
+  one-transaction-per-file reason as the MFA fix above. Fixed by dropping that entry — the binding
+  already exists, only the policy's own attrs need managing
+  (`kubernetes/apps/authentik/authentik/app/blueprints-password-policy.yaml`).
 - **§2.1 Email wired to Maddy** — authentik had no SMTP configured at all (confirmed live -
   default `email.host: localhost`), so the four shipped `NotificationRule`s already pointed at
   `default-email-transport` (config-error/warning, update-available, exception) were silently
   going nowhere. Same no-auth in-cluster relay pattern as forgejo
-  (`maddy.misc.svc.cluster.local:25`). **Not yet done**: those rules also have no
-  `destination_group` set (confirmed live), so they still won't reach anyone until one's created
-  and assigned.
+  (`maddy.misc.svc.cluster.local:25`), routed to a new empty `authentik-notifications` group
+  (add yourself via the UI).
+- **Both blueprint bugs above were found by chasing a real `KubeJobFailed` alert in Alertmanager**,
+  not proactively — worth remembering that a merged blueprint file isn't actually verified until
+  its next real reapply cycle succeeds, not just until `ak apply_blueprint` is tested once by hand
+  against a single file in isolation.
 
 ---
 
