@@ -56,6 +56,38 @@ spec:
               limits:
                 memory: 4Gi
 
+      exporter:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/rebelcore/jellyfin-exporter
+              tag: v1.5.2@sha256:8759fdd5826c92c3827229d547f4d80e1b3991de6889047b63ce55d4593df440
+            args:
+              - --jellyfin.address=http://jellyfin.media.svc.cluster.local:8096
+              # media/playing/system/users collectors are enabled by default -
+              # these four default off, but the dashboard queries all of them.
+              - --collector.activity
+              - --collector.storage
+              - --collector.tasks
+              - --collector.transcoding
+            env:
+              JELLYFIN_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-exporter-secret
+                    key: JELLYFIN_TOKEN
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 128Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -68,9 +100,22 @@ spec:
       app:
         primary: true
         controller: jellyfin
+        # Pins the Service name to "jellyfin" - without this, adding the
+        # exporter Service below makes the chart suffix *both* Services with
+        # their identifier (jellyfin-app / jellyfin-exporter), and something
+        # outside this chart already hardcodes the bare name (arr-notifications'
+        # bootstrap.sh webhook host).
+        forceRename: jellyfin
         ports:
           http:
             port: *port
+      exporter:
+        controller: exporter
+        # Deliberately not referenced by route.app or any HTTPRoute -
+        # metrics stay cluster-internal, scraped only by the ServiceMonitor.
+        ports:
+          http:
+            port: 9594
 
     route:
       app:
@@ -80,6 +125,12 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        # Explicit now that there are two Services - the chart can no longer
+        # auto-detect which one this route should point to.
+        rules:
+          - backendRefs:
+              - name: jellyfin
+                port: *port
 
     persistence:
       config:

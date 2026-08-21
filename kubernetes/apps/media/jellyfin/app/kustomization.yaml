@@ -5,3 +5,6 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./exporter-secret.yaml
+  - ./servicemonitor.yaml
+  - ./dashboard.yaml
