@@ -22,3 +22,25 @@ spec:
     abort:
       httpStatus: 404
       percentage: 100
+  # Styled instead of Envoy's blank "fault filter abort" - same static
+  # response.body.valueRef pattern as network/envoy-gateway/config/envoy.yaml,
+  # duplicated rather than shared: that ConfigMap lives in the network
+  # namespace, and response.body.valueRef has no namespace field (always
+  # same-namespace as the policy, confirmed via the CRD schema) - a local
+  # copy of just the 404 page (error-page-404.html, generated the same way,
+  # see error-pages/app/kustomization.yaml's comment) is simpler than
+  # fighting cross-namespace refs for one file that rarely changes.
+  responseOverride:
+    - match:
+        statusCodes:
+          - type: Value
+            value: 404
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 404
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: authentik-error-page-404
