@@ -80,6 +80,13 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      external:
+        hostnames:
+          - media.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
 
     persistence:
       config:
