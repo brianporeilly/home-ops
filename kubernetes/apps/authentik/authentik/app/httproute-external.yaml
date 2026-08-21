@@ -20,6 +20,21 @@ spec:
       namespace: network
       sectionName: https
   rules:
+    # Named so the BackendTrafficPolicy below (authentik-admin-external-block.yaml)
+    # can target just this rule via sectionName - the admin UI has zero
+    # legitimate external use case (it's for actually administering the
+    # instance, not the OIDC/login surface apps depend on), unlike the
+    # catch-all rule below which every externally-exposed app's SSO login
+    # needs. Gateway API resolves the more specific PathPrefix first
+    # regardless of rule order, so this doesn't need to precede the / rule.
+    - name: admin-blocked
+      matches:
+        - path:
+            type: PathPrefix
+            value: /if/admin
+      backendRefs:
+        - name: authentik-server
+          port: 80
     - backendRefs:
         - name: authentik-server
           port: 80
