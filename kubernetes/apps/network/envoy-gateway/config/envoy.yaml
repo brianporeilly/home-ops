@@ -152,6 +152,19 @@ spec:
         certificateRefs:
           - kind: Secret
             name: oreillys.io-tls
+    # Raw TCP, no SNI/Host header to route on - TCPRoute only matches by
+    # listener (port), not hostname. Fine here since there's only one raw-TCP
+    # backend (forgejo SSH clone); a second one would need its own port. The
+    # TCPRoute itself lives with forgejo (misc/tcproute.yaml), not here - this
+    # Kustomization has targetNamespace: network, which would silently force
+    # a TCPRoute defined here into namespace network and break its
+    # same-namespace backendRef to the forgejo-ssh Service in misc.
+    - name: ssh
+      protocol: TCP
+      port: 22
+      allowedRoutes:
+        namespaces:
+          from: All
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1

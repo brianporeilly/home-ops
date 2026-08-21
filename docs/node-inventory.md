@@ -49,7 +49,6 @@ rationale).
 | 10.21.0.10 | minecraft — **reserved, not currently deployed** (`kube-vip.io/loadbalancerIPs` pin, app disabled in `home/kustomization.yaml`) | home |
 | 10.21.0.11 | frigate | home |
 | 10.21.0.12 | slskd-soulseek | download |
-| 10.21.0.13 | forgejo-ssh | misc |
 
 ## Nodes — identity / compute / network
 
