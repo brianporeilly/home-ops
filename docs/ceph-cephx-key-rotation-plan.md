@@ -9,8 +9,9 @@ just non-zero) rotated mon/osd/mgr/mds/rgw/admin/crash/ceph-exporter to `aes256k
 long as that field is non-empty, regardless of rotation state). `keyGeneration`/`keyRotationPolicy`
 stay set — the CRD forbids removing `keyGeneration` once introduced, and leaving
 `keyRotationPolicy: KeyGeneration` means a future rotation is just a `keyGeneration` bump +
-re-adding `keyType`, not restoring the whole block. Phases 2-4 (rbd-mirror-peer, CSI,
-`allowedCiphers` lockdown) are separate, later PRs — CSI stays blocked on node kernel 7.0+.
+re-adding `keyType`, not restoring the whole block. **Phase 2 (`rbdMirrorPeer`) up as a PR** —
+unused entity (no RBD mirroring configured in this cluster), zero risk. Phases 3-4 (CSI,
+`allowedCiphers` lockdown) are still separate, later work — CSI stays blocked on node kernel 7.0+.
 Written 2026-08-21, same investigation that found and fixed
 the [grimmory MariaDB backup break](../kubernetes/apps/media/grimmory/app/backup.yaml) — both
 trace back to the same event: the unpinned `rook-ceph-cluster` chart bump (`v1.20.3→v1.20.5`,
@@ -119,8 +120,7 @@ This means the plan has a **hard split**:
    `CephCluster` resource per-entity as it rolls out, and confirm `ceph health detail` drops the
    14 daemon-side entities from `AUTH_INSECURE_SERVICE_KEY_TYPE`/`AUTH_INSECURE_CLIENT_KEY_TYPE`.
    Rollback is one line: set `keyType: aes` and bump `keyGeneration` again — Rook rotates back.
-2. **`rbdMirrorPeer` rotation.** Same shape, unused entity, effectively zero risk. Can be bundled
-   into the same PR as (1) or done separately — doesn't matter, nothing depends on it.
+2. ✅ **`rbdMirrorPeer` rotation.** Same shape, unused entity, effectively zero risk.
 3. **(Blocked) CSI rotation.** Revisit once node kernels are 7.0+. When ready: set
    `csi.keyType: aes256k`, `keyRotationPolicy: KeyGeneration`, bump `keyGeneration`,
    `keepPriorKeyCountMax: 1` first — verify existing PVC mounts survive — then drop to `0` once
