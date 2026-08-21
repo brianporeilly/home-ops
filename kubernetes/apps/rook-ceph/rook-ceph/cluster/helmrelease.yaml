@@ -114,6 +114,18 @@ spec:
         managePodBudgets: true
         osdMaintenanceTimeout: 30      # minutes to hold noout on a draining failure domain
         pgHealthCheckTimeout: 0        # 0 = wait until PGs are healthy before unblocking next drain
+      # Phase 1 of docs/ceph-cephx-key-rotation-plan.md (CVE-2025-30156) -
+      # rotates mon/osd/mgr/mds/rgw/admin keys from the old aes type to the
+      # new aes256k one. Rook docs: daemon rotation doesn't affect client
+      # connections (old key stays valid until the new one is used). CSI
+      # rotation is a separate, later phase - blocked on node kernel 7.0+
+      # (nodes are currently 6.12.102-flatcar), not attempted here.
+      security:
+        cephx:
+          daemon:
+            keyRotationPolicy: KeyGeneration
+            keyGeneration: 1
+            keyType: aes256k
       mgr:
         modules:
           - name: diskprediction_local

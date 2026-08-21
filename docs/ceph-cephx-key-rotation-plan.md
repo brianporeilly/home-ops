@@ -1,6 +1,9 @@
 # Ceph CephX Key Type Migration Plan (aes → aes256k)
 
-Status: **Not started — plan only.** Written 2026-08-21, same investigation that found and fixed
+Status: **Phase 1 (daemon rotation) implemented, PR #634** — `cluster/helmrelease.yaml`'s
+`cephClusterSpec.security.cephx.daemon` now rotates mon/osd/mgr/mds/rgw/admin keys to `aes256k`.
+Phases 2-4 (rbd-mirror-peer, CSI, `allowedCiphers` lockdown) are separate, later PRs — CSI stays
+blocked on node kernel 7.0+. Written 2026-08-21, same investigation that found and fixed
 the [grimmory MariaDB backup break](../kubernetes/apps/media/grimmory/app/backup.yaml) — both
 trace back to the same event: the unpinned `rook-ceph-cluster` chart bump (`v1.20.3→v1.20.5`,
 PRs #579/#580, merged 2026-08-20) silently carried the cluster's Ceph image from `v20.2.2` to
@@ -102,7 +105,7 @@ This means the plan has a **hard split**:
 
 ## Proposed order
 
-1. **Pilot: `daemon` rotation.** Add the `security.cephx.daemon` block above
+1. ✅ **Pilot: `daemon` rotation** (PR #634). Add the `security.cephx.daemon` block above
    (`keyRotationPolicy: KeyGeneration`, `keyGeneration: 1`, `keyType: aes256k`) to
    `cluster/helmrelease.yaml`, PR it, merge, let Flux reconcile. Watch `status.cephx` on the
    `CephCluster` resource per-entity as it rolls out, and confirm `ceph health detail` drops the
