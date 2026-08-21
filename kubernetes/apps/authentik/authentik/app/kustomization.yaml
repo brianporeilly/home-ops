@@ -37,3 +37,12 @@ resources:
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
+# Local copy of network/error-pages' 404 page - see
+# backendtrafficpolicy-admin-block.yaml's comment for why this can't just
+# reference that namespace's ConfigMap directly.
+configMapGenerator:
+  - name: authentik-error-page-404
+    files:
+      - response.body=./error-page-404.html
+generatorOptions:
+  disableNameSuffixHash: true

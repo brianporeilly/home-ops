@@ -182,124 +182,148 @@ spec:
     http:
       requestTimeout: 10m
   # Styled error pages (tarampampam/error-pages, kubernetes/apps/network/error-pages)
-  # instead of Envoy's blank-body error responses. `redirect` is an internal
-  # fetch Envoy performs itself against error-pages' own HTTPRoute - not a
-  # 3xx sent to the client, the client still sees the original status code
-  # (SEND_SAME_HTTP_CODE on that app makes error-pages report it correctly
-  # when hit as a direct backend like this, not body-swapped by a proxy).
+  # instead of Envoy's blank-body error responses. Static content
+  # (response.body.valueRef -> a ConfigMap per code, see
+  # error-pages/app/kustomization.yaml's configMapGenerator), not a live
+  # fetch - confirmed live that Envoy Gateway's dynamic `redirect` action
+  # is hard-locked to statusCode 301/302 by its own CRD validation, so a
+  # live fetch would report the wrong status to the client (302 instead of
+  # the real 404/500/etc) despite correctly swapping in the real body.
+  # Raw Envoy's underlying custom_response filter doesn't have this
+  # restriction (status_code 200-999, confirmed via its protobuf), but
+  # getting at that directly means an EnvoyPatchPolicy patching Envoy
+  # Gateway's generated config rather than a stable CRD field - not worth
+  # the fragility for a cosmetic feature. Trade dynamic content-negotiation
+  # for a correct, boring, fully-supported status code instead.
   #
-  # One block per status code, deliberately - confirmed via error-pages'
-  # own Envoy Gateway guide (docs/guides/k8s_ingress_envoy.md in
-  # tarampampam/error-pages): Envoy Gateway has no dynamic status-code
-  # placeholder in replaceFullPath, so a range like 400-499 would silently
-  # map every distinct code to the same page and still report the
-  # original (correct) status - misleading content, not just a display bug.
-  # Add more blocks here for any other code worth a styled page.
+  # One block per status code, deliberately - Envoy Gateway has no dynamic
+  # status-code placeholder, so a range like 400-499 would map every
+  # distinct code to the same page while still reporting the real
+  # (different) status - misleading content, not just a display bug. Add
+  # more blocks + a matching ConfigMap for any other code worth a page.
   #
-  # No format/Accept-header wrangling needed - Envoy's internal fetch
-  # forwards the original request's headers, so error-pages' own content
-  # negotiation (Accept/X-Format/path-extension) picks HTML vs JSON vs XML
-  # exactly like it would for a direct external request.
+  # Pages are real output from the error-pages app itself (l7 theme,
+  # `curl -H "Accept: text/html"` against each /<code> path, 2026-08-21) -
+  # refresh by hand (re-curl + re-copy into app/pages/) if the theme ever
+  # changes, there's no live link between the app and these ConfigMaps.
   responseOverride:
     - match:
         statusCodes:
           - type: Value
             value: 400
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /400
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 400
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-400
     - match:
         statusCodes:
           - type: Value
             value: 401
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /401
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 401
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-401
     - match:
         statusCodes:
           - type: Value
             value: 403
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /403
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 403
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-403
     - match:
         statusCodes:
           - type: Value
             value: 404
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /404
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 404
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-404
     - match:
         statusCodes:
           - type: Value
             value: 429
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /429
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 429
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-429
     - match:
         statusCodes:
           - type: Value
             value: 500
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /500
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 500
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-500
     - match:
         statusCodes:
           - type: Value
             value: 502
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /502
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 502
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-502
     - match:
         statusCodes:
           - type: Value
             value: 503
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /503
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 503
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-503
     - match:
         statusCodes:
           - type: Value
             value: 504
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /504
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 504
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -337,101 +361,119 @@ spec:
         statusCodes:
           - type: Value
             value: 400
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /400
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 400
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-400
     - match:
         statusCodes:
           - type: Value
             value: 401
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /401
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 401
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-401
     - match:
         statusCodes:
           - type: Value
             value: 403
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /403
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 403
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-403
     - match:
         statusCodes:
           - type: Value
             value: 404
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /404
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 404
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-404
     - match:
         statusCodes:
           - type: Value
             value: 429
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /429
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 429
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-429
     - match:
         statusCodes:
           - type: Value
             value: 500
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /500
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 500
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-500
     - match:
         statusCodes:
           - type: Value
             value: 502
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /502
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 502
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-502
     - match:
         statusCodes:
           - type: Value
             value: 503
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /503
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 503
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-503
     - match:
         statusCodes:
           - type: Value
             value: 504
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /504
+      response:
+        contentType: text/html; charset=utf-8
+        statusCode: 504
+        body:
+          type: ValueRef
+          valueRef:
+            group: ""
+            kind: ConfigMap
+            name: error-pages-504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
