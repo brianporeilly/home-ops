@@ -1,8 +1,10 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Partially implemented** (updated 2026-08-15). Companion to `disk-hardware-plan.md`,
+Status: **Partially implemented** (updated 2026-08-21). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
-target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
+target (§3), CNPG Barman backups → RGW, MariaDB native backups → **PVC via kopiur, not RGW**
+(§1 — Ceph 20.2.4's SigV4 hardening broke mariadb-operator's minio-go client; see the note in
+`kubernetes/apps/media/grimmory/app/backup.yaml`), etcd + `/etc/kubernetes/pki`
 snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
 (§5), Loki chunk storage → RGW (§4), **L2 non-DB PVC backups via `kopiur`** (§2 L2) — live on
 29 apps, hourly schedule, confirmed working end-to-end, **auto-restore-on-rebuild also live**
@@ -57,8 +59,15 @@ consistent, point-in-time-capable backup instead, targeting S3:
   archiving** + scheduled base backups → **PITR**. `ScheduledBackup` CR per cluster + the
   cluster's `.spec.backup.barmanObjectStore` (or the newer Barman Cloud Plugin) pointed at an
   S3 bucket. Pure GitOps, fits the repo. Retention via Barman policy.
-- **MariaDB (grimmory):** mariadb-operator native `Backup` CR (scheduled) → S3 or PVC, with a
-  matching `Restore` CR path. 
+- **MariaDB (grimmory):** mariadb-operator native `Backup` CR (scheduled) → **PVC**, not S3/RGW
+  — mariadb-operator's minio-go client always sends an unsigned `Content-Type` header on
+  chunked/streaming uploads, which Ceph 20.2.4's SigV4 hardening (correctly) rejects; no
+  client-side workaround exists, and the server-side one (`rgw_sigv4_insecure`) would weaken
+  signature validation for every S3 client on the RGW, not just this one. The backup PVC
+  (`grimmory-mariadb-backup-pvc`, same name as the `Backup` CR — renamed from `grimmory-mariadb-backup`
+  since `spec.storage` is immutable on this CRD, so switching away from S3 needed a new object, not
+  an in-place edit) rides the L2 kopiur pipeline instead
+  (see `kopiur-snapshot.yaml`) for NAS + off-site coverage — no matching `Restore` CR path yet.
 - **Redpanda:** topic data is largely a transient bus (Akvorado flow ingest). Tiered
   storage/`rpk` topic export to S3 is possible but **low value** — treat as recreate-fresh
   unless a concrete need appears. Decide explicitly, don't back up on reflex.
@@ -140,9 +149,10 @@ can't touch the other):
   policy needed). Destination inherits the source repo's password verbatim.
 - **RGW-sourced DB/etcd backups → `ceph-rgw-backups` bucket.** `rgw-nas-sync`
   (`kubernetes/components/rgw-nas-sync/`) got a second `rclone sync` leg alongside its existing
-  NAS sync, same mirror logic — CNPG's `retentionPolicy: 14d` and mariadb-operator's
-  `maxRetention: 720h` already self-prune at the RGW source, so `rclone sync` (not `copy`)
-  propagates that pruning to B2 automatically, no new logic needed.
+  NAS sync, same mirror logic — CNPG's `retentionPolicy: 14d` self-prunes at the RGW source, so
+  `rclone sync` (not `copy`) propagates that pruning to B2 automatically, no new logic needed.
+  MariaDB is no longer part of this leg — its backup moved off RGW entirely (see §1), so its
+  NAS/off-site coverage now comes from kopiur instead.
 
 **Gotcha worth remembering:** kopia shards blobs into nested directories (`p00/`, `p01/`, ...)
 only on **filesystem** backends, to keep any one directory's entry count sane on a real
@@ -271,7 +281,8 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 2. ⬜ **Confirm sops age-key backup** off-cluster ×2 — removes the worst "can't rebuild". **Owner task.** (§6)
 3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
-5. ✅ **MariaDB native backup** → RGW. (§1)
+5. ✅ **MariaDB native backup** → PVC via kopiur (moved off RGW 2026-08-21 — Ceph 20.2.4 SigV4
+   hardening broke the S3 path, no client-side fix available). (§1)
 6. ✅ **RGW → NAS sync** (`components/rgw-nas-sync`, rclone) — makes DB backups actual DR. Live
    on all 8 RGW buckets (loki deliberately excluded — RGW is its primary storage, not a backup
    of it).

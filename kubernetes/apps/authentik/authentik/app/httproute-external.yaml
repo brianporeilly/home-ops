@@ -12,6 +12,18 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: authentik-server-external
+  annotations:
+    # gatus-sidecar's HTTPRoute auto-discovery (firstHTTPRoutePath) skips
+    # bare "/" on purpose (isProbablePath treats root as "no explicit path"
+    # and keeps scanning) and picks the next PathPrefix it finds instead -
+    # with only these two rules that's always /if/admin, the blocked one,
+    # regardless of which rule is listed first. A prior fix here tried
+    # reordering the rules based on a wrong read of that logic (confirmed
+    # live: restarting gatus-sidecar re-derived the same wrong URL after the
+    # reorder was already in place) - this annotation bypasses the
+    # auto-derivation entirely instead, so it can't regress the same way.
+    gatus.home-operations.com/endpoint: |-
+      path: /
 spec:
   hostnames:
     - auth.oreillys.io
@@ -20,16 +32,6 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    # Catch-all listed FIRST deliberately - Gateway API's actual routing
-    # resolves the more specific PathPrefix below regardless of array order,
-    # but gatus-sidecar's HTTPRoute auto-discovery isn't that smart: it just
-    # probes whichever path comes from the first rule in this list
-    # (confirmed against its source, internal/resources/httproute.go's
-    # firstHTTPRoutePath - takes the first Exact/PathPrefix match it finds,
-    # full stop). Admin-blocked listed first previously broke the
-    # authentik-server-external gatus check for real (confirmed live - 404s
-    # from ~07:10 on 2026-08-21, right when this HTTPRoute last reconciled),
-    # since it started probing /if/admin instead of /.
     - backendRefs:
         - name: authentik-server
           port: 80

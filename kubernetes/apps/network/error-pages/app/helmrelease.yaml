@@ -82,6 +82,18 @@ spec:
     # render.
     route:
       app:
+        annotations:
+          # Gatus otherwise probes bare "/" (default), which this app itself
+          # 404s (no error code implied by that path, SEND_SAME_HTTP_CODE
+          # returns it truthfully) - that 404 then gets caught by the
+          # gateway-wide responseOverride policy meant for *other* apps'
+          # errors and reported back as 302 (see docs/error-pages-plan.md),
+          # so the check fails on a symptom of this app's own interception,
+          # not an actual outage. /healthz is a real 2xx path (same one the
+          # container's own liveness probe uses) that never triggers
+          # responseOverride at all.
+          gatus.home-operations.com/endpoint: |-
+            path: /healthz
         hostnames:
           - error-pages.internal.oreillys.io
         # Both gateways, not just envoy-internal - Envoy Gateway runs a

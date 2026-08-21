@@ -114,6 +114,49 @@ spec:
         managePodBudgets: true
         osdMaintenanceTimeout: 30      # minutes to hold noout on a draining failure domain
         pgHealthCheckTimeout: 0        # 0 = wait until PGs are healthy before unblocking next drain
+      # Phase 1 of docs/ceph-cephx-key-rotation-plan.md (CVE-2025-30156) -
+      # rotates mon/osd/mgr/mds/rgw/admin keys from the old aes type to the
+      # new aes256k one. Rook docs: daemon rotation doesn't affect client
+      # connections (old key stays valid until the new one is used). CSI
+      # rotation is a separate, later phase - blocked on node kernel 7.0+
+      # (nodes are currently 6.12.102-flatcar), not attempted here.
+      #
+      # keyGeneration must be strictly greater than status.cephx.<entity>.keyGeneration
+      # to actually trigger a rotation - Rook's baseline (before this block
+      # ever existed) already reports every entity at generation 1, so
+      # keyGeneration: 1 here was a silent no-op (confirmed live: the
+      # previous PR merged clean, Helm/Flux showed no error, but
+      # status.cephx never moved off aes) - 2 is required to fire it.
+      #
+      # keyType intentionally dropped now that rotation is confirmed complete
+      # (verified live: all daemon-side entities off `ceph health detail`,
+      # HEALTH_ERR -> HEALTH_WARN). Rook sets --mon-auth-emergency-allowed-
+      # ciphers on every mon for as long as daemon.keyType is non-empty
+      # (pkg/operator/ceph/cluster/mon/spec.go - unconditional on the field
+      # being set, not on rotation state), which is what's been keeping
+      # AUTH_EMERGENCY_CIPHERS_SET/AUTH_INSECURE_KEYS_ALLOWED/_CREATABLE
+      # warning even after every entity finished. keyGeneration must stay
+      # (the CRD forbids removing it once set - CEL validation) and
+      # keyRotationPolicy stays KeyGeneration too - harmless with keyType
+      # unset, and it's what makes a future rotation just a keyGeneration
+      # bump + re-adding keyType instead of restoring this whole block.
+      # Phase 2 of docs/ceph-cephx-key-rotation-plan.md - rbd-mirror-peer key.
+      # RBD mirroring isn't configured in this cluster (no CephRBDMirror
+      # resource, both blockpools have mirroring.enabled unset) - Rook just
+      # creates this identity by default regardless, so this is essentially
+      # zero-risk: nothing actually uses the key being rotated. keyGeneration
+      # baseline confirmed live before writing this (status.cephx.rbdMirrorPeer
+      # was generation 1) - 2 is what actually triggers it, per the Phase 1
+      # keyGeneration: 1-was-a-no-op lesson above.
+      security:
+        cephx:
+          daemon:
+            keyRotationPolicy: KeyGeneration
+            keyGeneration: 2
+          rbdMirrorPeer:
+            keyRotationPolicy: KeyGeneration
+            keyGeneration: 2
+            keyType: aes256k
       mgr:
         modules:
           - name: diskprediction_local

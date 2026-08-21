@@ -139,6 +139,17 @@ spec:
           - backendRefs:
               - name: jellyfin
                 port: *port
+      external:
+        hostnames:
+          - media.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: jellyfin
+                port: *port
 
     persistence:
       config:
