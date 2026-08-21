@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-mfa-required
+data:
+  # default-authentication-mfa-validation's not_configured_action ships as
+  # "skip" - confirmed live, it's what let brute-force testing get this far
+  # with zero MFA devices enrolled anywhere. This flips it to "configure"
+  # (force inline enrollment instead of silently skipping).
+  #
+  # Only affects the direct username+password login path -
+  # default-authentication-flow. Confirmed live that SSO logins never touch
+  # this stage at all: a source's authentication_flow for returning users is
+  # a completely separate flow (default-source-authentication), so Google/
+  # GitHub users are unaffected either way. In this household's model that
+  # means it only ever bites akadmin (the intentional break-glass account) -
+  # everyone else is meant to be SSO-only with no local password to trigger
+  # this path in the first place (see blueprints-sso-enrollment-allowlist.yaml
+  # and the account cleanup done alongside this).
+  mfa-required.yaml: |
+    metadata:
+      name: Require MFA on the local password login path
+    version: 1
+    entries:
+      - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+        identifiers:
+          name: default-authentication-mfa-validation
+        attrs:
+          not_configured_action: configure

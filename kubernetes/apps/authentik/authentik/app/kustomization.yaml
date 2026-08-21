@@ -11,6 +11,8 @@ resources:
   - ./blueprints-configmap.yaml
   - ./blueprints-groups.yaml
   - ./blueprints-brute-force.yaml
+  - ./blueprints-mfa-required.yaml
+  - ./blueprints-sso-enrollment-allowlist.yaml
   - ./blueprint-reapply-rbac.yaml
   - ./blueprint-reapply-cronjob.yaml
   - ./oidc-generators.yaml

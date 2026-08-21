@@ -1,0 +1,76 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-sso-enrollment-allowlist
+data:
+  # default-source-enrollment (authentik's own shipped flow, wired as every
+  # OAuthSource's enrollment_flow - see blueprints-configmap.yaml) had zero
+  # access gate - confirmed live: zero PolicyBindings on either OAuthSource
+  # object, and the flow's only existing policy
+  # (default-source-enrollment-if-username) is stage-skip logic, not a deny
+  # gate. Any Google or GitHub account could self-enroll a new authentik
+  # account (as type=external, but an account nonetheless - unnecessary
+  # attack surface). Fixed with a DenyStage inserted before UserWriteStage
+  # (order 1), so no account is created at all for anyone outside the
+  # trusted list.
+  #
+  # Deliberately does NOT duplicate a trusted-domains/emails list - reuses
+  # the trust decision blueprints-configmap.yaml's
+  # "internal-type-for-trusted-emails" property mapping already makes
+  # (type: internal for trusted, unset/external otherwise), confirmed live
+  # that resolved property mapping output lands in prompt_data by the time
+  # UserWriteStage reads it - same context key this policy reads. Single
+  # source of truth for "who's trusted": change that mapping, this
+  # inherits it automatically.
+  #
+  # context.get("prompt_data", ...) - not request.context.get("flow_plan").context
+  # - confirmed live via authentik/policies/expression/evaluator.py:
+  # self._context["context"] = request.context, and request.context for a
+  # flow-stage policy already contains the flow plan's context keys
+  # directly (matches the shipped if-username policy's exact style, not the
+  # request.context["flow_plan"].context style used by
+  # blueprints-brute-force.yaml's two other ExpressionPolicy siblings -
+  # both work, this just matches this specific flow family's own
+  # convention).
+  enrollment-allowlist.yaml: |
+    metadata:
+      name: SSO enrollment allowlist - deny untrusted emails/domains
+    version: 1
+    entries:
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: sso-enrollment-untrusted-email-check
+        id: sso-enrollment-untrusted-email-check
+        attrs:
+          expression: |
+            data = context.get("prompt_data", {})
+            # True = deny (bound to a DenyStage, not a normal allow-policy -
+            # same inverted convention as the ReputationPolicy in
+            # blueprints-brute-force.yaml). Fails closed: no resolved type
+            # (unexpected context shape) denies rather than silently lets
+            # an unverified identity through.
+            return data.get("type") != "internal"
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: sso-enrollment-untrusted-email-deny
+        id: sso-enrollment-untrusted-email-deny
+        attrs:
+          deny_message: "This account isn't authorized to sign in here."
+      # order: -1 - must run before the existing prompt stage (order 0) and
+      # UserWriteStage (order 1), so no account gets created at all for a
+      # denied identity.
+      - model: authentik_flows.flowstagebinding
+        id: sso-enrollment-untrusted-email-deny-binding
+        identifiers:
+          target: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          stage: !KeyOf sso-enrollment-untrusted-email-deny
+        attrs:
+          order: -1
+          re_evaluate_policies: true
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf sso-enrollment-untrusted-email-deny-binding
+          policy: !KeyOf sso-enrollment-untrusted-email-check

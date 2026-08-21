@@ -37,6 +37,8 @@ spec:
         - authentik-blueprints-oauth-sources
         - authentik-blueprints-groups
         - authentik-blueprints-brute-force
+        - authentik-blueprints-mfa-required
+        - authentik-blueprints-sso-enrollment-allowlist
         - authentik-blueprints-protected-apps
         - authentik-blueprints-native-apps
     authentik:
