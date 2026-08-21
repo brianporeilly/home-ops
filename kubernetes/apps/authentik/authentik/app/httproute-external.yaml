@@ -20,13 +20,28 @@ spec:
       namespace: network
       sectionName: https
   rules:
-    # Named so the BackendTrafficPolicy below (authentik-admin-external-block.yaml)
-    # can target just this rule via sectionName - the admin UI has zero
-    # legitimate external use case (it's for actually administering the
-    # instance, not the OIDC/login surface apps depend on), unlike the
-    # catch-all rule below which every externally-exposed app's SSO login
-    # needs. Gateway API resolves the more specific PathPrefix first
-    # regardless of rule order, so this doesn't need to precede the / rule.
+    # Catch-all listed FIRST deliberately - Gateway API's actual routing
+    # resolves the more specific PathPrefix below regardless of array order,
+    # but gatus-sidecar's HTTPRoute auto-discovery isn't that smart: it just
+    # probes whichever path comes from the first rule in this list
+    # (confirmed against its source, internal/resources/httproute.go's
+    # firstHTTPRoutePath - takes the first Exact/PathPrefix match it finds,
+    # full stop). Admin-blocked listed first previously broke the
+    # authentik-server-external gatus check for real (confirmed live - 404s
+    # from ~07:10 on 2026-08-21, right when this HTTPRoute last reconciled),
+    # since it started probing /if/admin instead of /.
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+    # The admin UI has zero legitimate external use case (it's for actually
+    # administering the instance, not the OIDC/login surface apps depend
+    # on) - named so the BackendTrafficPolicy below
+    # (backendtrafficpolicy-admin-block.yaml) can target just this rule via
+    # sectionName.
     - name: admin-blocked
       matches:
         - path:
@@ -35,10 +50,3 @@ spec:
       backendRefs:
         - name: authentik-server
           port: 80
-    - backendRefs:
-        - name: authentik-server
-          port: 80
-      matches:
-        - path:
-            type: PathPrefix
-            value: /
