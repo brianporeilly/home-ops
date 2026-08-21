@@ -9,16 +9,23 @@ resources:
 # BackendTrafficPolicy response.body.valueRef expects the ConfigMap to hold
 # a single body under the key `response.body` (or falls back to "first
 # value" if that key's absent), it doesn't let you pick a key per rule.
-# Pages themselves are real output from the error-pages app (l7 theme,
-# fetched via `curl -H "Accept: text/html"` against each /<code> path,
-# 2026-08-21) - see envoy-gateway/config/envoy.yaml's responseOverride for
-# why static content instead of a live fetch (Envoy Gateway's dynamic
-# `redirect` action is hard-locked to 301/302 status, confirmed via its
-# CRD's kubebuilder validation - no way to get both live content and a
-# correct status code without patching Envoy's raw custom_response filter
+# Pages themselves are the l7 theme's canonical output from error-pages'
+# own `builder` binary (a separate build target/image,
+# ghcr.io/tarampampam/error-pages:<version>-builder - not the `server`
+# image this app actually runs, confirmed via the project's own Dockerfile)
+# - not scraped from a live curl against the running server, which would've
+# depended on that server staying configured exactly this way forever and
+# risked baking in transient per-request values. Regenerate by running that
+# builder image (`builder --out /output --index`, extract the `l7/`
+# subdirectory) if the theme ever needs to change.
+#
+# See envoy-gateway/config/envoy.yaml's responseOverride for why static
+# content instead of a live fetch (Envoy Gateway's dynamic `redirect`
+# action is hard-locked to 301/302 status, confirmed via its CRD's
+# kubebuilder validation - no way to get both live content and a correct
+# status code without patching Envoy's raw custom_response filter
 # directly, which trades correctness for fragility across Envoy Gateway
-# upgrades. Chose the boring, fully-supported option instead - refresh
-# these files by hand if the theme/content ever needs to change).
+# upgrades. Chose the boring, fully-supported option instead).
 configMapGenerator:
   - name: error-pages-400
     files:
