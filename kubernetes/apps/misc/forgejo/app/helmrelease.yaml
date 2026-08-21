@@ -242,16 +242,12 @@ spec:
         ports:
           http:
             port: 3000
-      # Separate Service, not folded into `app` above - that one stays
-      # ClusterIP-only (reached via the envoy-internal HTTPRoute); SSH is raw
-      # TCP, so it needs its own LoadBalancer IP straight from kube-vip,
-      # same pattern as frigate's non-HTTP ports.
+      # Separate Service, not folded into `app` above - that one's reached via
+      # the envoy-internal HTTPRoute, this one via the envoy-internal TCPRoute
+      # (see network/envoy-gateway/config/envoy.yaml's `ssh` listener) - both
+      # ClusterIP, no dedicated kube-vip LB IP needed for either.
       ssh:
         controller: forgejo
-        type: LoadBalancer
-        externalTrafficPolicy: Local
-        annotations:
-          kube-vip.io/loadbalancerIPs: "10.21.0.13"
         ports:
           ssh:
             port: 22

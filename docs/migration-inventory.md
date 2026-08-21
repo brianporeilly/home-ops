@@ -169,7 +169,7 @@ Legend:
 | clickhouse | ✅ | Backs Akvorado |
 | redpanda | ✅ | Backs Akvorado (Kafka-compatible bus) |
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
-| **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS-only (no SSH clone yet). Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
+| **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS + SSH clone, both via `envoy-internal` (HTTPRoute + TCPRoute — see `network/envoy-gateway/config/envoy.yaml`'s `ssh` listener), no dedicated kube-vip LB IP for SSH. Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
 | **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS, under `/backups/kopiur`) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. **Off-site to B2 also live** (own repo + the separate RGW-sourced DB/etcd backups, two buckets). See Backlog for what's left (grimmory-bookdrop gap). |
 
@@ -320,10 +320,6 @@ old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdo
   `rgw-nas-sync`'s own directory) and confirmed the flat/no-directories structure B2 shows for
   kopiur's blobs is expected (kopia only shards into subdirectories on filesystem backends, not
   object stores). See `backup-dr-plan.md` §2 L3 for the full writeup.
-
-**Explicitly deferred (by design, not forgotten):**
-- **forgejo SSH access** — HTTPS-only for now; would need a dedicated kube-vip LB IP on port 22 and
-  a host-key secret. Deliberate scope cut when forgejo was first built, not revisited since.
 
 **Not started:**
 - **grimmory-bookdrop has zero backup coverage** — found while migrating grimmory to the Restore
