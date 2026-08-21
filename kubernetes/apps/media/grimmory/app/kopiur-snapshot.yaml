@@ -24,7 +24,7 @@ spec:
     - pvc:
         name: grimmory-bookdrop
     - pvc:
-        name: grimmory-mariadb-backup
+        name: grimmory-mariadb-backup-pvc
   mover:
     cache:
       mode: Persistent
