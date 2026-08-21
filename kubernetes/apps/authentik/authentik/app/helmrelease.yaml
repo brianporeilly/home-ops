@@ -40,6 +40,7 @@ spec:
         - authentik-blueprints-mfa-required
         - authentik-blueprints-sso-enrollment-allowlist
         - authentik-blueprints-password-policy
+        - authentik-blueprints-notification-destinations
         - authentik-blueprints-protected-apps
         - authentik-blueprints-native-apps
     authentik:

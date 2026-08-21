@@ -14,6 +14,7 @@ resources:
   - ./blueprints-mfa-required.yaml
   - ./blueprints-sso-enrollment-allowlist.yaml
   - ./blueprints-password-policy.yaml
+  - ./blueprints-notification-destinations.yaml
   - ./blueprint-reapply-rbac.yaml
   - ./blueprint-reapply-cronjob.yaml
   - ./oidc-generators.yaml
