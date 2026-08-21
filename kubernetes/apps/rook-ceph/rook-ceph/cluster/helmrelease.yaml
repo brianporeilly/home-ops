@@ -120,11 +120,18 @@ spec:
       # connections (old key stays valid until the new one is used). CSI
       # rotation is a separate, later phase - blocked on node kernel 7.0+
       # (nodes are currently 6.12.102-flatcar), not attempted here.
+      #
+      # keyGeneration must be strictly greater than status.cephx.<entity>.keyGeneration
+      # to actually trigger a rotation - Rook's baseline (before this block
+      # ever existed) already reports every entity at generation 1, so
+      # keyGeneration: 1 here was a silent no-op (confirmed live: the
+      # previous PR merged clean, Helm/Flux showed no error, but
+      # status.cephx never moved off aes) - 2 is required to fire it.
       security:
         cephx:
           daemon:
             keyRotationPolicy: KeyGeneration
-            keyGeneration: 1
+            keyGeneration: 2
             keyType: aes256k
       mgr:
         modules:
