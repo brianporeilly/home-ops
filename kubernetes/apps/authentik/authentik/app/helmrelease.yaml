@@ -36,6 +36,7 @@ spec:
       configMaps:
         - authentik-blueprints-oauth-sources
         - authentik-blueprints-groups
+        - authentik-blueprints-brute-force
         - authentik-blueprints-protected-apps
         - authentik-blueprints-native-apps
     authentik:

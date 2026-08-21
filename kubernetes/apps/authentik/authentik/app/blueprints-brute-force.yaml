@@ -1,0 +1,62 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-brute-force
+data:
+  # default-authentication-flow ships with zero brute-force protection -
+  # confirmed live via `ak shell` (authentik.flows.models.FlowStageBinding):
+  # its only two PolicyBindings are ExpressionPolicies that just skip
+  # stages (password stage skipped if already backend-authenticated, MFA
+  # skipped for passwordless), and zero ReputationPolicy objects exist
+  # anywhere in the system. Unlimited login attempts, no lockout, no
+  # slowdown, at whatever rate an attacker can push - a real gap once more
+  # apps sit behind Authentik externally (see docs/security-plan.md §2.1).
+  #
+  # authentik_policies_reputation.ReputationPolicy.passes() returns True
+  # when score <= threshold - i.e. it "passes" (matches) when reputation is
+  # BAD, confirmed by reading the model's passes() source live. That's
+  # backwards from a normal allow-policy, so it's bound to a DenyStage
+  # (execute the stage - i.e. deny the user - only when reputation is bad),
+  # not used to gate the identification/password stages directly.
+  # threshold: -5, check both IP and username - Authentik's own documented
+  # example config, and roughly "5 failed attempts" either way.
+  brute-force.yaml: |
+    metadata:
+      name: Brute-force protection - default authentication flow
+    version: 1
+    entries:
+      - model: authentik_policies_reputation.reputationpolicy
+        identifiers:
+          name: brute-force-reputation-check
+        id: brute-force-reputation-check
+        attrs:
+          check_ip: true
+          check_username: true
+          threshold: -5
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: default-authentication-brute-force-deny
+        id: default-authentication-brute-force-deny
+        attrs:
+          deny_message: "Too many failed login attempts. Please wait a few minutes and try again."
+      # order: 15 - between the identification stage (order 10) and the
+      # password stage (order 20), so a bad reputation score blocks before
+      # a password is even prompted for. re_evaluate_policies: true (also
+      # the model default, set explicitly here since it's load-bearing) -
+      # must re-check the live score on every attempt, not just once when
+      # the flow plan is first built.
+      - model: authentik_flows.flowstagebinding
+        id: default-authentication-brute-force-deny-binding
+        identifiers:
+          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          stage: !KeyOf default-authentication-brute-force-deny
+        attrs:
+          order: 15
+          re_evaluate_policies: true
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf default-authentication-brute-force-deny-binding
+          policy: !KeyOf brute-force-reputation-check
