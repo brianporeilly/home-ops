@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jellyfin-exporter
+spec:
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - media
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/service: jellyfin-exporter
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+# Jellyfin's own native /metrics (generic HTTP/process metrics only - see
+# the JELLYFIN_EnableMetrics comment in helmrelease.yaml). Separate
+# ServiceMonitor because it targets the "jellyfin" Service, not
+# "jellyfin-exporter" - different Service objects, different selector.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jellyfin-native-metrics
+spec:
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - media
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/service: jellyfin
