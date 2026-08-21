@@ -76,8 +76,8 @@ spec:
             env:
               CHROME_HEADFUL: "true"
               SCREEN_WIDTH: "1920"
-              SCREEN_HEIGHT: "1024"
-              SCREEN_DEPTH: "16"
+              SCREEN_HEIGHT: "1080"
+              SCREEN_DEPTH: "24"
               MAX_CONCURRENT_CHROME_PROCESSES: "10"
             securityContext:
               allowPrivilegeEscalation: false
