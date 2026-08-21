@@ -39,6 +39,8 @@ spec:
         - authentik-blueprints-brute-force
         - authentik-blueprints-mfa-required
         - authentik-blueprints-sso-enrollment-allowlist
+        - authentik-blueprints-password-policy
+        - authentik-blueprints-notification-destinations
         - authentik-blueprints-protected-apps
         - authentik-blueprints-native-apps
     authentik:
@@ -47,6 +49,20 @@ spec:
         name: authentik
         user: authentik
         port: 5432
+      # In-cluster no-auth relay (see maddy-smtp-relay memory) - same
+      # host:port, no username/password, as forgejo's FORGEJO__mailer__*
+      # config. Not previously configured at all (confirmed live - empty
+      # host/password, `email.host: localhost` default), so nothing sent:
+      # not password-recovery (moot now, only akadmin has a local password),
+      # not the four shipped NotificationRules (config-error/warning,
+      # update-available, exception) that already point at
+      # default-email-transport but were silently going nowhere.
+      email:
+        host: maddy.misc.svc.cluster.local
+        port: 25
+        from: authentik@oreillys.io
+        use_tls: false
+        use_ssl: false
       # secret_key intentionally left empty here - the chart's own
       # env-generation helper skips empty values, so AUTHENTIK_SECRET_KEY
       # comes solely from global.env below (sourced from our sops secret)
