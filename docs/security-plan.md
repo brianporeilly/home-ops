@@ -22,6 +22,14 @@ gaps are worth closing before it does rather than after.
   between the identification and password stages
   (`kubernetes/apps/authentik/authentik/app/blueprints-brute-force.yaml`, branch
   `authentik-brute-force-protection`).
+- **§2.1 Authentik admin UI blocked externally** — `auth.oreillys.io`'s external `HTTPRoute`
+  matched `PathPrefix: /` with no carve-out, so `/if/admin/` was just as reachable from the
+  internet as the login page. Added a named rule + `BackendTrafficPolicy` with
+  `faultInjection.abort` (100%, 404) scoped to just `/if/admin` via `sectionName` — everything
+  else on that hostname (OIDC endpoints, flow executor, static assets) is untouched, since
+  externally-exposed apps' SSO logins depend on those
+  (`kubernetes/apps/authentik/authentik/app/httproute-external.yaml` +
+  `backendtrafficpolicy-admin-block.yaml`, branch `authentik-block-external-admin`).
 
 ---
 
@@ -67,6 +75,24 @@ account only brought the reputation score to `-5`, not `-12` — the decrement i
 `authentik-brute-force-threshold`) to land closer to the originally-intended "~3-5 attempts"
 range. Confirmed via `Reputation`/`Event` table queries (`ak shell`), not just visually — the
 `DenyStage` fired exactly once the score crossed the threshold, no earlier/later.
+
+Also found and fixed: the admin UI (`/if/admin/`) was reachable externally with no restriction
+(see "Done so far" above) — blocked via a `BackendTrafficPolicy` fault-injection, scoped narrowly
+enough not to touch the OIDC/login surface other apps depend on.
+
+**Open, not yet decided:** `default-authentication-flow`'s MFA stage (and this brute-force
+protection) only applies to the direct username+password login path — anyone using an SSO source
+button (Google/GitHub) is routed through a completely separate flow
+(`default-source-authentication`) that never touches it. The intent has been "SSO for everyone
+except the break-glass `akadmin` account," but that isn't actually enforced at the credential
+level today: both `brian@oreillys.io` and `brianporeilly@gmail.com` still have a **usable local
+password** alongside their SSO link (`has_usable_password() == True`, confirmed live), so the
+password/MFA-less path is reachable for them too, not just `akadmin`. To make "SSO except
+break-glass" real rather than just the default habit, those two accounts' local passwords need to
+be disabled (`set_unusable_password()`), leaving `akadmin` as the only account that can ever reach
+that flow — at which point requiring MFA on that flow specifically becomes meaningful (right now
+zero MFA devices are enrolled anywhere in the system, including `akadmin`). Not done — this
+changes account access and needs a deliberate go-ahead, not a default-yes.
 
 ### 2.2 Network segmentation — the biggest structural gap
 
