@@ -199,11 +199,6 @@ spec:
           gnetId: 11169
           revision: 1
           datasource: Prometheus
-        zfs:
-          # renovate: depName="ZFS"
-          gnetId: 7845
-          revision: 4
-          datasource: Prometheus
     sidecar:
       image:
         registry: ghcr.io
