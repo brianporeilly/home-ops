@@ -5,3 +5,6 @@ kind: Kustomization
 resources:
   - ./envoy.yaml
   - ./observability.yaml
+# envoy-patch-error-pages-status-code.yaml deliberately NOT listed here -
+# drafted and validated, not adopted. See that file's own header comment
+# and docs/error-pages-plan.md.

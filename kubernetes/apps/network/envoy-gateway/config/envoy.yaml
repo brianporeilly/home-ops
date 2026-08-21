@@ -183,18 +183,30 @@ spec:
       requestTimeout: 10m
   # Styled error pages (tarampampam/error-pages, kubernetes/apps/network/error-pages)
   # instead of Envoy's blank-body error responses. `redirect` is an internal
-  # fetch Envoy performs itself against error-pages' own HTTPRoute - not a
-  # 3xx sent to the client, the client still sees the original status code
-  # (SEND_SAME_HTTP_CODE on that app makes error-pages report it correctly
-  # when hit as a direct backend like this, not body-swapped by a proxy).
+  # fetch Envoy performs itself against error-pages' own HTTPRoute - the
+  # client never sees a Location header or a real 3xx, they transparently
+  # receive the fetched body (SEND_SAME_HTTP_CODE on that app makes it
+  # report the real code when hit as a direct backend like this).
   #
-  # One block per status code, deliberately - confirmed via error-pages'
-  # own Envoy Gateway guide (docs/guides/k8s_ingress_envoy.md in
-  # tarampampam/error-pages): Envoy Gateway has no dynamic status-code
-  # placeholder in replaceFullPath, so a range like 400-499 would silently
-  # map every distinct code to the same page and still report the
-  # original (correct) status - misleading content, not just a display bug.
-  # Add more blocks here for any other code worth a styled page.
+  # CORRECTION - the client-facing status code shown here (redirect.statusCode)
+  # does NOT actually reach the client as-is: Envoy Gateway hard-restricts
+  # this field to 301/302 via CEL validation, confirmed live and confirmed
+  # as an open upstream bug (envoyproxy/gateway#9112, maintainer comment:
+  # "I think this is a valid API limitation... EG should not restrict
+  # redirect.statusCode to only 301/302" / "that limit is still there and
+  # it should be corrected somewhere in the future"). Every value below is
+  # cosmetic/for-humans-reading-this-file only right now - actual client
+  # response is 302 for every intercepted code, accepted deliberately for
+  # now rather than working around it (see docs/error-pages-plan.md -
+  # a drafted, validated EnvoyPatchPolicy fix exists,
+  # envoy-patch-error-pages-status-code.yaml, but isn't wired into
+  # kustomization.yaml: EnvoyPatchPolicy allows injecting arbitrary Envoy
+  # config, which Envoy Gateway's own docs flag as a real security decision,
+  # not a rubber stamp, for a cosmetic feature).
+  #
+  # One block per status code, deliberately - Envoy Gateway has no dynamic
+  # status-code placeholder in replaceFullPath, so a range like 400-499
+  # would map every distinct code to the same page.
   #
   # No format/Accept-header wrangling needed - Envoy's internal fetch
   # forwards the original request's headers, so error-pages' own content

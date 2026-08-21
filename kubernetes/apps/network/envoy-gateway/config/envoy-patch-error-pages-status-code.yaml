@@ -1,0 +1,235 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_envoypatchpolicies.yaml
+#
+# ============================================================================
+# NOT CURRENTLY ENABLED - this file is drafted and schema-validated (dry-run
+# and a real live test both passed) but deliberately NOT in
+# kustomization.yaml's resources list, because EnvoyPatchPolicy itself is
+# disabled cluster-wide by default and enabling it is a real security
+# decision, not a rubber stamp - see docs/error-pages-plan.md for the full
+# reasoning. If that tradeoff is ever accepted: add this file back to
+# kustomization.yaml, AND enable EnvoyPatchPolicy in envoy-gateway's own
+# controller config (envoy-gateway/app/helmrelease.yaml's
+# config.envoyGateway.extensionApis - not done here, deliberately, since
+# flipping that on is the actual decision point).
+#
+# TEMPORARY WORKAROUND (if adopted) - remove this whole file once fixed
+# upstream.
+# ============================================================================
+#
+# WHY THIS EXISTS: BackendTrafficPolicy.responseOverride's `redirect` action
+# (envoy.yaml - fetches styled error-pages content dynamically, the ONLY way
+# to get both live content and Accept-header negotiation) hard-restricts its
+# `statusCode` field to 301/302 via CEL/kubebuilder validation. Since
+# `redirect` is Envoy's INTERNAL-redirect mechanism - the client never sees
+# a Location header or a real 3xx, they transparently receive the fetched
+# body - reporting 302 for what's semantically "here's the real 404 page,
+# with the real 404 status" is wrong, not just cosmetically off. It actively
+# breaks anything that inspects status codes downstream (this repo's own
+# Gatus checks, most obviously - see fix-gatus-authentik-external-check
+# branch/commit for a real instance of exactly this class of bug).
+#
+# This is a CONFIRMED, OPEN upstream limitation, not a misunderstanding on
+# our part: the underlying Envoy filter this CRD field configures
+# (envoy.extensions.http.custom_response.redirect_policy.v3.RedirectPolicy)
+# has NO such restriction - its own status_code field accepts 200-999
+# (confirmed via the actual protobuf source,
+# api/envoy/extensions/http/custom_response/redirect_policy/v3/redirect_policy.proto).
+# The 301/302 cap is purely an Envoy Gateway API-layer choice.
+# envoyproxy/gateway#9112 covers this exact issue - a maintainer
+# (zhaohuabing) confirmed live "I think this is a valid API limitation...
+# EG should not restrict redirect.statusCode to only 301/302" and "that
+# limit is still there and it should be corrected somewhere in the future".
+# That issue got closed only because the ORIGINAL REPORTER's specific
+# problem was an unrelated misconfiguration, not because this limitation
+# was fixed - it remains open in practice.
+# Tracking: envoyproxy/gateway#9112 (closed, but the limitation it
+# describes isn't) - <add our own concrete-use-case issue URL here once filed>.
+#
+# WHAT THIS DOES: directly patches the raw xDS Listener config Envoy
+# Gateway generates from that same `redirect` action, overriding just the
+# `status_code` field of each already-correctly-generated RedirectPolicy
+# rule (leaving the dynamic-fetch mechanism itself completely untouched -
+# this changes nothing about HOW the content gets fetched, only what status
+# code Envoy reports to the client for it). One EnvoyPatchPolicy per
+# gateway, since each runs its own separate Envoy proxy fleet with its own
+# generated listener - confirmed live via each gateway's own :19000/config_dump.
+#
+# WHY THIS IS RISKY (do not treat as "done, forget about it"):
+# EnvoyPatchPolicy is Envoy Gateway's own documented escape hatch for
+# exactly this kind of gap, but their own docs are explicit: "this API is
+# unstable and the outcome may change across versions. Use at your own
+# risk." The jsonPath expressions below target Envoy Gateway's *generated*
+# resource/filter/rule NAMES (e.g.
+# "backendtrafficpolicy/network/envoy/responseoverride/rule/3") - internal
+# implementation detail, not a stable public contract. If a future Envoy
+# Gateway upgrade changes how it names/structures these, the jsonPath
+# simply won't match anymore - the documented failure mode for that is
+# graceful (patch silently doesn't apply, falls back to the CRD's own
+# 301/302 behavior) rather than a hard config rejection, but check this
+# file's EnvoyPatchPolicy status conditions after any envoy-gateway version
+# bump regardless, and re-verify the jsonPath still resolves (port-forward
+# to an envoy pod's :19000/config_dump, same method used to originally
+# derive these paths) before assuming it's still working.
+#
+# REMOVAL CHECKLIST once the upstream issue is fixed and this repo upgrades
+# past the fixed Envoy Gateway version:
+#   1. Delete this file.
+#   2. Remove it from kustomization.yaml's resources list.
+#   3. Set redirect.statusCode directly on each responseOverride entry in
+#      envoy.yaml (both the "envoy" and "envoy-external-ratelimit"
+#      policies) to the real code instead of the current 302 placeholder.
+#   4. Verify via a real curl through both gateways, not just kubectl status
+#      (see envoy-response-override-percent-bug memory for why status alone
+#      isn't trustworthy here).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: error-pages-status-code-workaround-internal
+  namespace: network
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: envoy-internal
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/0")].on_match.action.typed_config.status_code
+        value: 400
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/1")].on_match.action.typed_config.status_code
+        value: 401
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/2")].on_match.action.typed_config.status_code
+        value: 403
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/3")].on_match.action.typed_config.status_code
+        value: 404
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/4")].on_match.action.typed_config.status_code
+        value: 429
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/5")].on_match.action.typed_config.status_code
+        value: 500
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/6")].on_match.action.typed_config.status_code
+        value: 502
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/7")].on_match.action.typed_config.status_code
+        value: 503
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-internal/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy/responseoverride/rule/8")].on_match.action.typed_config.status_code
+        value: 504
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: error-pages-status-code-workaround-external
+  namespace: network
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: envoy-external
+  type: JSONPatch
+  jsonPatches:
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/0")].on_match.action.typed_config.status_code
+        value: 400
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/1")].on_match.action.typed_config.status_code
+        value: 401
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/2")].on_match.action.typed_config.status_code
+        value: 403
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/3")].on_match.action.typed_config.status_code
+        value: 404
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/4")].on_match.action.typed_config.status_code
+        value: 429
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/5")].on_match.action.typed_config.status_code
+        value: 500
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/6")].on_match.action.typed_config.status_code
+        value: 502
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/7")].on_match.action.typed_config.status_code
+        value: 503
+    - type: type.googleapis.com/envoy.config.listener.v3.Listener
+      name: network/envoy-external/https
+      operation:
+        op: replace
+        jsonPath: >-
+          $.filter_chains[0].filters[0].typed_config.http_filters[?(@.name=="envoy.filters.http.custom_response/backendtrafficpolicy/network/envoy-external-ratelimit")].typed_config.custom_response_matcher.matcher_list.matchers[?(@.on_match.action.name=="backendtrafficpolicy/network/envoy-external-ratelimit/responseoverride/rule/8")].on_match.action.typed_config.status_code
+        value: 504
