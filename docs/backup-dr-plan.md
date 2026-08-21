@@ -64,7 +64,9 @@ consistent, point-in-time-capable backup instead, targeting S3:
   chunked/streaming uploads, which Ceph 20.2.4's SigV4 hardening (correctly) rejects; no
   client-side workaround exists, and the server-side one (`rgw_sigv4_insecure`) would weaken
   signature validation for every S3 client on the RGW, not just this one. The backup PVC
-  (`grimmory-mariadb-backup`, same name as the `Backup` CR) rides the L2 kopiur pipeline instead
+  (`grimmory-mariadb-backup-pvc`, same name as the `Backup` CR — renamed from `grimmory-mariadb-backup`
+  since `spec.storage` is immutable on this CRD, so switching away from S3 needed a new object, not
+  an in-place edit) rides the L2 kopiur pipeline instead
   (see `kopiur-snapshot.yaml`) for NAS + off-site coverage — no matching `Restore` CR path yet.
 - **Redpanda:** topic data is largely a transient bus (Akvorado flow ingest). Tiered
   storage/`rpk` topic export to S3 is possible but **low value** — treat as recreate-fresh

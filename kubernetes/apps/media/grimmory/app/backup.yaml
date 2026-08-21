@@ -14,10 +14,15 @@
 # workaround (rgw_sigv4_insecure) would weaken SigV4 validation for every S3
 # client on this RGW, not just this one. PVC storage sidesteps RGW/S3
 # entirely. Revisit S3 if minio-go/mariadb-operator ever fixes the signing.
+# Renamed from grimmory-mariadb-backup (dropping the S3 storage above is
+# what actually needed this) - spec.storage is immutable on this CRD, so an
+# in-place edit gets rejected by the admission webhook; a new name makes
+# Flux delete+recreate instead of update. The old S3-backed object gets
+# pruned; the RGW bucket itself is untouched (Retain reclaim policy).
 apiVersion: k8s.mariadb.com/v1alpha1
 kind: Backup
 metadata:
-  name: grimmory-mariadb-backup
+  name: grimmory-mariadb-backup-pvc
 spec:
   mariaDbRef:
     name: grimmory-mariadb
