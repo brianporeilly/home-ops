@@ -1,9 +1,17 @@
 # Ceph CephX Key Type Migration Plan (aes → aes256k)
 
-Status: **Phase 1 (daemon rotation) implemented, PR #634** — `cluster/helmrelease.yaml`'s
-`cephClusterSpec.security.cephx.daemon` now rotates mon/osd/mgr/mds/rgw/admin keys to `aes256k`.
-Phases 2-4 (rbd-mirror-peer, CSI, `allowedCiphers` lockdown) are separate, later PRs — CSI stays
-blocked on node kernel 7.0+. Written 2026-08-21, same investigation that found and fixed
+Status: **Phase 1 (daemon rotation) done and verified live.** PR #634 (+ a follow-up fixing
+`keyGeneration: 1` being a silent no-op — must be strictly greater than the live baseline, not
+just non-zero) rotated mon/osd/mgr/mds/rgw/admin/crash/ceph-exporter to `aes256k` — confirmed via
+`ceph health detail` dropping from `HEALTH_ERR` (14 insecure daemon-side entities) to `HEALTH_WARN`
+(0). `daemon.keyType` was then removed once rotation was confirmed complete, clearing
+`AUTH_EMERGENCY_CIPHERS_SET` (Rook sets `--mon-auth-emergency-allowed-ciphers` on every mon for as
+long as that field is non-empty, regardless of rotation state). `keyGeneration`/`keyRotationPolicy`
+stay set — the CRD forbids removing `keyGeneration` once introduced, and leaving
+`keyRotationPolicy: KeyGeneration` means a future rotation is just a `keyGeneration` bump +
+re-adding `keyType`, not restoring the whole block. Phases 2-4 (rbd-mirror-peer, CSI,
+`allowedCiphers` lockdown) are separate, later PRs — CSI stays blocked on node kernel 7.0+.
+Written 2026-08-21, same investigation that found and fixed
 the [grimmory MariaDB backup break](../kubernetes/apps/media/grimmory/app/backup.yaml) — both
 trace back to the same event: the unpinned `rook-ceph-cluster` chart bump (`v1.20.3→v1.20.5`,
 PRs #579/#580, merged 2026-08-20) silently carried the cluster's Ceph image from `v20.2.2` to

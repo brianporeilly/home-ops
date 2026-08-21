@@ -127,12 +127,24 @@ spec:
       # keyGeneration: 1 here was a silent no-op (confirmed live: the
       # previous PR merged clean, Helm/Flux showed no error, but
       # status.cephx never moved off aes) - 2 is required to fire it.
+      #
+      # keyType intentionally dropped now that rotation is confirmed complete
+      # (verified live: all daemon-side entities off `ceph health detail`,
+      # HEALTH_ERR -> HEALTH_WARN). Rook sets --mon-auth-emergency-allowed-
+      # ciphers on every mon for as long as daemon.keyType is non-empty
+      # (pkg/operator/ceph/cluster/mon/spec.go - unconditional on the field
+      # being set, not on rotation state), which is what's been keeping
+      # AUTH_EMERGENCY_CIPHERS_SET/AUTH_INSECURE_KEYS_ALLOWED/_CREATABLE
+      # warning even after every entity finished. keyGeneration must stay
+      # (the CRD forbids removing it once set - CEL validation) and
+      # keyRotationPolicy stays KeyGeneration too - harmless with keyType
+      # unset, and it's what makes a future rotation just a keyGeneration
+      # bump + re-adding keyType instead of restoring this whole block.
       security:
         cephx:
           daemon:
             keyRotationPolicy: KeyGeneration
             keyGeneration: 2
-            keyType: aes256k
       mgr:
         modules:
           - name: diskprediction_local
