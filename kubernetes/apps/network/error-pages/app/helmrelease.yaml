@@ -1,0 +1,102 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: error-pages
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: error-pages
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      error-pages:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/tarampampam/error-pages
+              tag: 4.2.4@sha256:4c5b7025ebb4c3ba4f41e465088db669871cd654976e5dfb10d12e51c644ad3b
+            env:
+              TEMPLATE_NAME: l7
+              # Server defaults to always returning HTTP 200 (correct when a
+              # reverse proxy swaps only the body and sends its own status
+              # code) - we use this as a direct backend via Envoy Gateway's
+              # BackendTrafficPolicy.responseOverride[].redirect (an internal
+              # fetch, not body-swap), so it must return the real status
+              # itself. See upstream's own Envoy Gateway guide,
+              # docs/guides/k8s_ingress_envoy.md in tarampampam/error-pages.
+              SEND_SAME_HTTP_CODE: "true"
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: &port 8080
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: error-pages
+        ports:
+          http:
+            port: 8080
+
+    # Deliberately not wrapped in the authentik protect/protect-external
+    # component like most apps in `network` - the responseOverride redirect
+    # (envoy.yaml + envoy-external-ratelimit's own copy) is a server-to-server
+    # fetch inside Envoy itself, no user session/cookie involved, so an auth
+    # gate here would just make every intercepted error page itself fail to
+    # render.
+    route:
+      app:
+        hostnames:
+          - error-pages.internal.oreillys.io
+        # Both gateways, not just envoy-internal - Envoy Gateway runs a
+        # separate Envoy proxy fleet per Gateway (confirmed live, distinct
+        # Deployments), so envoy-external's own instance needs this route in
+        # its OWN table for its internal redirect to resolve at all - a
+        # route parented only to envoy-internal would silently fall through
+        # for external traffic (per upstream's own docs: an unresolvable
+        # redirect target falls back to the original, un-styled response).
+        # Naming it "internal" is cosmetic only, not a real access boundary,
+        # this way - see the comment on that below.
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+          - name: envoy-external
+            namespace: network
+            sectionName: https

@@ -181,6 +181,125 @@ spec:
   timeout:
     http:
       requestTimeout: 10m
+  # Styled error pages (tarampampam/error-pages, kubernetes/apps/network/error-pages)
+  # instead of Envoy's blank-body error responses. `redirect` is an internal
+  # fetch Envoy performs itself against error-pages' own HTTPRoute - not a
+  # 3xx sent to the client, the client still sees the original status code
+  # (SEND_SAME_HTTP_CODE on that app makes error-pages report it correctly
+  # when hit as a direct backend like this, not body-swapped by a proxy).
+  #
+  # One block per status code, deliberately - confirmed via error-pages'
+  # own Envoy Gateway guide (docs/guides/k8s_ingress_envoy.md in
+  # tarampampam/error-pages): Envoy Gateway has no dynamic status-code
+  # placeholder in replaceFullPath, so a range like 400-499 would silently
+  # map every distinct code to the same page and still report the
+  # original (correct) status - misleading content, not just a display bug.
+  # Add more blocks here for any other code worth a styled page.
+  #
+  # No format/Accept-header wrangling needed - Envoy's internal fetch
+  # forwards the original request's headers, so error-pages' own content
+  # negotiation (Accept/X-Format/path-extension) picks HTML vs JSON vs XML
+  # exactly like it would for a direct external request.
+  responseOverride:
+    - match:
+        statusCodes:
+          - type: Value
+            value: 400
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /400
+    - match:
+        statusCodes:
+          - type: Value
+            value: 401
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /401
+    - match:
+        statusCodes:
+          - type: Value
+            value: 403
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /403
+    - match:
+        statusCodes:
+          - type: Value
+            value: 404
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /404
+    - match:
+        statusCodes:
+          - type: Value
+            value: 429
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /429
+    - match:
+        statusCodes:
+          - type: Value
+            value: 500
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /500
+    - match:
+        statusCodes:
+          - type: Value
+            value: 502
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /502
+    - match:
+        statusCodes:
+          - type: Value
+            value: 503
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /503
+    - match:
+        statusCodes:
+          - type: Value
+            value: 504
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -196,6 +315,10 @@ spec:
   # Listener-level (sectionName) policies fully replace, rather than merge
   # with, the Gateway-level "envoy" policy below for that listener - so
   # compression/timeout are repeated here to avoid losing them on https.
+  # Same reason responseOverride (styled error pages, see the "envoy"
+  # policy's comment for the full rationale) is repeated below too - without
+  # it, external traffic would silently keep Envoy's blank-body errors while
+  # internal traffic got the styled ones.
   compression:
     - type: Brotli
     - type: Gzip
@@ -209,6 +332,106 @@ spec:
         - limit:
             requests: 100
             unit: Second
+  responseOverride:
+    - match:
+        statusCodes:
+          - type: Value
+            value: 400
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /400
+    - match:
+        statusCodes:
+          - type: Value
+            value: 401
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /401
+    - match:
+        statusCodes:
+          - type: Value
+            value: 403
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /403
+    - match:
+        statusCodes:
+          - type: Value
+            value: 404
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /404
+    - match:
+        statusCodes:
+          - type: Value
+            value: 429
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /429
+    - match:
+        statusCodes:
+          - type: Value
+            value: 500
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /500
+    - match:
+        statusCodes:
+          - type: Value
+            value: 502
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /502
+    - match:
+        statusCodes:
+          - type: Value
+            value: 503
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /503
+    - match:
+        statusCodes:
+          - type: Value
+            value: 504
+      redirect:
+        scheme: https
+        hostname: error-pages.internal.oreillys.io
+        port: 443
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
