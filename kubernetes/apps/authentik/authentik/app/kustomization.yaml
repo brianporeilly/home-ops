@@ -10,6 +10,7 @@ resources:
   - ./oauth-sources-secret.yaml
   - ./blueprints-configmap.yaml
   - ./blueprints-groups.yaml
+  - ./blueprints-brute-force.yaml
   - ./blueprint-reapply-rbac.yaml
   - ./blueprint-reapply-cronjob.yaml
   - ./oidc-generators.yaml
