@@ -24,6 +24,7 @@ metadata:
     # auto-derivation entirely instead, so it can't regress the same way.
     gatus.home-operations.com/endpoint: |-
       path: /
+spec:
   hostnames:
     - auth.oreillys.io
   parentRefs:
