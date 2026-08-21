@@ -6,6 +6,5 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./mariadb.yaml
-  - ./obc.yaml
   - ./backup.yaml
   - ./kopiur-snapshot.yaml
