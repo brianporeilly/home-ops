@@ -20,8 +20,10 @@ data:
   # backwards from a normal allow-policy, so it's bound to a DenyStage
   # (execute the stage - i.e. deny the user - only when reputation is bad),
   # not used to gate the identification/password stages directly.
-  # threshold: -5, check both IP and username - Authentik's own documented
-  # example config, and roughly "5 failed attempts" either way.
+  # threshold: -3, check both IP and username. Confirmed live the decrement
+  # isn't a flat -1/failure (12 failed attempts only brought a test account
+  # to -5, not -12) - -3 is deliberately tighter than Authentik's documented
+  # -5 example to compensate, closer to "3-ish attempts" in practice.
   brute-force.yaml: |
     metadata:
       name: Brute-force protection - default authentication flow
@@ -34,7 +36,7 @@ data:
         attrs:
           check_ip: true
           check_username: true
-          threshold: -5
+          threshold: -3
       - model: authentik_stages_deny.denystage
         identifiers:
           name: default-authentication-brute-force-deny
