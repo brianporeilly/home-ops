@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Found via real pending_actions data after exercising every app
+# (2026-08-22): changedetection (`home`) sends prompts to llama-cpp's API
+# (`ai`) as one of its watched/queried targets. Narrow pair, same shape as
+# step 4's database-to-media/database-to-observability rules.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-changedetection-to-llama-cpp
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'llama-cpp'
+  namespaceSelector: kubernetes.io/metadata.name == 'ai'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'changedetection'
+        namespaceSelector: kubernetes.io/metadata.name == 'home'
+      destination:
+        ports: [8080]

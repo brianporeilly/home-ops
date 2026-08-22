@@ -1,0 +1,44 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Generalizes the original narrow allow-misc-to-network (step 4) - real
+# pending_actions data after exercising every app (2026-08-22) showed this
+# is a recurring pattern, not a one-off: forgejo (misc), paperless-ngx
+# (home), and immich-server (immich) all separately call out through
+# envoy-internal/envoy-external to reach a hostname that resolves back to
+# the Gateway VIP (OIDC discovery, webhooks, etc.) - the same shape as any
+# other HTTP client hitting the ingress point, just happening to be a
+# cluster pod instead of a LAN/internet client. Three different source
+# namespaces made the narrow-pair approach the wrong shape; this replaces
+# it with "any cluster pod can reach network's Envoy pods on https,"
+# mirroring how allow-network-ingress already treats `network` as an
+# unrestricted-source destination in the reverse direction.
+#
+# selector matches both envoy-internal and envoy-external (shared
+# app.kubernetes.io/name=envoy label) - no reason to split by gateway,
+# unlike the LAN/OPNsense-sourced rules where internal vs. external
+# actually matters for the trust boundary. HTTPS only (10443) - the
+# use case here is API/webhook calls, not plain-HTTP browsing.
+#
+# source: {selector: all()} deliberately, not an omitted/empty source -
+# a selector-based rule only ever matches real Calico-known endpoints
+# (WorkloadEndpoints), never arbitrary external IPs, so this can't be
+# used to bypass the trusted-VLAN/OPNsense scoping on the sibling
+# policies - omitting source entirely would allow literally anywhere,
+# undoing that work.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-cluster-to-network-https
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'envoy'
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: all()
+      destination:
+        ports: [10443]
