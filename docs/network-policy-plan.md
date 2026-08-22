@@ -77,18 +77,18 @@ from the table below (see notes).
 
 ## Proposed baseline (staged first, always)
 
-1. ✅ **Cluster-wide allow: DNS** (`stagedglobalnetworkpolicy-dns.yaml`) — staged, watching for
-   unexpected `pending_actions` before promoting.
-2. ✅ **Cluster-wide allow: ingress from `network`** (`stagedglobalnetworkpolicy-network-ingress.yaml`)
-   — staged, deliberately broad on the first pass (`selector: all()`, no per-app port list — an
+1. ✅ **Cluster-wide allow: DNS** (`globalnetworkpolicy-dns.yaml`) — watched for unexpected
+   `pending_actions` before promoting (see Verification).
+2. ✅ **Cluster-wide allow: ingress from `network`** (`globalnetworkpolicy-network-ingress.yaml`)
+   — deliberately broad on the first pass (`selector: all()`, no per-app port list — an
    over-broad *allow* is harmless on its own, since it's the later default-deny step that
    actually narrows access; per-app port scoping is a refinement once staged data shows what's
    really needed, now easy to check via `whisker.internal.oreillys.io`).
 3. ✅ **Cluster-wide allow: ingress from `observability`**
-   (`stagedglobalnetworkpolicy-observability-ingress.yaml`) — staged, same broad-first-pass shape
+   (`globalnetworkpolicy-observability-ingress.yaml`) — same broad-first-pass shape
    as step 2 (`selector: all()`, no per-app port list, TCP-only).
 4. ✅ **The narrow pairs above**, each as its own small, explicit rule scoped to just that
-   source/dest/port (`stagedglobalnetworkpolicy-database-to-media.yaml`,
+   source/dest/port (`globalnetworkpolicy-database-to-media.yaml`,
    `-database-to-observability.yaml`, `-spegel-mirror.yaml`, `-misc-to-network.yaml`). The last two
    needed judgment calls beyond a plain source/dest/port copy from the flow table:
    - **spegel**: `hostPort`-based node-to-node image-mirror traffic, not a real namespace
@@ -102,8 +102,8 @@ from the table below (see notes).
      replaced by `allow-cluster-to-network-https`) once `paperless-ngx` and `immich-server` showed
      the same pattern from different namespaces - three source namespaces made narrow pairs the
      wrong shape.
-5. ✅ **Allow same-namespace ingress, everywhere** (`components/common/stagednetworkpolicy-same-namespace.yaml`)
-   — staged. Found missing via real `pending_actions` data (see Verification below), not planned
+5. ✅ **Allow same-namespace ingress, everywhere** (`components/common/networkpolicy-same-namespace.yaml`)
+   — found missing via real `pending_actions` data (see Verification below), not planned
    up front: steps 2-3's `selector: all()` GlobalNetworkPolicies claim every endpoint in the
    cluster for ingress-policy purposes, which bypasses Calico's normal fallback to the permissive
    per-namespace `kns.<ns>` Profile - so ordinary same-namespace traffic (app -> its own DB,
@@ -157,13 +157,17 @@ from the table below (see notes).
      (docs/network-observability-plan.md), a different VLAN entirely. akvorado and fluent-bit
      additionally allow `10.2.0.1/32` (OPNsense's own transit address) - OPNsense sends its own
      NetFlow/syslog directly, not just switches, and that address isn't in either VLAN block.
-7. **Default-deny ingress**, per namespace, once 1-6 are confirmed correct via staged mode —
-   this is the step that actually turns "nothing enforced" into "namespace isolation by
-   default," and it only goes in after watching real traffic against the staged version of
-   everything above and confirming nothing legitimate gets flagged as would-be-denied. Note: this
-   isn't a separate "flip a switch" step - promoting steps 1-6 themselves from Staged to real,
-   enforcing policies *is* what creates the default-deny effect (see the mechanism in step 5
-   above), so all of 1-6 need to go enforcing together, not gradually with gaps between them.
+7. ✅ **Default-deny ingress, everywhere** — promoted 2026-08-22. Confirmed live (this whole plan's
+   central finding, see step 5 and the Verification sections): this was never a separate "flip a
+   switch" step - promoting every staged Allow rule from steps 1-6 to real, enforcing policy *is*
+   what creates the default-deny effect, because a `selector: all()` policy going enforcing ends
+   Calico's permissive per-namespace `kns.<ns>` Profile fallback for literally every pod in the
+   cluster simultaneously. That's also why this had to happen as one atomic change across all
+   ~16 files (15 `GlobalNetworkPolicy` + the namespaced `allow-same-namespace`
+   `NetworkPolicy`) rather than gradually or per-namespace - no partial rollout was possible once
+   any one of the wide rules went live. Files renamed to drop the `staged` prefix
+   (`stagedglobalnetworkpolicy-*.yaml` → `globalnetworkpolicy-*.yaml`, same pattern for the
+   namespaced one) to match what they now actually are.
 8. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
    baseline) — `download`'s internet-bound traffic is the obvious first case to think through.
    **Low priority** — track as a roadmap item, not blocking on the ingress baseline above.

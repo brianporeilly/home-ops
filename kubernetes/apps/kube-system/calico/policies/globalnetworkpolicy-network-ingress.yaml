@@ -1,10 +1,12 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
-# Step 2 of docs/network-policy-plan.md's proposed baseline - staged
-# (log-only) like step 1. Envoy Gateway (envoy-internal/envoy-external,
-# both in the network namespace) is one of the two wide fan-outs the flow
-# data review found - it routes HTTPRoute traffic to backend Services
-# across nearly every namespace.
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Step 2 of docs/network-policy-plan.md's proposed baseline. Envoy Gateway
+# (envoy-internal/envoy-external, both in the network namespace) is one of
+# the two wide fan-outs the flow data review found - it routes HTTPRoute
+# traffic to backend Services across nearly every namespace.
+#
+# Promoted to enforcing 2026-08-22 (step 7) after a full staged-verification
+# pass - see the doc's Verification sections for what was checked.
 #
 # Deliberately broad for this first pass: selector all() + source
 # namespaceSelector network, no per-app port list. An overly-broad ALLOW
@@ -17,11 +19,10 @@
 # TCP-only: http3/QUIC is commented out in envoy.yaml's ClientTrafficPolicy
 # (not enabled), so there's no UDP listener traffic to allow for here.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-network-ingress
 spec:
-  stagedAction: Set
   selector: all()
   types:
     - Ingress

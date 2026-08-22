@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Step 6 of docs/network-policy-plan.md's proposed baseline - the external
 # counterpart to allow-trusted-vlans-to-envoy-internal.
 #
@@ -26,11 +26,10 @@
 # by source, since an internet-facing gateway's whole job is accepting
 # arbitrary source IPs.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-opnsense-to-envoy-external
 spec:
-  stagedAction: Set
   selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-external'
   namespaceSelector: kubernetes.io/metadata.name == 'network'
   types:

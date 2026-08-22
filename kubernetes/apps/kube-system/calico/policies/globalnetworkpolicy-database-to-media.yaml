@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Step 4 (first of the narrow pairs) of docs/network-policy-plan.md's
 # proposed baseline - staged, like every policy in this rollout.
 # mariadb-operator (runs in `database`) manages grimmory-mariadb (lives in
@@ -8,11 +8,10 @@
 # is a narrow pair - scoped to the exact source/dest pods and port, not a
 # whole-namespace allow.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-database-to-media
 spec:
-  stagedAction: Set
   selector: app.kubernetes.io/instance == 'grimmory-mariadb' && app.kubernetes.io/name == 'mariadb'
   namespaceSelector: kubernetes.io/metadata.name == 'media'
   types:
