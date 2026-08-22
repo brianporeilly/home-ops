@@ -8,3 +8,4 @@ resources:
   - ./exporter-secret.yaml
   - ./servicemonitor.yaml
   - ./dashboard.yaml
+  - ./backendtrafficpolicy-metrics-block.yaml

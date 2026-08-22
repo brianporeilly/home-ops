@@ -26,6 +26,14 @@ spec:
             image:
               repository: ghcr.io/jellyfin/jellyfin
               tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+            # Native /metrics is enabled via <EnableMetrics>true</EnableMetrics>
+            # in /config/config/system.xml directly, not an env var -
+            # JELLYFIN_EnableMetrics/MetricsListenPort don't do anything
+            # (both upstream PRs for them are unmerged, see git log). A
+            # one-time manual edit persists fine since /config is the
+            # ceph-block PVC, not ephemeral. No separate port exists either
+            # (same reason), so /metrics rides the same 8096 as the app
+            # itself - blocked at the route level below, not the pod.
             env:
               JELLYFIN_CACHE_DIR: /config/cache
             probes:
@@ -119,6 +127,16 @@ spec:
 
     route:
       app:
+        annotations:
+          # gatus-sidecar's HTTPRoute auto-discovery skips a bare "/" match
+          # and picks the next PathPrefix rule it finds instead (confirmed
+          # against its source - see the authentik-server-external fix,
+          # same repo, same bug) - without this override it would start
+          # probing /metrics instead of / the moment the named rule below
+          # exists, and the metrics-blocked policy would make that a
+          # permanent false-positive UNHEALTHY.
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - media.internal.oreillys.io
         parentRefs:
@@ -131,7 +149,23 @@ spec:
           - backendRefs:
               - name: jellyfin
                 port: *port
+          # Named so the BackendTrafficPolicy below (metrics-block.yaml) can
+          # target just this rule via sectionName. Same backend as the
+          # catch-all above - the block happens via fault injection before
+          # the request ever reaches Jellyfin, this rule only exists to give
+          # the policy something scoped to attach to.
+          - name: metrics-blocked
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
+              - name: jellyfin
+                port: *port
       external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - media.oreillys.io
         parentRefs:
@@ -140,6 +174,14 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
+              - name: jellyfin
+                port: *port
+          - name: metrics-blocked
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
               - name: jellyfin
                 port: *port
 

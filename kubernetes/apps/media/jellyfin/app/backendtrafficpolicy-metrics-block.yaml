@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_backendtrafficpolicies.yaml
+# Forces a flat 404 on the metrics-blocked rule in helmrelease.yaml (both
+# route.app and route.external) - faultInjection.abort at 100% never
+# reaches the jellyfin backend at all. Needed because /metrics rides the
+# same port/route as the app itself (see the comment on
+# controllers.jellyfin.containers.app.env in helmrelease.yaml for why there's
+# no separate port to isolate it on instead). Prometheus scrapes the
+# jellyfin-exporter Service directly via ClusterIP, bypassing the Gateway
+# entirely, so this doesn't affect actual metric collection - it only blocks
+# reaching /metrics through either public hostname.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: jellyfin-metrics-block
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: jellyfin-app
+      sectionName: metrics-blocked
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: jellyfin-external
+      sectionName: metrics-blocked
+  faultInjection:
+    abort:
+      httpStatus: 404
+      percentage: 100

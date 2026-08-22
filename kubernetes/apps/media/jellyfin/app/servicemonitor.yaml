@@ -9,7 +9,21 @@ spec:
     - port: http
       path: /metrics
       interval: 30s
-  jobLabel: app.kubernetes.io/name
+      # Default instance label is the pod IP:port, which churns on every
+      # restart (Deployment, not StatefulSet - no stable pod identity) and
+      # left the dashboard's instance dropdown accumulating stale IPs from
+      # old pod incarnations. There's only ever one replica of this exporter
+      # for one Jellyfin server, so a fixed value is more accurate than a
+      # "real" identity would be anyway.
+      relabelings:
+        - targetLabel: instance
+          replacement: jellyfin
+  # app.kubernetes.io/name is "jellyfin" for every Service in this release -
+  # using it as jobLabel here made both ServiceMonitors resolve to job=
+  # "jellyfin", so Prometheus scraped two different targets under one job
+  # name and this exporter's real UP status got masked by whichever of the
+  # two was actually down. app.kubernetes.io/service is unique per Service.
+  jobLabel: app.kubernetes.io/service
   namespaceSelector:
     matchNames:
       - media
@@ -17,3 +31,35 @@ spec:
     matchLabels:
       app.kubernetes.io/name: jellyfin
       app.kubernetes.io/service: jellyfin-exporter
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+# Jellyfin's own native /metrics (generic HTTP/process metrics only - see
+# the comment on controllers.jellyfin.containers.app.env in helmrelease.yaml
+# for how it's actually enabled). Separate ServiceMonitor because it targets
+# the "jellyfin" Service on its main port (8096, no dedicated metrics port
+# exists), not "jellyfin-exporter" - different Service objects, different
+# selector. Client-facing access to this path is blocked at the route level
+# (backendtrafficpolicy-metrics-block.yaml); this scrapes the ClusterIP
+# directly, bypassing the Gateway entirely, so the block doesn't affect it.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jellyfin-native-metrics
+spec:
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      # Same instance-churn reasoning as jellyfin-exporter above - single
+      # replica, pod IP isn't a meaningful identity.
+      relabelings:
+        - targetLabel: instance
+          replacement: jellyfin
+  jobLabel: app.kubernetes.io/service
+  namespaceSelector:
+    matchNames:
+      - media
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/service: jellyfin
