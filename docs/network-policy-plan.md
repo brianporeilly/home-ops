@@ -257,17 +257,27 @@ both for troubleshooting a policy that's too tight and for noticing unexpected t
   "deny rate" alert would use) is **Calico Cloud/Enterprise-only**. Open-source Felix exposes
   plenty of internal state (endpoints, policies, iptables, BPF) but nothing for policy denies.
   No free Prometheus metric to alert on here.
-- **A real path exists, not yet designed:**
-  - **Poll Goldmane's flow API** on a schedule for `action=Deny`, route hits into the existing
-    Alertmanager/Slack pipeline. Straightforward, uses the exact API already proven working.
-  - **Calico's `Log`-then-`Deny` pattern** — an explicit `Log` rule ahead of a policy's `Deny`
-    puts denied packets into the kernel log via iptables' `LOG` target, which fluent-bit already
-    ships to Loki. Same shape as the already-proven `SyslogErrorRateHigh` keyword alert from the
-    network-observability work — would fit this cluster's existing alerting conventions well,
-    but adds a live logging cost to every enforced deny (worth weighing against the poller
-    option, which has none).
-  - Neither is implemented. Revisit once the ingress baseline (steps 1-5 above) is live enough
-    to actually be generating denies worth alerting on.
+- **Grafana visibility: implemented 2026-08-22** (`calico-deny-log-shipper`,
+  `kubernetes/apps/observability/calico-deny-log-shipper/`). Went with the poller option, not the
+  `Log`-then-`Deny` iptables approach - no live logging cost per enforced deny, and reuses the
+  exact `whisker-backend` HTTP+JSON API already proven working all through this plan's
+  verification passes, rather than Goldmane's raw gRPC stream (which is what the one piece of
+  prior art found online - a homelab OTLP/HTTP exporter - has to speak instead). A 1-minute
+  CronJob polls a deliberately-overlapping 3-minute window, filters to `action: Deny`, and ships
+  each hit to Loki as a structured JSON log line (`job="calico-deny-log"`) using the flow's own
+  `end_time` as the log timestamp - so re-fetching the same flow across overlapping runs lands as
+  an exact (timestamp, line) duplicate, which Loki accepts as a no-op instead of double-counting.
+  Dashboard: `kubernetes/apps/observability/grafana/app/calico-deny-dashboard.yaml` ("Network"
+  folder) - total-in-range stat, deny-rate-over-time, and the table this was actually built for:
+  unique source→destination deny hits with counts, sorted descending, for the selected time
+  range. Needed a second Calico policy rule (`observability` added to
+  `allow-whisker-envoy-ingress` in `kube-system/calico/route/networkpolicy.yaml`) since the
+  shipper reaches `whisker-backend` directly in-cluster rather than through the SSO-wrapped
+  HTTPRoute - a CronJob can't do an interactive OIDC login.
+  - **Not done, and deliberately not implemented alongside this**: proactive Slack/Alertmanager
+    alerting on deny rate. The dashboard covers "look and see"; "notify me automatically" is a
+    separate decision (threshold tuning, alert fatigue risk) - revisit once the dashboard has
+    run for a while and shows what a normal baseline deny rate even looks like.
 
 ## Open questions
 
