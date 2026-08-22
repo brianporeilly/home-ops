@@ -146,12 +146,15 @@ from the table below (see notes).
      step 4's spegel rule) instead of ~8 near-duplicate narrow pairs. calico-system's own
      apiserver/webhook traffic isn't included - already handled by tigera-operator's own
      calico-system-tier policies, evaluated before this tier.
-   - `allow-trusted-vlans-to-loki` / `-akvorado` / `-fluent-bit` — real observed trusted-VLAN
-     devices pushing data in (NAS's Alloy agent to Loki, network gear's NetFlow to Akvorado's
-     inlet, network gear's syslog to fluent-bit), each scoped to its specific app + real port,
-     same trusted-VLAN source list - notably *not* just `10.20.0.0/16`: the primary switch's own
-     management IP is `10.10.0.1` (docs/network-observability-plan.md), a different VLAN
-     entirely, so a servers-VLAN-only rule would have missed the actual switch traffic.
+   - `allow-trusted-vlans-to-loki` / `-akvorado` / `-fluent-bit` — real observed data-ingestion
+     traffic (NAS's Alloy agent to Loki, network gear's NetFlow to Akvorado's inlet, network
+     gear's syslog to fluent-bit), each scoped to its specific app + real port. Narrower source
+     list than envoy-internal/-external on purpose (confirmed 2026-08-22): only `10.10.0.0/16`
+     and `10.20.0.0/16` actually send anything here, not the full trusted-VLAN set - but *not*
+     just `10.20.0.0/16` alone either: the primary switch's own management IP is `10.10.0.1`
+     (docs/network-observability-plan.md), a different VLAN entirely. akvorado and fluent-bit
+     additionally allow `10.2.0.1/32` (OPNsense's own transit address) - OPNsense sends its own
+     NetFlow/syslog directly, not just switches, and that address isn't in either VLAN block.
 7. **Default-deny ingress**, per namespace, once 1-6 are confirmed correct via staged mode —
    this is the step that actually turns "nothing enforced" into "namespace isolation by
    default," and it only goes in after watching real traffic against the staged version of

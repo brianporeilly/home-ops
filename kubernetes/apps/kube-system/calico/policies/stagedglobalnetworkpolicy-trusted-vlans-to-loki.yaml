@@ -3,11 +3,10 @@
 # Step 6 of docs/network-policy-plan.md's proposed baseline. Trusted-VLAN
 # devices push logs directly to Loki's HTTP API (e.g. the NAS's Alloy
 # agent, NAS lives in the servers VLAN per docs/node-inventory.md) - real,
-# observed flow data. Same trusted-VLAN list as
-# allow-trusted-vlans-to-envoy-internal (see that file for the full
-# rationale), not Whisker's coarser "PRIVATE NETWORK" bucket and not just
-# `10.20.0.0/16` alone - other trusted-VLAN devices could plausibly push
-# logs too, and there's no cost to allowing the same set consistently.
+# observed flow data. Narrower than the envoy-internal/envoy-external
+# trusted-VLAN list on purpose (confirmed 2026-08-22): only `10.10.0.0/16`
+# and `10.20.0.0/16` have anything that actually pushes logs here, not the
+# full trusted-VLAN set.
 #
 # Destination scoped to the loki `single-binary` pod specifically
 # (excludes loki-canary, a separate pod sharing app.kubernetes.io/name)
@@ -29,7 +28,5 @@ spec:
         nets:
           - 10.10.0.0/16
           - 10.20.0.0/16
-          - 10.30.0.0/16
-          - 10.40.0.0/16
       destination:
         ports: [3100]
