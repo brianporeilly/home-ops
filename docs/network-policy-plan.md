@@ -94,6 +94,36 @@ from the table below (see notes).
    everything above and confirming nothing legitimate gets flagged as would-be-denied.
 6. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
    baseline) — `download`'s internet-bound traffic is the obvious first case to think through.
+   **Low priority** — track as a roadmap item, not blocking on the ingress baseline above.
+
+## Rejected-traffic visibility & alerting
+
+Checked what Calico itself offers for reviewing/being notified about denied traffic (matters
+both for troubleshooting a policy that's too tight and for noticing unexpected traffic patterns
+— an app quietly trying to phone home somewhere new, for example):
+
+- **Ad-hoc investigation: already works, today.** Every flow — allowed *and* denied — already
+  goes through Goldmane with full detail (source/dest, labels, ports, which policy decided it),
+  filterable by action. This is the same API the flow-data review above used
+  (`whisker-backend.calico-system.svc:3002/flows`). **Gap:** Whisker itself has no `HTTPRoute` —
+  only reachable by port-forward today. Worth exposing it (internal-only, matches its own
+  read-only-status-page nature) so this is a bookmark instead of a port-forward every time.
+- **Proactive alerting: not available in open-source Calico.** Checked directly against Felix's
+  own Prometheus metrics reference (not just a summary) — `calico_denied_packets` (the metric a
+  "deny rate" alert would use) is **Calico Cloud/Enterprise-only**. Open-source Felix exposes
+  plenty of internal state (endpoints, policies, iptables, BPF) but nothing for policy denies.
+  No free Prometheus metric to alert on here.
+- **A real path exists, not yet designed:**
+  - **Poll Goldmane's flow API** on a schedule for `action=Deny`, route hits into the existing
+    Alertmanager/Slack pipeline. Straightforward, uses the exact API already proven working.
+  - **Calico's `Log`-then-`Deny` pattern** — an explicit `Log` rule ahead of a policy's `Deny`
+    puts denied packets into the kernel log via iptables' `LOG` target, which fluent-bit already
+    ships to Loki. Same shape as the already-proven `SyslogErrorRateHigh` keyword alert from the
+    network-observability work — would fit this cluster's existing alerting conventions well,
+    but adds a live logging cost to every enforced deny (worth weighing against the poller
+    option, which has none).
+  - Neither is implemented. Revisit once the ingress baseline (steps 1-5 above) is live enough
+    to actually be generating denies worth alerting on.
 
 ## Open questions
 
@@ -101,9 +131,6 @@ from the table below (see notes).
   *all* of `network`'s traffic, or would scoping to specific ports per app (rather than a blanket
   namespace-level allow) be worth the extra policy surface? Leaning toward namespace-level for
   the baseline, app-level as a later tightening pass if it turns out to matter.
-- `download`'s egress (392 observed flows, by far the largest single traffic pattern in this
-  data) isn't addressed by this ingress-focused plan at all yet — worth a explicit decision
-  once the ingress baseline is live and stable.
 - Whether `kube-system → *` (spegel) should be a real per-namespace allow or whether it's
   cleaner to just exempt `kube-system` as a source everywhere, given its cluster-wide-by-design
   nature.
