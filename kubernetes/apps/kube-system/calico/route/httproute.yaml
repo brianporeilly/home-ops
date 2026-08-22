@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# Whisker (Calico's flow-visibility UI) has no auth of its own - confirmed
+# live, every request served with zero challenge. Internal-only, wrapped in
+# SSO via components/authentik/protect (see this dir's ks.yaml entry).
+#
+# Lives in its own Kustomization targeting calico-system (not the main
+# calico/app one, which targets tigera-operator - a formality for the
+# cluster-scoped Calico CRs there, but would actually place this HTTPRoute
+# in the wrong namespace relative to the real `whisker` Service, which the
+# tigera-operator always creates in calico-system regardless of Flux's
+# targetNamespace).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: whisker
+spec:
+  hostnames:
+    - whisker.internal.oreillys.io
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: whisker
+          port: 8081

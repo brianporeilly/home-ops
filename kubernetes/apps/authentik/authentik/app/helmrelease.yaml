@@ -150,6 +150,19 @@ spec:
             secretKeyRef:
               name: kopiur-ui-oidc-credentials
               key: client-secret
+        # Consumed by the provider-whisker.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from whisker-oidc-credentials.yaml (ExternalSecret) - see
+        # echo-oidc-credentials.yaml for the pattern rationale.
+        - name: WHISKER_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-id
+        - name: WHISKER_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-secret
         # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
         - name: CHANGEDETECTION_OAUTH_CLIENT_ID
           valueFrom:
