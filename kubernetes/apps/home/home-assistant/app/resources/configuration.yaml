@@ -36,4 +36,15 @@ rest_command:
       content-type: "application/json; charset=utf-8"
     payload: '{"text": "{{ message }}"}'
 
+
+# SSO via authentik (auth_oidc custom_component, installed by the
+# install-oidc initContainer - see helmrelease.yaml and
+# docs/security-plan.md §3.2). Public client (no client_secret) - matches
+# the authentik provider config in
+# kubernetes/apps/authentik/authentik/app/blueprints-protected-apps.yaml
+# (provider-home-assistant.yaml), client_id/slug: home-assistant.
+auth_oidc:
+  client_id: home-assistant
+  discovery_url: https://auth.internal.oreillys.io/application/o/home-assistant/.well-known/openid-configuration
+
 automation: !include automations.yaml

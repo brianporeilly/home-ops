@@ -42,6 +42,10 @@ data:
         identifiers:
           name: forgejo-users
         id: forgejo-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: home-assistant-users
+        id: home-assistant-users-group
       # First real "tier" group (not a dedicated per-app group like the
       # others above) - intended to be reused by other media apps
       # (jellyfin, audiobookshelf, etc) as they get wired up. Carve a
