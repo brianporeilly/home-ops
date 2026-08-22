@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/grimmory-tools/grimmory
-              tag: v3.3.2@sha256:dc4000959d108bcfdfa8952b84fbefc157c3110a561d6068069b997b597ed94a
+              tag: v3.3.3@sha256:d658e472e0b6d4df8eb022453b9155076c97d2a01878739116e8b776c042dd66
             env:
               USER_ID: "1000"
               GROUP_ID: "1000"
