@@ -25,7 +25,7 @@ spec:
               repository: ghcr.io/tarampampam/error-pages
               tag: 4.2.4@sha256:4c5b7025ebb4c3ba4f41e465088db669871cd654976e5dfb10d12e51c644ad3b
             env:
-              TEMPLATE_NAME: l7
+              TEMPLATE_NAME: connection
               # Server defaults to always returning HTTP 200 (correct when a
               # reverse proxy swaps only the body and sends its own status
               # code) - we use this as a direct backend via Envoy Gateway's
@@ -34,6 +34,13 @@ spec:
               # itself. See upstream's own Envoy Gateway guide,
               # docs/guides/k8s_ingress_envoy.md in tarampampam/error-pages.
               SEND_SAME_HTTP_CODE: "true"
+              # Enriches the page with upstream proxy info (host, original
+              # URI) and echoes back any of the default --proxy-headers
+              # (X-Request-Id, X-Trace-Id, etc.) if the request carried one -
+              # request metadata only, not the original response body (Envoy's
+              # redirect action has no field to forward that, see
+              # envoy-custom-response-passthrough-limits).
+              SHOW_DETAILS: "true"
             probes:
               liveness: &probes
                 enabled: true
