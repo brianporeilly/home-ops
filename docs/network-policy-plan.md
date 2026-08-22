@@ -84,8 +84,9 @@ from the table below (see notes).
    over-broad *allow* is harmless on its own, since it's the later default-deny step that
    actually narrows access; per-app port scoping is a refinement once staged data shows what's
    really needed, now easy to check via `whisker.internal.oreillys.io`).
-3. **Cluster-wide allow: ingress from `observability`.** Same shape, sourced from
-   `observability`, covering each app's metrics/health port(s).
+3. ✅ **Cluster-wide allow: ingress from `observability`**
+   (`stagedglobalnetworkpolicy-observability-ingress.yaml`) — staged, same broad-first-pass shape
+   as step 2 (`selector: all()`, no per-app port list, TCP-only).
 4. **The narrow pairs above**, each as its own small, explicit rule scoped to just that
    source/dest/port.
 5. **Default-deny ingress**, per namespace, once 1-4 are confirmed correct via staged mode —

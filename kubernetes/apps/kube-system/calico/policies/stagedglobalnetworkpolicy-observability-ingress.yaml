@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 3 of docs/network-policy-plan.md's proposed baseline - staged
+# (log-only) like steps 1-2. `observability` is the other wide fan-out the
+# flow data review found (13 destination namespaces observed): Prometheus
+# scraping ServiceMonitor/PodMonitor targets everywhere, plus
+# `gatus-sidecar` health-checking `network`'s Envoy pods directly.
+#
+# Same deliberately-broad shape as step 2 (`allow-network-ingress`):
+# selector all() + source namespaceSelector observability, no per-app port
+# list. An overly-broad ALLOW is harmless on its own - narrowing to
+# per-app metrics/health ports is a refinement once staged data confirms
+# what's actually scraped, not something to guess up front.
+#
+# TCP-only: every observed flow here is HTTP (metrics/health endpoints).
+# snmp-exporter's UDP/161 polling is egress to external network devices,
+# not ingress from another namespace, so it's out of scope for this rule.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-observability-ingress
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'observability'

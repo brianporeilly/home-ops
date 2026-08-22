@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - ./stagedglobalnetworkpolicy-dns.yaml
   - ./stagedglobalnetworkpolicy-network-ingress.yaml
+  - ./stagedglobalnetworkpolicy-observability-ingress.yaml
