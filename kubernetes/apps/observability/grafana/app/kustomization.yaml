@@ -7,3 +7,4 @@ resources:
   - ./oidc-secret.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./calico-deny-dashboard.yaml

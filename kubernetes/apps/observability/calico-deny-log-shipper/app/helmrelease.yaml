@@ -1,0 +1,114 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+# Polls whisker-backend's flow API directly (in-cluster Service, not the
+# SSO-wrapped HTTPRoute - a CronJob can't do an interactive OIDC login;
+# see kubernetes/apps/kube-system/calico/route/networkpolicy.yaml for the
+# ingress rule this needs), filters to real denied flows, and ships each
+# one to Loki as a structured JSON log line. Feeds the Grafana dashboard in
+# kubernetes/apps/observability/grafana/app/calico-deny-dashboard.yaml.
+#
+# 3-minute lookback window on a 1-minute schedule (deliberate overlap, not
+# a bug) - covers Goldmane's own aggregation lag and any single missed/slow
+# run without a gap. Overlap means the same flow can get pushed to Loki
+# more than once, but each push uses the flow's own end_time as the log
+# line's timestamp (not "now"), so an identical (timestamp, line) pair
+# lands as an exact duplicate, which Loki accepts as a no-op rather than
+# double-counting.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: calico-deny-log-shipper
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: calico-deny-log-shipper
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      calico-deny-log-shipper:
+        type: cronjob
+        cronjob:
+          schedule: "* * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.13-alpine@sha256:42825e7ec3437b3bce923c237484eb23d32128476e18307d2f48951bf86f1db2
+            command:
+              - python3
+              - -c
+              - |
+                import json, urllib.request, datetime
+
+                WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
+                LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
+                WINDOW_SECONDS = 180
+
+                with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
+                    data = json.load(r)
+                items = data.get("items", [])
+                cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=WINDOW_SECONDS)
+                values = []
+                for f in items:
+                    if f.get("action") != "Deny":
+                        continue
+                    end_time = f.get("end_time")
+                    if not end_time:
+                        continue
+                    ts = datetime.datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                    if ts < cutoff:
+                        continue
+                    ts_ns = str(int(ts.timestamp() * 1_000_000_000))
+                    line = json.dumps({
+                        "source_namespace": f.get("source_namespace") or f.get("source_name"),
+                        "source_name": f.get("source_name"),
+                        "dest_namespace": f.get("dest_namespace") or f.get("dest_name"),
+                        "dest_name": f.get("dest_name"),
+                        "protocol": f.get("protocol"),
+                        "dest_port": f.get("dest_port"),
+                        "reporter": f.get("reporter"),
+                    }, sort_keys=True)
+                    values.append((ts_ns, line))
+
+                if not values:
+                    print("no deny flows in window")
+                else:
+                    values.sort()
+                    payload = {"streams": [{"stream": {"job": "calico-deny-log"}, "values": [list(v) for v in values]}]}
+                    req = urllib.request.Request(
+                        LOKI_URL,
+                        data=json.dumps(payload).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=30) as r:
+                        print(f"pushed {len(values)} deny flows, status {r.status}")
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
