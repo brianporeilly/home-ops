@@ -133,18 +133,12 @@ anywhere in this repo. Every pod can reach every other pod/service regardless of
 externally-exposed app gets popped (RCE, a bad dependency, whatever), there's currently zero
 lateral-movement friction to CNPG databases, Ceph, Authentik, kopiur backups — anything.
 
-Plan:
-1. Use Whisker/Goldmane to observe real east-west traffic per namespace **before** writing
-   anything — don't default-deny blind on an established cluster, that's how things quietly break.
-2. Start with default-deny + explicit allow on the namespaces that are actually about to gain
-   external exposure (media, home, misc) rather than the whole cluster at once.
-3. Explicitly allow the traffic every app actually needs: DNS, its own database/cache, Envoy
-   Gateway ingress, kopiur's mover Jobs, Prometheus scraping. Expect a few iterations as
-   legitimate traffic gets missed on the first pass.
-4. Extend cluster-wide once the pattern is proven on a couple of namespaces.
-
-This is "finally use what's already running," not a new dependency — the visibility tooling is
-the reason to do this now instead of guessing at rules blind.
+**Full plan, including a real flow-data review: `docs/network-policy-plan.md`.** Short version:
+Calico `NetworkPolicy`/`GlobalNetworkPolicy` (not plain Kubernetes `NetworkPolicy`, not a service
+mesh — see that doc for why), rolled out via Calico's staged policies (already installed) so
+nothing is enforced blind, baseline is namespace-level default-deny plus a short list of
+cluster-wide exceptions (DNS, Envoy Gateway ingress, Prometheus scraping) rather than a bespoke
+policy per app.
 
 ### 2.3 Per-app rate limiting
 
