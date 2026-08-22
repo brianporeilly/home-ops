@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 6 of docs/network-policy-plan.md's proposed baseline. Trusted-VLAN
+# devices push logs directly to Loki's HTTP API (e.g. the NAS's Alloy
+# agent, NAS lives in the servers VLAN per docs/node-inventory.md) - real,
+# observed flow data. Narrower than the envoy-internal/envoy-external
+# trusted-VLAN list on purpose (confirmed 2026-08-22): only `10.10.0.0/16`
+# and `10.20.0.0/16` have anything that actually pushes logs here, not the
+# full trusted-VLAN set.
+#
+# Destination scoped to the loki `single-binary` pod specifically
+# (excludes loki-canary, a separate pod sharing app.kubernetes.io/name)
+# and its real push/query port, not a blanket allow into `observability`.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-trusted-vlans-to-loki
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'loki' && app.kubernetes.io/component == 'single-binary'
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+      destination:
+        ports: [3100]

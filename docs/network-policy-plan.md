@@ -111,14 +111,58 @@ from the table below (see notes).
    does, and Calico has no selector syntax for "same namespace as the destination endpoint")
    added to `components/common`, which every app namespace's `kustomization.yaml` already
    includes - one file instead of ~17 near-duplicates, and new namespaces get it automatically.
-6. **Default-deny ingress**, per namespace, once 1-5 are confirmed correct via staged mode —
+6. ✅ **Network boundary: who can reach `network` (and a few other namespaces) from outside the
+   cluster** — closes the gap flagged when step 4's `allow-misc-to-network` was drafted, and
+   confirmed by real `pending_actions` data (`PRIVATE NETWORK`/`PUBLIC NETWORK` sources). Designed
+   narrow, not a blanket "any external traffic" rule, per the same principle as the rest of this
+   baseline:
+   **Correction (2026-08-22)**: the first pass used `10.20.0.0/16` as a stand-in for "the LAN" -
+   wrong. `10.20.0.0/16` is specifically the *servers* VLAN (cluster nodes, NAS, infra tiers, see
+   docs/node-inventory.md), not a general client network, and `10.0.0.0/8` would be far too
+   broad. Confirmed which VLANs should actually reach these destinations: `10.10.0.0/16`,
+   `10.20.0.0/16`, `10.30.0.0/16`, `10.40.0.0/16` (the "trusted VLANs" referenced below).
+   `10.60.0.0/16` (IoT/devices) deliberately excluded - undecided whether it needs access at all,
+   revisit once that's settled. Any other VLAN currently reaching the cluster only does so because
+   upstream network ACLs (OPNsense) haven't been built yet, not because it's actually meant to.
+   - `allow-trusted-vlans-to-envoy-internal` — source is the trusted-VLAN list above (deliberately
+     broad *here* since "any trusted-VLAN device can reach envoy-internal" is the actual intended
+     behavior, not an oversight), destination scoped to envoy-internal's pods specifically (by
+     `owning-gateway-name`, not "all of `network`"), ports 10080/10443/10022 (envoy-internal's
+     real container ports - confirmed live via its Service `targetPort`s, not the Gateway-level
+     80/443/22).
+   - `allow-trusted-vlans-to-envoy-external` — split DNS means hostnames on external routes still
+     resolve internally to envoy-external's own VIP for trusted-VLAN clients, so that traffic
+     never actually leaves for the internet/OPNsense's NAT hop - same trusted-VLAN source list,
+     destination scoped to envoy-external, no SSH port (external doesn't expose it).
+   - `allow-opnsense-to-envoy-external` — source `10.2.0.1/32` only, not "the whole internet": for
+     traffic that *does* come from the actual internet, OPNsense NATs it before it reaches the
+     cluster (already established in envoy.yaml's own ClientTrafficPolicy comment), so that's the
+     only L3 source Calico will ever actually see for that path.
+   - `allow-apiserver-webhooks` — kube-apiserver runs as a static pod (host network) on each
+     control-plane node, so its calls to admission/conversion webhooks across many namespaces
+     (cert-manager, mariadb-operator, postgres-operator, external-secrets, kopiur-system,
+     metrics-server, envoy-gateway, prometheus-operator) all show up as the same external-source
+     shape. One rule, source-scoped-only to the 3 real control-plane node IPs (same pattern as
+     step 4's spegel rule) instead of ~8 near-duplicate narrow pairs. calico-system's own
+     apiserver/webhook traffic isn't included - already handled by tigera-operator's own
+     calico-system-tier policies, evaluated before this tier.
+   - `allow-trusted-vlans-to-loki` / `-akvorado` / `-fluent-bit` — real observed data-ingestion
+     traffic (NAS's Alloy agent to Loki, network gear's NetFlow to Akvorado's inlet, network
+     gear's syslog to fluent-bit), each scoped to its specific app + real port. Narrower source
+     list than envoy-internal/-external on purpose (confirmed 2026-08-22): only `10.10.0.0/16`
+     and `10.20.0.0/16` actually send anything here, not the full trusted-VLAN set - but *not*
+     just `10.20.0.0/16` alone either: the primary switch's own management IP is `10.10.0.1`
+     (docs/network-observability-plan.md), a different VLAN entirely. akvorado and fluent-bit
+     additionally allow `10.2.0.1/32` (OPNsense's own transit address) - OPNsense sends its own
+     NetFlow/syslog directly, not just switches, and that address isn't in either VLAN block.
+7. **Default-deny ingress**, per namespace, once 1-6 are confirmed correct via staged mode —
    this is the step that actually turns "nothing enforced" into "namespace isolation by
    default," and it only goes in after watching real traffic against the staged version of
    everything above and confirming nothing legitimate gets flagged as would-be-denied. Note: this
-   isn't a separate "flip a switch" step - promoting steps 1-5 themselves from Staged to real,
+   isn't a separate "flip a switch" step - promoting steps 1-6 themselves from Staged to real,
    enforcing policies *is* what creates the default-deny effect (see the mechanism in step 5
-   above), so all of 1-5 need to go enforcing together, not gradually with gaps between them.
-7. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
+   above), so all of 1-6 need to go enforcing together, not gradually with gaps between them.
+8. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
    baseline) — `download`'s internet-bound traffic is the obvious first case to think through.
    **Low priority** — track as a roadmap item, not blocking on the ingress baseline above.
 
@@ -134,15 +178,21 @@ Found 198 flows with a pending Deny, three categories:
 - **The same-namespace gap above (step 5)** - the majority of the 198, e.g. `authentik→authentik:5432`,
   `immich→immich` (several ports), `misc→misc` (forgejo/linkwarden/nebraska), dozens of
   `observability→observability` pairs. Real bug, now fixed by step 5.
-- **The already-known `network`-as-destination gap** - `PRIVATE NETWORK`/`PUBLIC NETWORK →
-  network:10080/10443/9443`, real LAN/internet client traffic hitting the gateway pods directly,
-  falling through `allow-misc-to-network`'s narrow source selector to `EndOfTier: Deny`. Confirms
-  the open question flagged when that rule was drafted - still unresolved, still blocking
-  `network`'s own default-deny until answered.
+- **The `network`-as-destination gap** - `PRIVATE NETWORK`/`PUBLIC NETWORK → network:10080/10443/9443`,
+  real LAN/internet client traffic hitting the gateway pods directly, falling through
+  `allow-misc-to-network`'s narrow source selector to `EndOfTier: Deny`. Confirmed the open
+  question flagged when that rule was drafted; **closed by step 6**.
 - **Noise** - `calico-system/curltest*`/`nettest*` entries are ad-hoc debug pods from an earlier
   live-troubleshooting session, not real traffic.
 
-Re-check after step 5 merges and reconciles, before moving on to step 6.
+**Step 5 re-checked after merge (2026-08-22)**: filtered to only flows recorded after the fix
+went live (the full-history query was misleading - Goldmane computes `pending` at ingestion time
+and keeps ~1hr of history, so a single query mixes pre-fix and post-fix snapshots of the same
+recurring conversations). `authentik-postgres-2 -> authentik-postgres-1:5432` confirmed:
+`pending` now shows `StagedNetworkPolicy allow-same-namespace, action: Allow` instead of
+`EndOfTier: Deny`. Zero pending denies across two fresh post-fix samples. Gap closed.
+
+Re-check step 6 the same way once it merges and reconciles, before moving on to step 7.
 
 ## Rejected-traffic visibility & alerting
 

@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 6 of docs/network-policy-plan.md's proposed baseline - the
+# trusted-VLAN counterpart to allow-opnsense-to-envoy-external.
+#
+# Split DNS: hostnames on external routes still resolve internally to
+# envoy-external's own VIP for clients on the trusted network, so that
+# traffic never actually leaves for the internet/OPNsense's NAT hop - it
+# hits envoy-external directly, with the client's own real source address
+# (not OPNsense's NATed one). Without this, internal clients hitting an
+# "external" hostname would be denied even though the same request from
+# the actual internet would be allowed - same trusted-VLAN list as
+# allow-trusted-vlans-to-envoy-internal, see that file's comment for the
+# full rationale on why these four and not `10.0.0.0/8` or "all of
+# 10.20.0.0/16" alone.
+#
+# Destination scoped to envoy-external specifically (not envoy-internal -
+# see the sibling policy). No SSH port here, external doesn't expose it.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-trusted-vlans-to-envoy-external
+spec:
+  stagedAction: Set
+  selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-external'
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+          - 10.30.0.0/16
+          - 10.40.0.0/16
+      destination:
+        ports: [10080, 10443]

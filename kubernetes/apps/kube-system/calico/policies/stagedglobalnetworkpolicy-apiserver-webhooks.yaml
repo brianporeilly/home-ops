@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 6 of docs/network-policy-plan.md's proposed baseline. kube-apiserver
+# runs as a static pod on each control-plane node (host network, not the
+# pod overlay), so its calls to admission/conversion webhooks and
+# aggregated APIs show up in flow data as an external "PRIVATE NETWORK"
+# source, not a normal cluster pod - one recurring shape across many
+# namespaces: cert-manager's webhook (:10250), mariadb-operator's and
+# postgres-operator's webhooks (:9443, `database`), external-secrets'
+# webhook (:10250), kopiur-system's webhook (:8443), metrics-server's
+# aggregated API (:10250, `kube-system`), envoy-gateway's webhook (:9443,
+# `network`), prometheus-operator's webhook (:10250, `observability`).
+#
+# One rule instead of ~8 near-duplicates, matching the source-scoped-only
+# pattern already used for spegel: narrow by source (the exact 3
+# control-plane node addresses - nothing else can legitimately originate
+# from there without already being control-plane-privileged, a
+# already-game-over scenario), broad by destination (`selector: all()`,
+# no port list) since the actual webhook ports vary per app and aren't
+# worth enumerating individually for the same security property.
+#
+# calico-system is NOT covered here on purpose - its own apiserver/webhook
+# traffic (Calico's aggregated API, Goldmane) is already handled by
+# tigera-operator's own calico-system-tier policies
+# (calico-system.apiserver-access etc.), evaluated before the default
+# tier ever sees it.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-apiserver-webhooks
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.20.10.11/32
+          - 10.20.10.12/32
+          - 10.20.10.13/32
