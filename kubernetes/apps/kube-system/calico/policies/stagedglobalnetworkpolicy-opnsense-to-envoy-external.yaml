@@ -1,24 +1,30 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
 # Step 6 of docs/network-policy-plan.md's proposed baseline - the external
-# counterpart to allow-lan-to-envoy-internal.
+# counterpart to allow-trusted-vlans-to-envoy-internal.
 #
-# Real internet clients never appear as their own IP at the Calico/L3
-# level: OPNsense NATs all internet-bound traffic before it reaches the
-# cluster (confirmed already in envoy.yaml's own ClientTrafficPolicy
-# comment - "envoy-external sits behind exactly one trusted hop (OPNsense,
-# which NATs internet traffic...)"), so the only source Calico will ever
-# see for genuine external traffic is OPNsense's transit address itself,
-# not "the whole internet". Same address already trusted for XFF purposes
-# in envoy-external's ClientTrafficPolicy (`trustedCIDRs: 10.2.0.1/32`) and
-# independently confirmed as OPNsense's own address elsewhere (CrowdSec
-# LAPI at `10.2.0.1:8080`, docs/migration-inventory.md) - much narrower and
-# more precise than allowing Whisker's coarser "PUBLIC NETWORK" bucket.
+# Correction (2026-08-22): the original version of this rule scoped source
+# to `10.2.0.1/32` only (OPNsense's own transit address), on the theory
+# that OPNsense NATs (masquerades) all internet-bound traffic before it
+# reaches the cluster. Wrong - confirmed live via a real ~1hr Jellyfin
+# streaming session from outside the network on cellular data: Whisker
+# classified the source as "PUBLIC NETWORK" (a real non-RFC1918 address),
+# not "PRIVATE NETWORK"/10.2.0.1. OPNsense's port-forward is doing
+# destination NAT only, not source NAT, for this path - consistent with
+# `10.21.0.0/16` (the LoadBalancer pool) being routed rather than bridged
+# (docs/node-inventory.md), which doesn't require masquerading the source
+# to route the return path correctly. The original theory also produced a
+# false "this is fine" read on stale data at first - see the plan doc's
+# Verification round 2 for the full story of how that got caught.
 #
-# Destination scoped to envoy-external specifically (not envoy-internal -
-# see the sibling policy). Ports: envoy-external's real container ports
-# (Service targetPort), confirmed live the same way as envoy-internal - no
-# SSH port here, external doesn't expose it.
+# So the source really is unbounded ("the whole internet"), and that's
+# correct/intentional for this one specific destination - envoy-external's
+# entire purpose is public exposure, TLS/HSTS/rate-limiting are already
+# configured for exactly this. `nets: [0.0.0.0/0]` is the honest way to
+# say that, not a narrowing mistake - the actual narrowing that matters
+# here is by destination (only envoy-external's specific pods/ports), not
+# by source, since an internet-facing gateway's whole job is accepting
+# arbitrary source IPs.
 apiVersion: projectcalico.org/v3
 kind: StagedGlobalNetworkPolicy
 metadata:
@@ -34,6 +40,6 @@ spec:
       protocol: TCP
       source:
         nets:
-          - 10.2.0.1/32
+          - 0.0.0.0/0
       destination:
         ports: [10080, 10443]
