@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 2 of docs/network-policy-plan.md's proposed baseline - staged
+# (log-only) like step 1. Envoy Gateway (envoy-internal/envoy-external,
+# both in the network namespace) is one of the two wide fan-outs the flow
+# data review found - it routes HTTPRoute traffic to backend Services
+# across nearly every namespace.
+#
+# Deliberately broad for this first pass: selector all() + source
+# namespaceSelector network, no per-app port list. An overly-broad ALLOW
+# is harmless on its own (allow rules only ever widen access; the
+# default-deny baseline in a later step is what actually narrows things) -
+# narrowing this to per-app ports is a refinement to make once staged data
+# (now easy to check via the whisker.internal.oreillys.io route) shows
+# what's actually needed, not something to guess up front.
+#
+# TCP-only: http3/QUIC is commented out in envoy.yaml's ClientTrafficPolicy
+# (not enabled), so there's no UDP listener traffic to allow for here.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-network-ingress
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'network'

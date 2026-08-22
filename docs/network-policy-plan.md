@@ -77,13 +77,13 @@ from the table below (see notes).
 
 ## Proposed baseline (staged first, always)
 
-1. **Cluster-wide allow: DNS.** One `GlobalNetworkPolicy` (or a `StagedGlobalNetworkPolicy`
-   first) permitting egress to `kube-system`/coredns on `udp/53` from every pod, unconditionally.
-2. **Cluster-wide allow: ingress from `network`.** A policy (or per-namespace policies sharing
-   this one rule) allowing ingress from pods in the `network` namespace
-   (`namespaceSelector: matchLabels: {kubernetes.io/metadata.name: network}` — the
-   auto-populated namespace-name label, no custom namespace labeling needed) to whatever port(s)
-   each app's Service actually exposes.
+1. ✅ **Cluster-wide allow: DNS** (`stagedglobalnetworkpolicy-dns.yaml`) — staged, watching for
+   unexpected `pending_actions` before promoting.
+2. ✅ **Cluster-wide allow: ingress from `network`** (`stagedglobalnetworkpolicy-network-ingress.yaml`)
+   — staged, deliberately broad on the first pass (`selector: all()`, no per-app port list — an
+   over-broad *allow* is harmless on its own, since it's the later default-deny step that
+   actually narrows access; per-app port scoping is a refinement once staged data shows what's
+   really needed, now easy to check via `whisker.internal.oreillys.io`).
 3. **Cluster-wide allow: ingress from `observability`.** Same shape, sourced from
    `observability`, covering each app's metrics/health port(s).
 4. **The narrow pairs above**, each as its own small, explicit rule scoped to just that
