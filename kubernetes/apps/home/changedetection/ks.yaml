@@ -16,6 +16,9 @@ spec:
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/home/changedetection/app
   postBuild:

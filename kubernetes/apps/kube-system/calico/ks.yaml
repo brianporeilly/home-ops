@@ -81,6 +81,10 @@ spec:
   dependsOn:
     - name: calico
       namespace: kube-system
+    # protect's Reflector mirror lost this exact race on whisker's own
+    # rollout - see kubernetes/apps/download/lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/kube-system/calico/route
   postBuild:

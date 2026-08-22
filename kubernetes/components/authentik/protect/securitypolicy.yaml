@@ -4,12 +4,21 @@
 #   spec:
 #     components:
 #       - ../../../../components/authentik/protect
+#     dependsOn:
+#       - name: authentik
+#         namespace: authentik
 #     postBuild:
 #       substitute:
 #         APP: echo
 #         HTTPROUTE_NAME: echo
 #         HOSTNAME: echo.internal.oreillys.io
 #         AUTH_HOSTNAME: auth.internal.oreillys.io
+#
+# dependsOn: authentik is required, not optional - without it, this
+# component's oidc-client-secret.yaml (a Reflector mirror) can lose a race
+# against authentik/app's own ExternalSecret and get stuck permanently
+# rejected. Confirmed live on whisker's initial rollout; fix confirmed
+# sufficient in practice despite not fully closing the window.
 #
 # HTTPROUTE_NAME is separate from APP because bjw-s app-template's named
 # route.<key> blocks (route.app + route.internal, e.g. grocy's

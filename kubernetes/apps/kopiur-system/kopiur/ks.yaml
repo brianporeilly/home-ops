@@ -41,6 +41,9 @@ spec:
   dependsOn:
     - name: kopiur
       namespace: kopiur-system
+    # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/kopiur-system/kopiur/repository
   postBuild:
