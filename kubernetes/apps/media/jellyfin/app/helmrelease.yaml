@@ -163,23 +163,35 @@ spec:
           apiGroup: kopiur.home-operations.com
           kind: Restore
           name: jellyfin
-        globalMounts:
-          - path: /config
+        # advancedMounts, not globalMounts - globalMounts applies to every
+        # controller by default, which put this RWO PVC on both jellyfin
+        # AND exporter pods and caused a real Multi-Attach error the moment
+        # they landed on different nodes (confirmed live). The exporter
+        # only talks to Jellyfin's HTTP API - it has no reason to touch any
+        # of these volumes at all.
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /config
       metadata:
         suffix: metadata
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
-        globalMounts:
-          - path: /config/metadata
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /config/metadata
       # NAS static NFS mount - whole export, matches library layout
       # (tv/movies/music) directly.
       media:
         type: nfs
         server: 10.20.30.11
         path: /media
-        globalMounts:
-          - path: /media
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /media
       tmpfs:
         type: emptyDir
         advancedMounts:
