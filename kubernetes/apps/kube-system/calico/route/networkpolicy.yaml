@@ -1,0 +1,38 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_networkpolicies.yaml
+# Additive, not a replacement: tigera-operator owns calico-system.whisker
+# (ownerRef -> the Whisker CR) and reconciles it independently - it predates
+# this HTTPRoute and only allows Whisker's original access pattern (kubectl
+# port-forward), so it carries `types: [Ingress, Egress]` with zero ingress
+# rules, i.e. deny-all ingress. Editing that resource directly would just
+# get reverted on tigera-operator's next reconcile.
+#
+# Calico's per-tier evaluation moves to the next policy in the tier when a
+# policy has no rule matching the packet (an empty ingress rule list never
+# matches anything, so calico-system.whisker never actively denies - it
+# just never affirmatively allows either), so this coexists safely: this
+# policy's explicit Allow is what actually lets the traffic through, order
+# relative to calico-system.whisker doesn't matter.
+#
+# Confirmed live as the cause of the whisker route's 503s: Envoy
+# (`network` namespace) couldn't reach the pod on 8081 at all - connection
+# silently dropped, not refused (Envoy's own access log showed an 8s+ hang
+# with response_flags DC, not a fast RST).
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-whisker-envoy-ingress
+spec:
+  tier: calico-system
+  order: 1
+  selector: k8s-app == 'whisker'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+      destination:
+        ports:
+          - 8081
