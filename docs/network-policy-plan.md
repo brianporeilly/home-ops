@@ -116,17 +116,28 @@ from the table below (see notes).
    confirmed by real `pending_actions` data (`PRIVATE NETWORK`/`PUBLIC NETWORK` sources). Designed
    narrow, not a blanket "any external traffic" rule, per the same principle as the rest of this
    baseline:
-   - `allow-lan-to-envoy-internal` — source `10.20.0.0/16` (the whole trusted LAN, per
-     docs/node-inventory.md's addressing plan - deliberately broad *here* since "any LAN device
-     can reach envoy-internal" is the actual intended behavior, not an oversight), destination
-     scoped to envoy-internal's pods specifically (by `owning-gateway-name`, not "all of
-     `network`"), ports 10080/10443/10022 (envoy-internal's real container ports - confirmed live
-     via its Service `targetPort`s, not the Gateway-level 80/443/22).
-   - `allow-opnsense-to-envoy-external` — source `10.2.0.1/32` only, not "the whole internet":
-     OPNsense NATs all internet-bound traffic before it reaches the cluster (already established
-     in envoy.yaml's own ClientTrafficPolicy comment), so that's the only L3 source Calico will
-     ever actually see. Destination scoped to envoy-external specifically, no SSH port (external
-     doesn't expose it).
+   **Correction (2026-08-22)**: the first pass used `10.20.0.0/16` as a stand-in for "the LAN" -
+   wrong. `10.20.0.0/16` is specifically the *servers* VLAN (cluster nodes, NAS, infra tiers, see
+   docs/node-inventory.md), not a general client network, and `10.0.0.0/8` would be far too
+   broad. Confirmed which VLANs should actually reach these destinations: `10.10.0.0/16`,
+   `10.20.0.0/16`, `10.30.0.0/16`, `10.40.0.0/16` (the "trusted VLANs" referenced below).
+   `10.60.0.0/16` (IoT/devices) deliberately excluded - undecided whether it needs access at all,
+   revisit once that's settled. Any other VLAN currently reaching the cluster only does so because
+   upstream network ACLs (OPNsense) haven't been built yet, not because it's actually meant to.
+   - `allow-trusted-vlans-to-envoy-internal` — source is the trusted-VLAN list above (deliberately
+     broad *here* since "any trusted-VLAN device can reach envoy-internal" is the actual intended
+     behavior, not an oversight), destination scoped to envoy-internal's pods specifically (by
+     `owning-gateway-name`, not "all of `network`"), ports 10080/10443/10022 (envoy-internal's
+     real container ports - confirmed live via its Service `targetPort`s, not the Gateway-level
+     80/443/22).
+   - `allow-trusted-vlans-to-envoy-external` — split DNS means hostnames on external routes still
+     resolve internally to envoy-external's own VIP for trusted-VLAN clients, so that traffic
+     never actually leaves for the internet/OPNsense's NAT hop - same trusted-VLAN source list,
+     destination scoped to envoy-external, no SSH port (external doesn't expose it).
+   - `allow-opnsense-to-envoy-external` — source `10.2.0.1/32` only, not "the whole internet": for
+     traffic that *does* come from the actual internet, OPNsense NATs it before it reaches the
+     cluster (already established in envoy.yaml's own ClientTrafficPolicy comment), so that's the
+     only L3 source Calico will ever actually see for that path.
    - `allow-apiserver-webhooks` — kube-apiserver runs as a static pod (host network) on each
      control-plane node, so its calls to admission/conversion webhooks across many namespaces
      (cert-manager, mariadb-operator, postgres-operator, external-secrets, kopiur-system,
@@ -135,9 +146,12 @@ from the table below (see notes).
      step 4's spegel rule) instead of ~8 near-duplicate narrow pairs. calico-system's own
      apiserver/webhook traffic isn't included - already handled by tigera-operator's own
      calico-system-tier policies, evaluated before this tier.
-   - `allow-lan-to-loki` / `-akvorado` / `-fluent-bit` — real observed LAN devices pushing data
-     in (NAS's Alloy agent to Loki, network gear's NetFlow to Akvorado's inlet, network gear's
-     syslog to fluent-bit), each scoped to its specific app + real port, source `10.20.0.0/16`.
+   - `allow-trusted-vlans-to-loki` / `-akvorado` / `-fluent-bit` — real observed trusted-VLAN
+     devices pushing data in (NAS's Alloy agent to Loki, network gear's NetFlow to Akvorado's
+     inlet, network gear's syslog to fluent-bit), each scoped to its specific app + real port,
+     same trusted-VLAN source list - notably *not* just `10.20.0.0/16`: the primary switch's own
+     management IP is `10.10.0.1` (docs/network-observability-plan.md), a different VLAN
+     entirely, so a servers-VLAN-only rule would have missed the actual switch traffic.
 7. **Default-deny ingress**, per namespace, once 1-6 are confirmed correct via staged mode —
    this is the step that actually turns "nothing enforced" into "namespace isolation by
    default," and it only goes in after watching real traffic against the staged version of

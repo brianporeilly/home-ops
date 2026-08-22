@@ -2,20 +2,28 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
 # Step 6 of docs/network-policy-plan.md's proposed baseline - closes the
 # `network`-as-destination gap left open by step 4's `allow-misc-to-network`.
-# Real LAN client traffic (browsers etc.) reaches envoy-internal directly -
+# Real client traffic (browsers etc.) reaches envoy-internal directly -
 # it's the ingress point, so this is "who's allowed to even attempt a
 # connection," not app-level auth (that's SSO/native accounts per app).
 #
-# Source is the whole `10.20.0.0/16` LAN (docs/node-inventory.md's
-# addressing plan - covers the DHCP client pool, NAS, and infra tiers
-# alike), not Whisker's coarser "PRIVATE NETWORK" bucket - deliberately
-# broad here since "any trusted-LAN device can reach envoy-internal" is the
-# actual intended behavior for anything named "internal", not an oversight.
+# Source is an explicit list of trusted VLANs, not "the whole LAN" -
+# `10.20.0.0/16` is specifically the *servers* VLAN (cluster nodes, NAS,
+# infra tiers - see docs/node-inventory.md), not a general client network,
+# and `10.0.0.0/8` would be far too broad. Confirmed live (2026-08-22)
+# which other VLANs should actually reach envoy-internal:
+# `10.10.0.0/16`, `10.30.0.0/16`, `10.40.0.0/16`. `10.60.0.0/16` (IoT/
+# devices) deliberately excluded for now - undecided whether it needs
+# access at all, revisit once that's settled. Any other VLAN currently
+# reaching the cluster only does so because upstream network ACLs
+# (OPNsense) haven't been built yet, not because it's actually meant to -
+# not included here either.
 #
 # Destination scoped to envoy-internal's pods specifically (by
 # owning-gateway-name), not "all of network" or "all envoy proxy pods" -
-# envoy-external shouldn't accept LAN-sourced traffic under this rule, it
-# gets its own narrower one below.
+# envoy-external shouldn't accept this traffic under this rule, it gets
+# its own policy (allow-trusted-vlans-to-envoy-external) for the
+# split-DNS case, plus allow-opnsense-to-envoy-external for genuine
+# internet-sourced traffic.
 #
 # Ports are envoy-internal's real container ports (Service targetPort, not
 # the Gateway-level 80/443/22) - confirmed live via `kubectl get svc -n
@@ -25,7 +33,7 @@
 apiVersion: projectcalico.org/v3
 kind: StagedGlobalNetworkPolicy
 metadata:
-  name: allow-lan-to-envoy-internal
+  name: allow-trusted-vlans-to-envoy-internal
 spec:
   stagedAction: Set
   selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
@@ -37,6 +45,9 @@ spec:
       protocol: TCP
       source:
         nets:
+          - 10.10.0.0/16
           - 10.20.0.0/16
+          - 10.30.0.0/16
+          - 10.40.0.0/16
       destination:
         ports: [10080, 10443, 10022]
