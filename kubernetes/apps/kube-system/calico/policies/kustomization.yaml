@@ -10,3 +10,9 @@ resources:
   - ./stagedglobalnetworkpolicy-database-to-observability.yaml
   - ./stagedglobalnetworkpolicy-spegel-mirror.yaml
   - ./stagedglobalnetworkpolicy-misc-to-network.yaml
+  - ./stagedglobalnetworkpolicy-lan-to-envoy-internal.yaml
+  - ./stagedglobalnetworkpolicy-opnsense-to-envoy-external.yaml
+  - ./stagedglobalnetworkpolicy-apiserver-webhooks.yaml
+  - ./stagedglobalnetworkpolicy-lan-to-loki.yaml
+  - ./stagedglobalnetworkpolicy-lan-to-akvorado.yaml
+  - ./stagedglobalnetworkpolicy-lan-to-fluent-bit.yaml

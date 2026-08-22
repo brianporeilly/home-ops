@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 6 of docs/network-policy-plan.md's proposed baseline. LAN devices
+# push logs directly to Loki's HTTP API (e.g. the NAS's Alloy agent) -
+# real, observed flow data, source scoped to `10.20.0.0/16` (same trusted
+# range as the envoy-internal rule, see docs/node-inventory.md), not
+# Whisker's coarser "PRIVATE NETWORK" bucket.
+#
+# Destination scoped to the loki `single-binary` pod specifically
+# (excludes loki-canary, a separate pod sharing app.kubernetes.io/name)
+# and its real push/query port, not a blanket allow into `observability`.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-lan-to-loki
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'loki' && app.kubernetes.io/component == 'single-binary'
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.20.0.0/16
+      destination:
+        ports: [3100]
