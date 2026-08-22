@@ -3,9 +3,9 @@
 Status: **Roadmap** (started 2026-08-20). Triggered by wanting to expose more services
 externally (jellyfin, audiobookshelf, home-assistant, copy-party, grimmory, maybe tuwunel later)
 — this is the "what needs to be true first" conversation that `home-ops-authentik-sso` memory
-had flagged as deferred. Nothing below is urgent-blocking (home-assistant, immich, and grocy
-already sit behind `envoy-external` today), but the surface is about to grow and a few structural
-gaps are worth closing before it does rather than after.
+had flagged as deferred. Nothing below is urgent-blocking (home-assistant and immich already sit
+behind `envoy-external` today), but the surface is about to grow and a few structural gaps are
+worth closing before it does rather than after.
 
 **Done so far:**
 - **forgejo SSH via TCPRoute** instead of a dedicated kube-vip LB IP — smaller surface, one less
@@ -172,7 +172,7 @@ default-yes. Status as of 2026-08-20:
 |-----|--------|-----------|-------|
 | immich | **external** | native accounts (no SSO — explicitly out of scope, admin-UI-only OIDC config) | precedent for "native accounts are enough for family use" |
 | home-assistant | **external** | native accounts + optional TOTP | **TODO: wire Authentik SSO** — Home Assistant supports OIDC via the community `hass-auth-header`/native trusted-proxy-header pattern or a SAML/OIDC auth provider component; needs research into which fits its auth-provider model best (it's not a simple env-var client-id/secret like grafana/paperless-ngx). Until then, confirm MFA is actually turned on — proxying (`use_x_forwarded_for`/`trusted_proxies`) already confirmed correct |
-| grocy | **external** (`grocy.oreillys.io` + `grocy.internal.oreillys.io`) | native accounts — **not yet verified** | **Missed in the initial research pass** — found during a follow-up sweep of every app with a `route:` block (2026-08-22). Not wrapped in `protect`/`protect-external`, not in this table until now. Confirm its auth model (single shared account? per-user?) before treating it as reviewed. |
+| grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
 | audiobookshelf | internal only, candidate | native accounts, no SSO | same profile as jellyfin but much smaller surface (little/no transcoding) — lower risk, reasonable to expose sooner with strong unique passwords |
@@ -187,9 +187,12 @@ default-yes. Status as of 2026-08-20:
 
 Follow-up to "did the initial research pass miss anything" — swept every app with a `route:`/
 `HTTPRoute` block across the whole repo (not just the ones already tracked above) and checked
-which are `envoy-external` vs internal-only. Result: **grocy** (added to the table above) was the
-only externally-exposed miss. Everything else below is internal-only today, so lower urgency than
-§3's candidates, but flagging two for being more sensitive than "internal" alone implies:
+which are `envoy-external` vs internal-only. Initial pass flagged grocy as an externally-exposed
+miss, but its `ks.yaml` is commented out in `apps/home/kustomization.yaml` - not actually deployed,
+so no live gap there (its `helmrelease.yaml` had a stale external route from before it was
+disabled, switched to internal-only regardless). Everything below is internal-only and lower
+urgency than §3's candidates, but flagging two for being more sensitive than "internal" alone
+implies:
 
 - **frigate** (`frigate.internal.oreillys.io`) — NVR web UI, live camera feeds. Native accounts,
   not reviewed for MFA/strength. Worth the same deliberate treatment as home-assistant even though
@@ -200,12 +203,11 @@ only externally-exposed miss. Everything else below is internal-only today, so l
   one app's data - same reasoning.
 
 Everything else swept (bazarr, lazylibrarian, qbittorrent, qui, sabnzbd, slskd, soularr, esphome,
-grocy's `internal` hostname twin, microbin, octoprint, ersatztv, jellyseerr, podfetch, tdarr,
-tube-archivist, atuin, thelounge, akvorado, llama-cpp, kromgo) is internal-only with no external
-route, and kromgo specifically is a public-by-design status/metrics JSON endpoint (no accounts to
-protect), not a gap. None of these are wired to SSO; none are being proposed for it right now -
-listed here so a future "did we miss anything" pass doesn't have to re-derive this list from
-scratch.
+grocy, microbin, octoprint, ersatztv, jellyseerr, podfetch, tdarr, tube-archivist, atuin,
+thelounge, akvorado, llama-cpp, kromgo) is internal-only with no external route, and kromgo
+specifically is a public-by-design status/metrics JSON endpoint (no accounts to protect), not a
+gap. None of these are wired to SSO; none are being proposed for it right now - listed here so a
+future "did we miss anything" pass doesn't have to re-derive this list from scratch.
 
 ---
 
@@ -219,21 +221,19 @@ scratch.
 4. **Home Assistant** — already external; wire Authentik SSO (needs its own research, not the
    simple client-id/secret env-var pattern the native-OIDC apps use - see the table above), confirm
    MFA is actually on, add its own rate-limit policy (§2.3).
-5. **Grocy** — already external, missed in the initial pass; confirm its auth model before treating
-   it as reviewed.
-6. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
-7. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
+5. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
+6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
-8. **Grimmory** — after confirming its auth model.
-9. **Image scanning / admission control** (§2.4) — no urgency, pick up whenever.
+7. **Grimmory** — after confirming its auth model.
+8. **Image scanning / admission control** (§2.4) — no urgency, pick up whenever.
+9. **Grocy** — not deployed yet; revisit exposure/auth model whenever it's actually enabled.
 
 ## 5. Open items to confirm
 
 - Home Assistant SSO — which integration path fits (auth-provider component vs. header-based
   trusted-proxy auth vs. a community OIDC integration) - needs research before implementation.
 - Home Assistant MFA — actually enabled, or just available?
-- Grocy's auth model — single shared account or per-user? Anything worth hardening given it's
-  already external?
+- Grocy — not deployed yet; revisit auth model and exposure once it's actually enabled.
 - Grimmory's auth model — native accounts? anything at all?
 - Frigate / omada-controller — worth a deliberate MFA/password-strength review given what they
   control, even while staying internal-only (§3.1).
