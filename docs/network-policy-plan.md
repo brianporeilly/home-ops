@@ -100,13 +100,49 @@ from the table below (see notes).
      destination", since `network` is the whole cluster's ingress point) rather than a normal
      app-to-app pair. Staged so data keeps flowing; **do not promote this one to enforcing without
      first deciding the wider network-namespace-as-destination model** — see Open Questions.
-5. **Default-deny ingress**, per namespace, once 1-4 are confirmed correct via staged mode —
+5. ✅ **Allow same-namespace ingress, everywhere** (`components/common/stagednetworkpolicy-same-namespace.yaml`)
+   — staged. Found missing via real `pending_actions` data (see Verification below), not planned
+   up front: steps 2-3's `selector: all()` GlobalNetworkPolicies claim every endpoint in the
+   cluster for ingress-policy purposes, which bypasses Calico's normal fallback to the permissive
+   per-namespace `kns.<ns>` Profile - so ordinary same-namespace traffic (app -> its own DB,
+   sidecars, etc.) would go from allowed to denied the moment steps 2-3 promote, unless something
+   explicitly allows it first. Modeled as a namespaced `StagedNetworkPolicy` (not Global -
+   GlobalNetworkPolicy has no "same namespace as the policy" default the way a namespaced one
+   does, and Calico has no selector syntax for "same namespace as the destination endpoint")
+   added to `components/common`, which every app namespace's `kustomization.yaml` already
+   includes - one file instead of ~17 near-duplicates, and new namespaces get it automatically.
+6. **Default-deny ingress**, per namespace, once 1-5 are confirmed correct via staged mode —
    this is the step that actually turns "nothing enforced" into "namespace isolation by
    default," and it only goes in after watching real traffic against the staged version of
-   everything above and confirming nothing legitimate gets flagged as would-be-denied.
-6. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
+   everything above and confirming nothing legitimate gets flagged as would-be-denied. Note: this
+   isn't a separate "flip a switch" step - promoting steps 1-5 themselves from Staged to real,
+   enforcing policies *is* what creates the default-deny effect (see the mechanism in step 5
+   above), so all of 1-5 need to go enforcing together, not gradually with gaps between them.
+7. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
    baseline) — `download`'s internet-bound traffic is the obvious first case to think through.
    **Low priority** — track as a roadmap item, not blocking on the ingress baseline above.
+
+## Verification (2026-08-22)
+
+Queried Goldmane's `/flows` API directly (via a port-forward to the `whisker` Service, same
+endpoint the flow-data review above used) for a ~1250-flow sample and checked each flow's
+`policies.pending` field - what *would* happen if everything currently staged were promoted to
+enforcing. This is the process steps 5-6 depend on: review pending denies, fix real gaps, confirm
+clean, then promote.
+
+Found 198 flows with a pending Deny, three categories:
+- **The same-namespace gap above (step 5)** - the majority of the 198, e.g. `authentik→authentik:5432`,
+  `immich→immich` (several ports), `misc→misc` (forgejo/linkwarden/nebraska), dozens of
+  `observability→observability` pairs. Real bug, now fixed by step 5.
+- **The already-known `network`-as-destination gap** - `PRIVATE NETWORK`/`PUBLIC NETWORK →
+  network:10080/10443/9443`, real LAN/internet client traffic hitting the gateway pods directly,
+  falling through `allow-misc-to-network`'s narrow source selector to `EndOfTier: Deny`. Confirms
+  the open question flagged when that rule was drafted - still unresolved, still blocking
+  `network`'s own default-deny until answered.
+- **Noise** - `calico-system/curltest*`/`nettest*` entries are ad-hoc debug pods from an earlier
+  live-troubleshooting session, not real traffic.
+
+Re-check after step 5 merges and reconciles, before moving on to step 6.
 
 ## Rejected-traffic visibility & alerting
 
