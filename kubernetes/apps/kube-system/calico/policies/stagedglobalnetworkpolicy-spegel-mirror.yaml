@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline
+# - staged. spegel is a node-local P2P OCI registry mirror
+# (`hostPort: 30020` -> container port 5000) - the flow data showed
+# `kube-system -> misc`/`kube-system -> nvidia-gpu-operator`, but per the
+# doc this isn't really a namespace-scoped dependency: it's cross-node
+# image-pull traffic that happens to attribute back to spegel's own
+# namespace (kube-system) as source, with the destination namespace being
+# whatever pod on that node is pulling an image at the time - it could be
+# any namespace, not just the two observed in one review window.
+#
+# Modeled cluster-wide by source only (not a narrow source/dest pair like
+# the other two steps here) to match that: any pod, anywhere, can be a
+# destination; only the source (spegel itself) is meaningfully scoped.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-spegel-mirror
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'spegel'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+      destination:
+        ports: [5000]

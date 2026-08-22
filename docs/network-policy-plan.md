@@ -87,8 +87,19 @@ from the table below (see notes).
 3. ✅ **Cluster-wide allow: ingress from `observability`**
    (`stagedglobalnetworkpolicy-observability-ingress.yaml`) — staged, same broad-first-pass shape
    as step 2 (`selector: all()`, no per-app port list, TCP-only).
-4. **The narrow pairs above**, each as its own small, explicit rule scoped to just that
-   source/dest/port.
+4. ✅ **The narrow pairs above**, each as its own small, explicit rule scoped to just that
+   source/dest/port (`stagedglobalnetworkpolicy-database-to-media.yaml`,
+   `-database-to-observability.yaml`, `-spegel-mirror.yaml`, `-misc-to-network.yaml`). The last two
+   needed judgment calls beyond a plain source/dest/port copy from the flow table:
+   - **spegel**: `hostPort`-based node-to-node image-mirror traffic, not a real namespace
+     dependency (per the note above) — modeled as source-scoped-only (`allow-spegel-mirror`,
+     `selector: all()` destination) rather than a narrow pair, since the destination is genuinely
+     "whichever pod on that node happens to be pulling an image," not one fixed app.
+   - **misc → network**: lower confidence than the others — this is really a symptom of a bigger,
+     not-yet-designed question ("who's allowed to reach envoy-internal/envoy-external as a
+     destination", since `network` is the whole cluster's ingress point) rather than a normal
+     app-to-app pair. Staged so data keeps flowing; **do not promote this one to enforcing without
+     first deciding the wider network-namespace-as-destination model** — see Open Questions.
 5. **Default-deny ingress**, per namespace, once 1-4 are confirmed correct via staged mode —
    this is the step that actually turns "nothing enforced" into "namespace isolation by
    default," and it only goes in after watching real traffic against the staged version of
@@ -131,6 +142,15 @@ both for troubleshooting a policy that's too tight and for noticing unexpected t
   *all* of `network`'s traffic, or would scoping to specific ports per app (rather than a blanket
   namespace-level allow) be worth the extra policy surface? Leaning toward namespace-level for
   the baseline, app-level as a later tightening pass if it turns out to matter.
-- Whether `kube-system → *` (spegel) should be a real per-namespace allow or whether it's
+- ~~Whether `kube-system → *` (spegel) should be a real per-namespace allow or whether it's
   cleaner to just exempt `kube-system` as a source everywhere, given its cluster-wide-by-design
-  nature.
+  nature.~~ Resolved in step 4: modeled as source-scoped-only (`allow-spegel-mirror`, destination
+  `selector: all()`), not a full source exemption — still requires port 5000 specifically.
+- **New from step 4**: who should be allowed to reach `network` namespace pods (envoy-internal/
+  envoy-external) as a *destination*? Every other rule in this plan is about `network` as a
+  *source* (steps 2 above). `network` is the cluster's whole ingress point, so its own
+  default-deny-ingress (step 5) needs a deliberate answer here, not just the one narrow
+  `allow-misc-to-network` rule staged for the forgejo CronJob - e.g. does LAN-external traffic to
+  the Gateway VIP even traverse Calico's pod-ingress policy path the same way east-west traffic
+  does, or does kube-vip's DNAT put it somewhere policy can't see? Needs research before `network`
+  gets a default-deny, not before the rest of the baseline.

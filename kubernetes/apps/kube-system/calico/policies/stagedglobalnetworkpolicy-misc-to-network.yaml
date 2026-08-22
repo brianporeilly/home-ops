@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline
+# - staged. A CronJob (`forgejo-oidc-source-sync`, `misc`) calls out through
+# envoy-internal - almost certainly hitting Authentik's OIDC endpoint by its
+# public hostname (resolving to the Gateway's own VIP/Service) rather than
+# a cluster-local Service DNS name, so it lands on the Gateway itself, not
+# a normal app-to-app call.
+#
+# Lower confidence than the other narrow pairs in this step: the source is
+# an ephemeral CronJob pod with no stable label to scope by (namespaceSelector
+# only), and this is really a symptom of a bigger unanswered question -
+# `network` is the ingress point for the whole cluster, so "who's allowed to
+# reach envoy-internal/envoy-external as a destination" needs its own
+# deliberate design pass before `network` gets a default-deny-ingress policy,
+# not just this one job's traffic. Staged here so the data keeps flowing
+# while that design work happens - do not promote in isolation without
+# addressing the wider network-namespace-as-destination question first.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-misc-to-network
+spec:
+  stagedAction: Set
+  selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'misc'
+      destination:
+        ports: [10443]
