@@ -98,8 +98,10 @@ from the table below (see notes).
    - **misc → network**: lower confidence than the others — this is really a symptom of a bigger,
      not-yet-designed question ("who's allowed to reach envoy-internal/envoy-external as a
      destination", since `network` is the whole cluster's ingress point) rather than a normal
-     app-to-app pair. Staged so data keeps flowing; **do not promote this one to enforcing without
-     first deciding the wider network-namespace-as-destination model** — see Open Questions.
+     app-to-app pair. **Superseded in the round-2 review below** (`allow-misc-to-network` deleted,
+     replaced by `allow-cluster-to-network-https`) once `paperless-ngx` and `immich-server` showed
+     the same pattern from different namespaces - three source namespaces made narrow pairs the
+     wrong shape.
 5. ✅ **Allow same-namespace ingress, everywhere** (`components/common/stagednetworkpolicy-same-namespace.yaml`)
    — staged. Found missing via real `pending_actions` data (see Verification below), not planned
    up front: steps 2-3's `selector: all()` GlobalNetworkPolicies claim every endpoint in the
@@ -194,6 +196,51 @@ recurring conversations). `authentik-postgres-2 -> authentik-postgres-1:5432` co
 
 Re-check step 6 the same way once it merges and reconciles, before moving on to step 7.
 
+## Verification round 2 (2026-08-22) - after exercising every app
+
+User manually opened every app (internal routes) and hit external routes from both inside and
+outside the network, specifically to generate coverage the earlier passive review couldn't -
+confirmed the value of this over just waiting, per the original "test a bunch of apps" plan.
+Re-queried Goldmane, filtered strictly to flows recorded after each relevant policy's actual
+`creationTimestamp` (not just "recent" - an earlier pass in this round briefly mis-flagged
+`PUBLIC NETWORK -> envoy-external` as still broken using data from 10 seconds *before* the fixing
+policy existed). After the correct filter, no fresh `PUBLIC NETWORK` flow of any kind exists yet
+in Goldmane's retained window - **still unconfirmed either way**, not resolved. Needs a genuine
+post-fix external request and a re-check before trusting `allow-opnsense-to-envoy-external`.
+
+Real, consistent findings (not stale-data artifacts):
+- **CloudNativePG's operator couldn't reach the instances it manages** - `postgres-operator`
+  (`database`) -> 8 different Postgres pods across `authentik`, `home`, `immich`, `misc` on
+  `tcp/8000` (the instance manager's own API). Fixed: `allow-postgres-operator-webhook`,
+  source-scoped-only like `allow-apiserver-webhooks` (CNPG spans too many namespaces for narrow
+  pairs, same reasoning as spegel).
+- **changedetection -> llama-cpp** (`home` -> `ai`, `tcp/8080`) - changedetection sends prompts to
+  llama-cpp's API as one of its watched targets. Fixed: `allow-changedetection-to-llama-cpp`,
+  narrow pair.
+- **The misc-to-network pattern turned out to be general, not a one-off** - `paperless-ngx`
+  (`home`) and `immich-server` (`immich`) showed the identical shape as forgejo's CronJob
+  (calling out through envoy-internal/envoy-external to a hostname that resolves back to the
+  Gateway VIP). Three source namespaces made narrow pairs the wrong tool. Fixed: deleted
+  `allow-misc-to-network`, replaced with `allow-cluster-to-network-https` - any real Calico
+  WorkloadEndpoint (not arbitrary external IPs - `source: {selector: all()}`, never an empty/
+  omitted `source`, which would've undone the trusted-VLAN/OPNsense scoping on the sibling rules)
+  can reach either gateway's pods on `10443`.
+
+False alarms, resolved without a policy change:
+- **`PRIVATE NETWORK -> observability/alertmanager:9093` direct-to-pod** - looked like an
+  HTTPRoute bypass at first ("that is weird"). Explained: a `kubectl port-forward -n observability
+  svc/kube-prometheus-stack-alertmanager` left running from earlier debugging in this same
+  session. `kubectl port-forward` always tunnels through the API server straight to the pod,
+  bypassing Gateway API routing entirely by design - not a real access-path problem, no policy
+  needed.
+- **A batch of same-namespace `download` CronJob flows** (`arr-notifications`, `configarr`,
+  `prowlarr-bootstrap`, `qui-bootstrap`, each -> their target `*arr`/`qui` app) showed one-off
+  `EndOfTier: Deny` despite `allow-same-namespace` existing. Confirmed transient: re-checking the
+  *same* recurring conversation (e.g. `configarr -> radarr:7878`) across multiple runs showed
+  correct `Allow` every time except the one sample that happened to land right as that run's
+  brand-new Job pod was created - a Felix/Goldmane endpoint-cache-sync timing artifact on freshly
+  spawned pods, self-corrects on the next aggregation window, not a policy gap.
+
 ## Rejected-traffic visibility & alerting
 
 Checked what Calico itself offers for reviewing/being notified about denied traffic (matters
@@ -232,11 +279,10 @@ both for troubleshooting a policy that's too tight and for noticing unexpected t
   cleaner to just exempt `kube-system` as a source everywhere, given its cluster-wide-by-design
   nature.~~ Resolved in step 4: modeled as source-scoped-only (`allow-spegel-mirror`, destination
   `selector: all()`), not a full source exemption — still requires port 5000 specifically.
-- **New from step 4**: who should be allowed to reach `network` namespace pods (envoy-internal/
-  envoy-external) as a *destination*? Every other rule in this plan is about `network` as a
-  *source* (steps 2 above). `network` is the cluster's whole ingress point, so its own
-  default-deny-ingress (step 5) needs a deliberate answer here, not just the one narrow
-  `allow-misc-to-network` rule staged for the forgejo CronJob - e.g. does LAN-external traffic to
-  the Gateway VIP even traverse Calico's pod-ingress policy path the same way east-west traffic
-  does, or does kube-vip's DNAT put it somewhere policy can't see? Needs research before `network`
-  gets a default-deny, not before the rest of the baseline.
+- ~~**New from step 4**: who should be allowed to reach `network` namespace pods (envoy-internal/
+  envoy-external) as a *destination*?~~ Answered by step 6 + the round-2 review: trusted-VLAN
+  devices and OPNsense (external clients) via the step-6 rules, plus any cluster pod on https via
+  `allow-cluster-to-network-https`. kube-vip's DNAT does put traffic through the normal pod-ingress
+  policy path - confirmed live via Goldmane flow data (`PRIVATE NETWORK`/`PUBLIC NETWORK` sources
+  show up and get evaluated normally), so the concern about it landing somewhere policy can't see
+  didn't pan out.
