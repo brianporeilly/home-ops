@@ -6,3 +6,7 @@ resources:
   - ./stagedglobalnetworkpolicy-dns.yaml
   - ./stagedglobalnetworkpolicy-network-ingress.yaml
   - ./stagedglobalnetworkpolicy-observability-ingress.yaml
+  - ./stagedglobalnetworkpolicy-database-to-media.yaml
+  - ./stagedglobalnetworkpolicy-database-to-observability.yaml
+  - ./stagedglobalnetworkpolicy-spegel-mirror.yaml
+  - ./stagedglobalnetworkpolicy-misc-to-network.yaml

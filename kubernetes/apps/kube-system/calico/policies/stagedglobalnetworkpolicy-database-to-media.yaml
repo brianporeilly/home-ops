@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Step 4 (first of the narrow pairs) of docs/network-policy-plan.md's
+# proposed baseline - staged, like every policy in this rollout.
+# mariadb-operator (runs in `database`) manages grimmory-mariadb (lives in
+# `media`) - the operator pattern: the CRD/StatefulSet lives with the app,
+# the operator itself is centralized in `database`. Unlike steps 2-3, this
+# is a narrow pair - scoped to the exact source/dest pods and port, not a
+# whole-namespace allow.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-database-to-media
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/instance == 'grimmory-mariadb' && app.kubernetes.io/name == 'mariadb'
+  namespaceSelector: kubernetes.io/metadata.name == 'media'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'mariadb-operator'
+        namespaceSelector: kubernetes.io/metadata.name == 'database'
+      destination:
+        ports: [3306]
