@@ -105,9 +105,8 @@ both for troubleshooting a policy that's too tight and for noticing unexpected t
 - **Ad-hoc investigation: already works, today.** Every flow — allowed *and* denied — already
   goes through Goldmane with full detail (source/dest, labels, ports, which policy decided it),
   filterable by action. This is the same API the flow-data review above used
-  (`whisker-backend.calico-system.svc:3002/flows`). **Gap:** Whisker itself has no `HTTPRoute` —
-  only reachable by port-forward today. Worth exposing it (internal-only, matches its own
-  read-only-status-page nature) so this is a bookmark instead of a port-forward every time.
+  (`whisker-backend.calico-system.svc:3002/flows`). Whisker itself is now exposed at
+  `whisker.internal.oreillys.io`, wrapped in SSO — no more port-forwarding to check this.
 - **Proactive alerting: not available in open-source Calico.** Checked directly against Felix's
   own Prometheus metrics reference (not just a summary) — `calico_denied_packets` (the metric a
   "deny rate" alert would use) is **Calico Cloud/Enterprise-only**. Open-source Felix exposes
