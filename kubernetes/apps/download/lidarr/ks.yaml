@@ -19,14 +19,10 @@ spec:
       namespace: rook-ceph
     - name: kopiur-repository
       namespace: kopiur-system
-    # components/authentik/protect's Reflector-mirrored oidc-client-secret
-    # can otherwise lose a race against authentik/app's own ExternalSecret -
-    # confirmed live (whisker's rollout hit this: Reflector's one mirror
-    # attempt fired before the source Secret existed and never retried,
-    # SecurityPolicy stuck rejected until manually kicked). This doesn't
-    # fully close the window (ExternalSecret->real Secret is still async
-    # after authentik's Kustomization goes Ready), but removes the
-    # unordered-parallel-apply case, which is what actually happened.
+    # protect's Reflector-mirrored oidc-client-secret can lose a race
+    # against authentik's own ExternalSecret if applied first - confirmed
+    # live on whisker's rollout (SecurityPolicy stuck rejected until
+    # manually kicked).
     - name: authentik
       namespace: authentik
   interval: 1h

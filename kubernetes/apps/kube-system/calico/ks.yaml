@@ -81,14 +81,8 @@ spec:
   dependsOn:
     - name: calico
       namespace: kube-system
-    # components/authentik/protect's Reflector mirror lost exactly this
-    # race on whisker's initial rollout: the target Secret (this
-    # Kustomization) applied before authentik/app's ExternalSecret had
-    # materialized the real one, Reflector's one mirror attempt failed and
-    # never retried, SecurityPolicy stuck rejected until manually kicked
-    # (kubectl delete secret + flux reconcile). See
-    # kubernetes/apps/download/lidarr/ks.yaml for the same fix applied to
-    # every other protect/protect-external consumer.
+    # protect's Reflector mirror lost this exact race on whisker's own
+    # rollout - see kubernetes/apps/download/lidarr/ks.yaml for the incident.
     - name: authentik
       namespace: authentik
   interval: 1h

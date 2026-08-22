@@ -12,9 +12,7 @@ spec:
   components:
     - ../../../../components/authentik/protect
     - ../../../../components/authentik/protect-external
-  # components/authentik/protect's Reflector mirror can lose a race against
-  # authentik's own ExternalSecret - see kubernetes/apps/download/lidarr/ks.yaml
-  # for the full incident (confirmed live via whisker's rollout).
+  # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
   dependsOn:
     - name: authentik
       namespace: authentik

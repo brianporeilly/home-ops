@@ -19,9 +19,7 @@ spec:
       namespace: rook-ceph
     - name: kopiur-repository
       namespace: kopiur-system
-    # components/authentik/protect's Reflector mirror can lose a race
-    # against authentik's own ExternalSecret - see lidarr/ks.yaml for the
-    # full incident (confirmed live via whisker's rollout).
+    # Reflector-mirror race - see lidarr/ks.yaml for the incident.
     - name: authentik
       namespace: authentik
   healthChecks:

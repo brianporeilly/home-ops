@@ -16,10 +16,7 @@ spec:
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
-    # components/authentik/protect's Reflector mirror can lose a race
-    # against authentik's own ExternalSecret - see
-    # kubernetes/apps/download/lidarr/ks.yaml for the full incident
-    # (confirmed live via whisker's rollout).
+    # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
     - name: authentik
       namespace: authentik
   interval: 1h
