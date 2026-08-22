@@ -9,6 +9,15 @@ spec:
     - port: http
       path: /metrics
       interval: 30s
+      # Default instance label is the pod IP:port, which churns on every
+      # restart (Deployment, not StatefulSet - no stable pod identity) and
+      # left the dashboard's instance dropdown accumulating stale IPs from
+      # old pod incarnations. There's only ever one replica of this exporter
+      # for one Jellyfin server, so a fixed value is more accurate than a
+      # "real" identity would be anyway.
+      relabelings:
+        - targetLabel: instance
+          replacement: jellyfin
   jobLabel: app.kubernetes.io/name
   namespaceSelector:
     matchNames:
