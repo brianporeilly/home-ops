@@ -29,3 +29,72 @@ spec:
   targetNamespace: tigera-operator
   timeout: 5m
   wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Sibling, not nested in app/ - GlobalNetworkPolicy/StagedGlobalNetworkPolicy
+# objects (docs/network-policy-plan.md) have a much faster edit cadence than
+# the Calico install itself and are cluster-scoped like the CRs in app/, so
+# targetNamespace is a formality here too. See the rook-ceph app/cluster
+# split (CLAUDE.md) for the general pattern this follows.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: calico-policies
+  namespace: kube-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: calico-policies
+  dependsOn:
+    - name: calico
+      namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/calico/policies
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: tigera-operator
+  timeout: 5m
+  wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Sibling, not nested in app/ or policies/ - unlike those two, this targets
+# calico-system for real (see route/httproute.yaml's comment for why:
+# the operator always places the actual `whisker` Service there regardless
+# of what the other two Kustomizations' targetNamespace says, so the
+# HTTPRoute/SecurityPolicy/Secret here need to land in the same namespace
+# to actually reference it).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &whiskerRoute calico-whisker-route
+  namespace: kube-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *whiskerRoute
+  components:
+    - ../../../../components/authentik/protect
+  dependsOn:
+    - name: calico
+      namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/calico/route
+  postBuild:
+    substitute:
+      APP: whisker
+      HTTPROUTE_NAME: whisker
+      HOSTNAME: whisker.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: calico-system
+  timeout: 5m
+  wait: false

@@ -30,6 +30,7 @@ resources:
   - ./linkwarden-oidc-credentials.yaml
   - ./forgejo-oidc-credentials.yaml
   - ./immich-oidc-credentials.yaml
+  - ./whisker-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
