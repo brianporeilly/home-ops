@@ -4,12 +4,28 @@
 #   spec:
 #     components:
 #       - ../../../../components/authentik/protect
+#     dependsOn:
+#       - name: authentik
+#         namespace: authentik
 #     postBuild:
 #       substitute:
 #         APP: echo
 #         HTTPROUTE_NAME: echo
 #         HOSTNAME: echo.internal.oreillys.io
 #         AUTH_HOSTNAME: auth.internal.oreillys.io
+#
+# The dependsOn on authentik is required, not optional - without it, this
+# component's oidc-client-secret.yaml (a Reflector mirror) can lose a race
+# against authentik/app's own ExternalSecret generating the real source
+# Secret. Confirmed live (whisker's initial rollout): Reflector's mirror
+# attempt fired before the source existed, failed, and never retried -
+# SecurityPolicy stuck permanently rejected ("client ID not found in
+# secret") until manually kicked (delete the empty mirrored Secret + force
+# a reconcile). dependsOn doesn't fully close the window (ExternalSecret ->
+# real Secret is still async after authentik's Kustomization goes Ready),
+# but removes the unordered-parallel-apply case, which is what actually
+# happened - in practice that's enough, the gap without it was a
+# consistent, fast, ~1s window every single time.
 #
 # HTTPROUTE_NAME is separate from APP because bjw-s app-template's named
 # route.<key> blocks (route.app + route.internal, e.g. grocy's
