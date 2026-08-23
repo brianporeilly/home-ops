@@ -55,6 +55,118 @@ spec:
               limits:
                 memory: 500Mi
 
+      # Audiobookshelf has no declarative auth config (env vars, config
+      # file) - only a Settings UI backed by PATCH /api/auth-settings
+      # (admin-only). Scripts that endpoint instead, same shape as
+      # forgejo's oidc-source-sync CronJob. Idempotent - PATCHing the same
+      # values every run is a no-op after the first.
+      oidc-bootstrap:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command:
+              - python3
+              - -c
+              - |
+                import json, os, urllib.request
+
+                ABS_URL = "http://audiobookshelf-app.media.svc.cluster.local:8080"
+                # External hostname, not auth.internal.oreillys.io, even
+                # though this app is internal-only today - this is the
+                # backend's own server-to-Authentik traffic (discovery,
+                # token exchange), and Authentik's discovery response is
+                # host-header-sensitive (issuer_mode: per_provider), so
+                # whatever hostname is pinned here becomes fixed for every
+                # login regardless of which route the browser used. Learned
+                # this the hard way with home-assistant - auth.oreillys.io
+                # resolves in-cluster straight to envoy-external's own VIP,
+                # no NAT hairpin, so there's no cost to picking it now and
+                # it means audiobookshelf's eventual external route (next
+                # on the security-plan roadmap) won't need this redone.
+                AUTH_HOSTNAME = "auth.oreillys.io"
+                SLUG = "audiobookshelf"
+
+                def call(method, path, body=None, token=None):
+                    data = json.dumps(body).encode() if body is not None else None
+                    headers = {"Content-Type": "application/json"}
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                    req = urllib.request.Request(f"{ABS_URL}{path}", data=data, headers=headers, method=method)
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        return json.loads(r.read())
+
+                login = call("POST", "/login", {
+                    "username": os.environ["ADMIN_USERNAME"],
+                    "password": os.environ["ADMIN_PASSWORD"],
+                })
+                token = login["user"]["accessToken"]
+
+                issuer = f"https://{AUTH_HOSTNAME}/application/o/{SLUG}"
+                payload = {
+                    "authActiveAuthMethods": ["local", "openid"],
+                    "authOpenIDIssuerURL": f"{issuer}/",
+                    "authOpenIDAuthorizationURL": f"https://{AUTH_HOSTNAME}/application/o/authorize/",
+                    "authOpenIDTokenURL": f"https://{AUTH_HOSTNAME}/application/o/token/",
+                    "authOpenIDUserInfoURL": f"https://{AUTH_HOSTNAME}/application/o/userinfo/",
+                    "authOpenIDJwksURL": f"{issuer}/jwks/",
+                    "authOpenIDLogoutURL": f"{issuer}/end-session/",
+                    "authOpenIDClientID": os.environ["OIDC_CLIENT_ID"],
+                    "authOpenIDClientSecret": os.environ["OIDC_CLIENT_SECRET"],
+                    "authOpenIDButtonText": "Login with Authentik",
+                    # No authOpenIDGroupClaim/authOpenIDAdvancedPermsClaim -
+                    # role is whatever the matched/auto-registered local
+                    # account already has, never touched by OIDC login.
+                    # authOpenIDMatchExistingBy links an existing local
+                    # account by username first; authOpenIDAutoRegister
+                    # creates a new (always type: user, never admin) one
+                    # only if no existing account matches.
+                    "authOpenIDMatchExistingBy": "username",
+                    "authOpenIDAutoRegister": True,
+                }
+
+                result = call("PATCH", "/api/auth-settings", payload, token=token)
+                print("auth-settings updated, active methods:", result.get("authActiveAuthMethods"))
+            env:
+              ADMIN_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiobookshelf-admin-secret
+                    key: ADMIN_USERNAME
+              ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiobookshelf-admin-secret
+                    key: ADMIN_PASSWORD
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiobookshelf-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: audiobookshelf-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
