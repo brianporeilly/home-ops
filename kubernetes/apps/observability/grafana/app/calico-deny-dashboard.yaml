@@ -258,6 +258,18 @@ data:
                     }
                   }
                 ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "dest_port"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "none"
+                  }
+                ]
               }
             ]
           },
@@ -536,6 +548,18 @@ data:
                     "value": {
                       "type": "color-text"
                     }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "dest_port"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "none"
                   }
                 ]
               }
