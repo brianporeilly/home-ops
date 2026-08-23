@@ -269,7 +269,18 @@ Three things worth being deliberate about, given how much this app controls:
   entire OIDC flow itself regardless of which hostname the request came in on. Inherits the shared
   100 req/s `envoy-external-ratelimit` `BackendTrafficPolicy` automatically (Gateway-level
   `targetRefs`, not per-route) — no dedicated rate limit yet, see §4.
-
+- ⚠️ **Correction (2026-08-23) — `discovery_url` was wrong.** Originally pinned to
+  `auth.internal.oreillys.io`, reasoning that the backend-to-Authentik leg (discovery fetch, token
+  exchange) is always in-cluster regardless of which hostname the browser used, so the internal
+  hostname would sidestep any NAT-hairpin risk. True as far as it went, but missed that Authentik's
+  discovery document is host-header-sensitive (`issuer_mode: per_provider`) — *every* endpoint in
+  it, including `authorization_endpoint` (which becomes the actual browser redirect for login, not
+  just a backend call), gets anchored to whatever hostname fetched the document. Pinning to the
+  internal hostname meant every login - external users included - got redirected to
+  `auth.internal.oreillys.io` for the real login page, unreachable off the LAN. Fixed to
+  `auth.oreillys.io`: confirmed live (curled the discovery doc from inside the cluster) that it
+  resolves in-cluster straight to `envoy-external`'s own VIP (`10.21.0.1`), so there's no NAT
+  hairpin either way - the original concern was solved for free, just via the wrong mechanism.
 ---
 
 ## 4. Suggested sequencing
