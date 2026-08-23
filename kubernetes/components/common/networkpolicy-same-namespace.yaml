@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagednetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_networkpolicies.yaml
 # Missing piece found via real pending_actions data while validating
 # docs/network-policy-plan.md's steps 2-3 (2026-08-22): a GlobalNetworkPolicy
 # with `selector: all()` (used for the "wide fan-out" rules) claims every
@@ -20,12 +20,14 @@
 # file) and has no explicit metadata.namespace, so Kustomize's namespace
 # transformer injects the right one per consumer automatically - one file
 # instead of ~17 near-duplicates.
+#
+# Promoted to enforcing 2026-08-22 (step 7 of the plan) after a full
+# staged-verification pass - see the doc's Verification sections.
 apiVersion: projectcalico.org/v3
-kind: StagedNetworkPolicy
+kind: NetworkPolicy
 metadata:
   name: allow-same-namespace
 spec:
-  stagedAction: Set
   selector: all()
   types:
     - Ingress

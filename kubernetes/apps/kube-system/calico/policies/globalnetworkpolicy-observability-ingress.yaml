@@ -1,10 +1,13 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
-# Step 3 of docs/network-policy-plan.md's proposed baseline - staged
-# (log-only) like steps 1-2. `observability` is the other wide fan-out the
-# flow data review found (13 destination namespaces observed): Prometheus
-# scraping ServiceMonitor/PodMonitor targets everywhere, plus
-# `gatus-sidecar` health-checking `network`'s Envoy pods directly.
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Step 3 of docs/network-policy-plan.md's proposed baseline. `observability`
+# is the other wide fan-out the flow data review found (13 destination
+# namespaces observed): Prometheus scraping ServiceMonitor/PodMonitor
+# targets everywhere, plus `gatus-sidecar` health-checking `network`'s
+# Envoy pods directly.
+#
+# Promoted to enforcing 2026-08-22 (step 7) after a full staged-verification
+# pass - see the doc's Verification sections for what was checked.
 #
 # Same deliberately-broad shape as step 2 (`allow-network-ingress`):
 # selector all() + source namespaceSelector observability, no per-app port
@@ -16,11 +19,10 @@
 # snmp-exporter's UDP/161 polling is egress to external network devices,
 # not ingress from another namespace, so it's out of scope for this rule.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-observability-ingress
 spec:
-  stagedAction: Set
   selector: all()
   types:
     - Ingress

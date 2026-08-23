@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Step 6 of docs/network-policy-plan.md's proposed baseline. Network gear
 # (switch/router/OPNsense) streams NetFlow/IPFIX to Akvorado's inlet -
 # real, observed flow data. Narrower than the envoy-internal/envoy-external
@@ -20,11 +20,10 @@
 # sharing app.kubernetes.io/name in the same namespace) on its real
 # collector port.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-trusted-vlans-to-akvorado
 spec:
-  stagedAction: Set
   selector: app.kubernetes.io/name == 'akvorado' && app.kubernetes.io/controller == 'inlet'
   namespaceSelector: kubernetes.io/metadata.name == 'observability'
   types:

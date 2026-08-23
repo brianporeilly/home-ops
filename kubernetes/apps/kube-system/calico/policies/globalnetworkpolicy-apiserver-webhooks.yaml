@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Step 6 of docs/network-policy-plan.md's proposed baseline. kube-apiserver
 # runs as a static pod on each control-plane node (host network, not the
 # pod overlay), so its calls to admission/conversion webhooks and
@@ -25,11 +25,10 @@
 # (calico-system.apiserver-access etc.), evaluated before the default
 # tier ever sees it.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-apiserver-webhooks
 spec:
-  stagedAction: Set
   selector: all()
   types:
     - Ingress

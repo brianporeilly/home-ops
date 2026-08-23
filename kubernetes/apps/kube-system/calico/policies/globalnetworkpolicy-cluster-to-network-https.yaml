@@ -1,5 +1,5 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Generalizes the original narrow allow-misc-to-network (step 4) - real
 # pending_actions data after exercising every app (2026-08-22) showed this
 # is a recurring pattern, not a one-off: forgejo (misc), paperless-ngx
@@ -26,11 +26,10 @@
 # policies - omitting source entirely would allow literally anywhere,
 # undoing that work.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-cluster-to-network-https
 spec:
-  stagedAction: Set
   selector: app.kubernetes.io/name == 'envoy'
   namespaceSelector: kubernetes.io/metadata.name == 'network'
   types:

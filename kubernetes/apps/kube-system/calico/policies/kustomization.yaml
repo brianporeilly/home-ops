@@ -3,19 +3,19 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ./stagedglobalnetworkpolicy-dns.yaml
-  - ./stagedglobalnetworkpolicy-network-ingress.yaml
-  - ./stagedglobalnetworkpolicy-observability-ingress.yaml
-  - ./stagedglobalnetworkpolicy-database-to-media.yaml
-  - ./stagedglobalnetworkpolicy-database-to-observability.yaml
-  - ./stagedglobalnetworkpolicy-spegel-mirror.yaml
-  - ./stagedglobalnetworkpolicy-cluster-to-network-https.yaml
-  - ./stagedglobalnetworkpolicy-trusted-vlans-to-envoy-internal.yaml
-  - ./stagedglobalnetworkpolicy-trusted-vlans-to-envoy-external.yaml
-  - ./stagedglobalnetworkpolicy-opnsense-to-envoy-external.yaml
-  - ./stagedglobalnetworkpolicy-apiserver-webhooks.yaml
-  - ./stagedglobalnetworkpolicy-trusted-vlans-to-loki.yaml
-  - ./stagedglobalnetworkpolicy-trusted-vlans-to-akvorado.yaml
-  - ./stagedglobalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
-  - ./stagedglobalnetworkpolicy-postgres-operator-webhook.yaml
-  - ./stagedglobalnetworkpolicy-changedetection-to-llama-cpp.yaml
+  - ./globalnetworkpolicy-dns.yaml
+  - ./globalnetworkpolicy-network-ingress.yaml
+  - ./globalnetworkpolicy-observability-ingress.yaml
+  - ./globalnetworkpolicy-database-to-media.yaml
+  - ./globalnetworkpolicy-database-to-observability.yaml
+  - ./globalnetworkpolicy-spegel-mirror.yaml
+  - ./globalnetworkpolicy-cluster-to-network-https.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-envoy-internal.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-envoy-external.yaml
+  - ./globalnetworkpolicy-opnsense-to-envoy-external.yaml
+  - ./globalnetworkpolicy-apiserver-webhooks.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-loki.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-akvorado.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
+  - ./globalnetworkpolicy-postgres-operator-webhook.yaml
+  - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
