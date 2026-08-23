@@ -70,14 +70,23 @@ jobs:
       - name: Build report
         id: report
         run: |
-          python3 scripts/aggregate-scan-results.py /tmp/results > /tmp/report.md
-          {
-            echo "## Image Scan Report"
-            echo ""
-            echo "_$(date -u +'%Y-%m-%d %H:%M UTC')_"
-            echo ""
-            cat /tmp/report.md
-          } > /tmp/full-report.md
+          # Summary (per-image severity counts) is what gets posted as the
+          # comment; full (every CVE/package pair) is only worth reading
+          # occasionally, so it's attached as a downloadable artifact
+          # instead of dumped inline - a 60-image scan produces a wall of
+          # findings that buries the actually-actionable per-image counts.
+          python3 scripts/aggregate-scan-results.py /tmp/results > /tmp/summary.md
+          python3 scripts/aggregate-scan-results.py /tmp/results --full > /tmp/full.md
+
+          for f in summary full; do
+            {
+              echo "## Image Scan Report"
+              echo ""
+              echo "_$(date -u +'%Y-%m-%d %H:%M UTC')_"
+              echo ""
+              cat "/tmp/${f}.md"
+            } > "/tmp/${f}-report.md"
+          done
           cat /tmp/full-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure tracking issue
@@ -110,5 +119,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           issue: ${{ steps.issue.outputs.number }}
           message-id: image-scan-report
-          message-path: /tmp/full-report.md
+          message-path: /tmp/summary-report.md
+          attach-path: /tmp/full-report.md
+          attach-name: image-scan-full-report
+          attach-text: "Full per-CVE breakdown: %ARTIFACT_URL%"
           truncate: artifact
