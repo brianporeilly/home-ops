@@ -429,10 +429,25 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+      # frame-ancestors replaces X-Frame-Options (the modern, more
+      # flexible CSP directive - same "who can frame this" job, but a
+      # value list instead of DENY/SAMEORIGIN/single-origin). addIfAbsent,
+      # not set: Jellyfin's LG webOS app needs a looser value
+      # ('self' file:) than every other app - well-documented upstream
+      # issue, jellyfin.org's own nginx/Traefik guides call it out. Its
+      # own HTTPRoute (route.app.rules[].filters, helmrelease.yaml) sets
+      # Content-Security-Policy itself; addIfAbsent backs off for any app
+      # that already has the header by the time this late-stage check
+      # runs (confirmed via Envoy Gateway's HTTPHeaderFilter source -
+      # AddIfAbsent is "a no-op if the header is already present"),
+      # unlike set here which would win regardless and stomp jellyfin's
+      # own value (confirmed via the same source + docs: lateResponseHeaders
+      # runs after route-level filters and normally overwrites them).
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -462,10 +477,15 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+      # See the matching comment on the "envoy" (envoy-internal) policy
+      # above - same frame-ancestors-replaces-X-Frame-Options reasoning.
+      # Jellyfin's external route (media.oreillys.io) overrides this the
+      # same way its internal route does.
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
   # Deliberately NOT on the shared "envoy" policy above - envoy-internal is
   # direct LAN traffic with no NAT/proxy hop in front of it, so trusting an
   # XFF hop there would let any LAN client spoof its own source IP.

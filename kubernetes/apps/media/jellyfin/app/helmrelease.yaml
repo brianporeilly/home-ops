@@ -146,7 +146,21 @@ spec:
         # Explicit now that there are two Services - the chart can no longer
         # auto-detect which one this route should point to.
         rules:
-          - backendRefs:
+          - filters:
+              # LG webOS app can't connect under the cluster-wide default
+              # Content-Security-Policy: frame-ancestors 'self' (Envoy
+              # Gateway config, envoy.yaml) - well-documented upstream
+              # issue, needs file: added as an allowed frame ancestor.
+              # Setting it here (not loosening the cluster default) since
+              # the Gateway policy uses addIfAbsent specifically so a
+              # route's own header wins - see that policy's comment for
+              # why a plain override can't work any other way.
+              - type: ResponseHeaderModifier
+                responseHeaderModifier:
+                  set:
+                    - name: Content-Security-Policy
+                      value: "frame-ancestors 'self' file:;"
+            backendRefs:
               - name: jellyfin
                 port: *port
           # Named so the BackendTrafficPolicy below (metrics-block.yaml) can
@@ -173,7 +187,15 @@ spec:
             namespace: network
             sectionName: https
         rules:
-          - backendRefs:
+          # Same CSP override as the internal route's catch-all rule above
+          # - the webOS app may hit either hostname depending on network.
+          - filters:
+              - type: ResponseHeaderModifier
+                responseHeaderModifier:
+                  set:
+                    - name: Content-Security-Policy
+                      value: "frame-ancestors 'self' file:;"
+            backendRefs:
               - name: jellyfin
                 port: *port
           - name: metrics-blocked
