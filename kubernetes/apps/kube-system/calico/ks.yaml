@@ -14,7 +14,7 @@ spec:
   # without adapting it, which is backwards for the CNI itself: Ceph needs
   # working pod networking to come up, and Envoy Gateway needs the CNI to
   # route anything - neither can be a real prerequisite for Calico.
-  # Real incident (2026-08-23, docs/incident-2026-08-23-dns-outage.md):
+  # Real incident (2026-08-23, docs/incidents/2026-08-23-dns-outage.md):
   # rook-ceph-cluster stalled on an unrelated Flux/DNS issue, which
   # transitively blocked calico-policies (dependsOn: calico) from
   # promoting allow-dns-ingress - the exact policy needed to fix DNS in

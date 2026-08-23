@@ -170,7 +170,7 @@ from the table below (see notes).
    namespaced one) to match what they now actually are.
    >
    > **Correction (2026-08-23): it did NOT land atomically in practice**, despite the design
-   > requiring it - see `docs/incident-2026-08-23-dns-outage.md` for the full RCA. The namespaced
+   > requiring it - see `docs/incidents/2026-08-23-dns-outage.md` for the full RCA. The namespaced
    > half (`allow-same-namespace`, applied by the root `cluster-apps` Kustomization) and the Global
    > half (`allow-dns-ingress` and the rest, applied by the separate `kube-system/calico-policies`
    > Kustomization) were never actually coupled by anything Flux enforces - only by both
