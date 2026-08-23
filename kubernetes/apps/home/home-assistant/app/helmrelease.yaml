@@ -132,6 +132,13 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      external:
+        hostnames:
+          - home.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
     persistence:
       config:
         suffix: config

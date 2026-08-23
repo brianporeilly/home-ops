@@ -88,10 +88,10 @@ Worth stating explicitly so the roadmap below doesn't re-litigate it:
 - **SSO, where wired**: Authentik has two patterns — `protect`/`protect-external` (Envoy Gateway
   `SecurityPolicy` wrapping an app's `HTTPRoute`, for apps with no native OIDC: sonarr/radarr/
   prowlarr/lidarr, kopiur-ui, changedetection) and native OIDC (grafana, nebraska, paperless-ngx,
-  linkwarden, forgejo). Tiered groups + `PolicyBinding` gate access per-app (see
-  `home-ops-authentik-sso` memory for the full picture). **Not every externally-exposed app is
-  behind this yet** — immich, jellyfin, and home-assistant currently rely on their own native
-  accounts, not Authentik.
+  linkwarden, forgejo, home-assistant via `hass-oidc-auth` — see §3.2). Tiered groups +
+  `PolicyBinding` gate access per-app (see `home-ops-authentik-sso` memory for the full picture).
+  **Not every externally-exposed app is behind this yet** — immich and jellyfin still rely on
+  their own native accounts, not Authentik (a deliberate choice for immich, see §3 table).
 - **Secrets**: SOPS + age, nothing plaintext in git (this repo is public). OIDC creds specifically
   go through ESO + Reflector, never touch git at all.
 
@@ -171,7 +171,7 @@ default-yes. Status as of 2026-08-20:
 | App | Status | Auth today | Notes |
 |-----|--------|-----------|-------|
 | immich | **external** | native accounts (no SSO — explicitly out of scope, admin-UI-only OIDC config) | precedent for "native accounts are enough for family use" |
-| home-assistant | **internal only** (corrected — `helmrelease.yaml` has only an `envoy-internal` route; this table previously said "external" incorrectly) | Authentik SSO, live-tested (§3.2) | still native-account-capable as fallback (`hass-oidc-auth` doesn't remove it) |
+| home-assistant | **external** | Authentik SSO, live-tested (§3.2) | still native-account-capable as fallback (`hass-oidc-auth` doesn't remove it); rate limit is the shared 100 req/s blanket only (§2.3), no dedicated policy yet |
 | grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
@@ -260,6 +260,15 @@ Three things worth being deliberate about, given how much this app controls:
   the home-assistant provider already requests that scope. Just needed `roles: {admin:
   home-assistant-admins}` in `configuration.yaml` plus a new `home-assistant-admins` group,
   same pattern as `grafana-admins`/`nebraska-admins`. Empty membership by default.
+- ✅ **External route added (2026-08-23)** — `route.external` (`home.oreillys.io`, `envoy-external`)
+  alongside the existing internal route. Safe to run both simultaneously: `hass-oidc-auth` derives
+  its `redirect_uri` from the live request's own hostname (confirmed against source,
+  `tools/helpers.py` `get_url()`), not a fixed configured value, so both callback URLs just needed
+  registering in Authentik's `redirect_uris` (`matching_mode: strict` requires an exact list, not a
+  wildcard). No `protect-external` component involved — same as the internal route, HA handles the
+  entire OIDC flow itself regardless of which hostname the request came in on. Inherits the shared
+  100 req/s `envoy-external-ratelimit` `BackendTrafficPolicy` automatically (Gateway-level
+  `targetRefs`, not per-route) — no dedicated rate limit yet, see §4.
 
 ---
 
@@ -270,8 +279,9 @@ Three things worth being deliberate about, given how much this app controls:
 2. **Network segmentation, phased** (§2.2) — start observing flow data now on the namespaces about
    to gain external exposure, so policy work isn't blocking the app rollout below.
 3. **Finish copy-party** (in progress) and expose it, since the ACL redesign is already done.
-4. **Home Assistant** — internal only today; SSO live and working (§3.2). Confirm MFA/backup-login
-   story and add its own rate-limit policy (§2.3) before considering external exposure.
+4. ~~**Home Assistant**~~ — SSO live and working (§3.2), external route added 2026-08-23. Still
+   open: dedicated rate-limit policy (§2.3) — currently just the shared 100 req/s blanket — and
+   confirming the native-login fallback's MFA/password strength.
 5. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
 6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
