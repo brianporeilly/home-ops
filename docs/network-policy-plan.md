@@ -157,17 +157,30 @@ from the table below (see notes).
      (docs/network-observability-plan.md), a different VLAN entirely. akvorado and fluent-bit
      additionally allow `10.2.0.1/32` (OPNsense's own transit address) - OPNsense sends its own
      NetFlow/syslog directly, not just switches, and that address isn't in either VLAN block.
-7. ✅ **Default-deny ingress, everywhere** — promoted 2026-08-22. Confirmed live (this whole plan's
-   central finding, see step 5 and the Verification sections): this was never a separate "flip a
-   switch" step - promoting every staged Allow rule from steps 1-6 to real, enforcing policy *is*
-   what creates the default-deny effect, because a `selector: all()` policy going enforcing ends
-   Calico's permissive per-namespace `kns.<ns>` Profile fallback for literally every pod in the
-   cluster simultaneously. That's also why this had to happen as one atomic change across all
-   ~16 files (15 `GlobalNetworkPolicy` + the namespaced `allow-same-namespace`
+7. ✅ **Default-deny ingress, everywhere** — promoted 2026-08-22/23. Confirmed live (this whole
+   plan's central finding, see step 5 and the Verification sections): this was never a separate
+   "flip a switch" step - promoting every staged Allow rule from steps 1-6 to real, enforcing
+   policy *is* what creates the default-deny effect, because a `selector: all()` policy going
+   enforcing ends Calico's permissive per-namespace `kns.<ns>` Profile fallback for literally every
+   pod in the cluster simultaneously. That's also why this had to happen as one atomic change
+   across all ~16 files (15 `GlobalNetworkPolicy` + the namespaced `allow-same-namespace`
    `NetworkPolicy`) rather than gradually or per-namespace - no partial rollout was possible once
    any one of the wide rules went live. Files renamed to drop the `staged` prefix
    (`stagedglobalnetworkpolicy-*.yaml` → `globalnetworkpolicy-*.yaml`, same pattern for the
    namespaced one) to match what they now actually are.
+   >
+   > **Correction (2026-08-23): it did NOT land atomically in practice**, despite the design
+   > requiring it - see `docs/incident-2026-08-23-dns-outage.md` for the full RCA. The namespaced
+   > half (`allow-same-namespace`, applied by the root `cluster-apps` Kustomization) and the Global
+   > half (`allow-dns-ingress` and the rest, applied by the separate `kube-system/calico-policies`
+   > Kustomization) were never actually coupled by anything Flux enforces - only by both
+   > *usually* reconciling within seconds of each other. `calico-policies` got stuck behind a
+   > bogus `rook-ceph-cluster` dependency on its parent `calico` Kustomization (unrelated
+   > copy-paste bug, since fixed), the namespaced half landed alone, and the gap between them broke
+   > cross-namespace DNS cluster-wide for ~39 minutes. Fixed live via a Flux-bypassing `kubectl
+   > apply`; `calico`'s bogus dependency removed so this can't recur *this way*, but the two halves
+   > are still not atomic *by construction* - see that doc's "still true" section before doing
+   > another large staged-policy promotion or a full cluster rebuild.
 8. **Egress**, as a deliberate separate decision per namespace (not bundled into this ingress
    baseline) — `download`'s internet-bound traffic is the obvious first case to think through.
    **Low priority** — track as a roadmap item, not blocking on the ingress baseline above.
