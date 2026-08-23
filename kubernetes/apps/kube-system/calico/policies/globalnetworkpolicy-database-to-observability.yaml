@@ -1,16 +1,15 @@
 ---
-# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
 # Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline
 # - staged. clickhouse-operator (runs in `database`, chart name
 # altinity-clickhouse-operator) manages Akvorado's ClickHouse instance
 # (`chi-akvorado-clickhouse`, lives in `observability`) - same
 # centralized-operator pattern as the mariadb pair.
 apiVersion: projectcalico.org/v3
-kind: StagedGlobalNetworkPolicy
+kind: GlobalNetworkPolicy
 metadata:
   name: allow-database-to-observability
 spec:
-  stagedAction: Set
   selector: clickhouse.altinity.com/chi == 'akvorado-clickhouse'
   namespaceSelector: kubernetes.io/metadata.name == 'observability'
   types:
