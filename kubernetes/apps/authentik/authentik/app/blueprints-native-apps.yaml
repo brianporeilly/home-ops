@@ -330,8 +330,16 @@ data:
           redirect_uris:
             - matching_mode: strict
               # hass-oidc-auth's own callback path, not /oauth2/callback -
-              # this app isn't behind components/authentik/protect.
+              # this app isn't behind components/authentik/protect. Both
+              # hostnames listed since hass-oidc-auth derives redirect_uri
+              # from the live request (confirmed against its own source,
+              # tools/helpers.py get_url()), not a fixed configured
+              # value - whichever hostname the browser used just needs to
+              # be registered here too.
               url: https://home.internal.oreillys.io/auth/oidc/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://home.oreillys.io/auth/oidc/callback
               redirect_uri_type: authorization
           grant_types:
             - authorization_code
