@@ -1,18 +1,31 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline
-# - staged. spegel is a node-local P2P OCI registry mirror
-# (`hostPort: 30020` -> container port 5000) - the flow data showed
-# `kube-system -> misc`/`kube-system -> nvidia-gpu-operator`, but per the
-# doc this isn't really a namespace-scoped dependency: it's cross-node
-# image-pull traffic that happens to attribute back to spegel's own
-# namespace (kube-system) as source, with the destination namespace being
-# whatever pod on that node is pulling an image at the time - it could be
-# any namespace, not just the two observed in one review window.
+# Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline.
+# spegel is a node-local P2P OCI registry mirror (`hostPort: 30020` ->
+# container port 5000) - the flow data showed `kube-system -> misc`/
+# `kube-system -> nvidia-gpu-operator`, but per the doc this isn't really
+# a namespace-scoped dependency: it's cross-node image-pull traffic that
+# happens to attribute back to spegel's own namespace (kube-system) as
+# source, with the destination namespace being whatever pod on that node
+# is pulling an image at the time - it could be any namespace, not just
+# the two observed in one review window.
 #
 # Modeled cluster-wide by source only (not a narrow source/dest pair like
 # the other two steps here) to match that: any pod, anywhere, can be a
 # destination; only the source (spegel itself) is meaningfully scoped.
+#
+# Second rule added post-promotion-review (2026-08-23): the flow-data
+# check before merging this PR found real, recurring PRIVATE NETWORK ->
+# spegel:5000 pending-Deny hits (~5/24h, not a one-off) - some of spegel's
+# actual traffic isn't attributed to its pod's WorkloadEndpoint at all
+# (Calico's synthetic label for source IPs it can't match to any
+# endpoint), so the selector-based rule above never matches it. Likely
+# containerd/kubelet's own image-pull calls going out via the node's host
+# network rather than through spegel's pod IP. Fixed with a nets-based
+# rule instead (matches by raw IP, not endpoint selector, same mechanism
+# as allow-apiserver-webhooks below) scoped to the servers VLAN
+# (10.20.0.0/16, see docs/node-inventory.md) - every node's host IP is in
+# that range.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
@@ -27,5 +40,11 @@ spec:
       source:
         selector: app.kubernetes.io/name == 'spegel'
         namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+      destination:
+        ports: [5000]
+    - action: Allow
+      protocol: TCP
+      source:
+        nets: [10.20.0.0/16]
       destination:
         ports: [5000]
