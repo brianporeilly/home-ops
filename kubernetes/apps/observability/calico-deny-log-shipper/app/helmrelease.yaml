@@ -73,58 +73,16 @@ spec:
                 WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
                 LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
                 WINDOW_SECONDS = 180
-                # Correction (2026-08-23), replacing two earlier, wrong
-                # theories about this noise - keeping the history since the
-                # real mechanism was only found by ruling both out:
-                #   1. First guess: a freshly-spawned pod's first packet hits
-                #      a brief cache-sync race that self-corrects within
-                #      seconds - wrong. Live-tracked specific flows
-                #      (calico-deny-log-shipper -> loki, immich-oidc-sync ->
-                #      immich-server) for 5+ minutes; they persisted 78-320s+,
-                #      some outliving the whole tracking window. Not brief,
-                #      not self-correcting.
-                #   2. Second guess: stale Goldmane state needing a restart,
-                #      same class of fix as the calico-node DaemonSet restart
-                #      that fixed a real Felix dataplane-sync bug earlier the
-                #      same day - also wrong. Restarting the goldmane
-                #      Deployment made the noise vanish for one poll, then it
-                #      came right back, identical, including for flows older
-                #      than the restart itself.
-                # Real mechanism, confirmed via a direct flow trace: Felix's
-                # real enforcement (`enforced`) correctly walks the full
-                # default-tier policy chain and lands on
-                # allow-observability-ingress - Allow. Goldmane's own
-                # "pending" re-evaluation checks only the *first*
-                # selector:all() policy in the tier (allow-apiserver-webhooks),
-                # doesn't match, and returns EndOfTier immediately instead of
-                # continuing to the next all()-selector policy the way Felix
-                # does. This is a real limitation in Goldmane's own
-                # multi-policy-tier walk, not a caching issue - and since this
-                # cluster now permanently carries several selector:all()
-                # policies in the default tier, it's a standing source of
-                # noise, not a temporary one.
-                #
-                # Fix: this table exists to preview what a *staged* policy
-                # would do if promoted - so only ship a diff when the
-                # resolved "pending" decision actually involves a
-                # Staged{Global,}NetworkPolicy. Every instance of today's
-                # noise resolves via a real GlobalNetworkPolicy on both sides
-                # (there are zero staged policies live right now), so this
-                # eliminates the whole class directly, without guessing at
-                # timing. Once something real gets staged again, its name
-                # will show up in the pending chain and pass this check.
-                #
-                # Known tradeoff: this also means a future recurrence of the
-                # *other* real bug found the same day (Felix's dataplane
-                # falling behind its own control-plane state after a policy
-                # change - fixed via `kubectl rollout restart daemonset/
-                # calico-node -n calico-system`, see
-                # docs/incidents/2026-08-23-dns-outage.md) would resolve via
-                # real policy names on both sides too, and wouldn't show up
-                # here either. This table was never the primary way that bug
-                # got found (a direct flow trace via the whisker-backend API
-                # was) - if something looks cluster-networking-wrong again,
-                # check that directly rather than relying on this panel alone.
+                # Only ships a pending-diff when the resolved decision
+                # involves a Staged{Global,}NetworkPolicy (see resolve()) -
+                # Goldmane's own "pending" re-evaluation stops at the first
+                # selector:all() policy in a tier instead of walking the rest
+                # the way Felix's real enforcement does, which is a standing
+                # false-positive source now that several selector:all()
+                # policies live in the default tier permanently. Doesn't
+                # catch a Felix/dataplane-lag bug either (see
+                # docs/incidents/2026-08-23-dns-outage.md) - that needs a
+                # direct whisker-backend flow trace, not this table.
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own
