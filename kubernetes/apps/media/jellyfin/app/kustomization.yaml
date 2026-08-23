@@ -9,3 +9,4 @@ resources:
   - ./servicemonitor.yaml
   - ./dashboard.yaml
   - ./backendtrafficpolicy-metrics-block.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml

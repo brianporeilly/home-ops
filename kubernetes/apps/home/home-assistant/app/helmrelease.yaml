@@ -139,6 +139,24 @@ spec:
           - name: envoy-external
             namespace: network
             sectionName: https
+        # Explicit now that there's a named sub-rule - chart's implicit
+        # catch-all is gone once rules: is set at all.
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 8123
+          # /auth/ covers the login_flow + token exchange endpoints (the
+          # actual username/password submission) - named so the
+          # BackendTrafficPolicy below (backendtrafficpolicy-login-ratelimit.yaml)
+          # can target just this rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /auth/
+            backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 8123
     persistence:
       config:
         suffix: config

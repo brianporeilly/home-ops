@@ -52,3 +52,16 @@ spec:
       backendRefs:
         - name: authentik-server
           port: 80
+    # Flow executor handles every login/MFA/recovery step for both
+    # Authentik's own login and every other app's SSO redirect through this
+    # host - named so the BackendTrafficPolicy below
+    # (backendtrafficpolicy-login-ratelimit.yaml) can target just this rule
+    # via sectionName.
+    - name: login-rate-limited
+      matches:
+        - path:
+            type: PathPrefix
+            value: /api/v3/flows/executor/
+      backendRefs:
+        - name: authentik-server
+          port: 80
