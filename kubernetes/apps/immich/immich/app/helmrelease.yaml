@@ -162,6 +162,16 @@ spec:
               - name: "{{ .Release.Name }}-app"
                 port: 2283
       external:
+        annotations:
+          # gatus-sidecar's HTTPRoute auto-discovery skips a bare "/" match
+          # and picks the next PathPrefix rule it finds instead (see the
+          # authentik-server-external and jellyfin comments for the same
+          # bug) - without this override it started probing
+          # /api/auth/login instead of / the moment the login-rate-limited
+          # rule below was added, and that path 302s instead of returning
+          # 200.
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - photos.oreillys.io
         parentRefs:
