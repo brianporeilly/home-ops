@@ -85,7 +85,18 @@ spec:
                 # genuine, persistent gap ages past this threshold and still
                 # gets reported - only ever-brief, self-limiting blips from
                 # short-lived pods get filtered out.
-                DIFF_MIN_AGE_SECONDS = 90
+                #
+                # 30s, not something larger: every flow start_time/end_time
+                # observed all session lands on a 15s boundary, so Goldmane's
+                # own aggregation bucket is ~15s - "self-corrects within
+                # seconds" means within the first bucket or two, not anywhere
+                # close to a minute+. This isn't a free filter: anything
+                # suppressed here is also detection latency added to a real,
+                # fast-onset problem (the 2026-08-23 DNS outage would have
+                # been silent in this table for the full suppression window),
+                # so keep this as tight as the mechanism actually needs, not
+                # a round, unjustified number.
+                DIFF_MIN_AGE_SECONDS = 30
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own
