@@ -150,9 +150,13 @@ spec:
             sectionName: https
         # Explicit now that there's a named sub-rule - chart's implicit
         # catch-all is gone once rules: is set at all.
+        # Backend is the bare "{{ .Release.Name }}" Service, not
+        # "-app"-suffixed - unlike immich's multiple named services
+        # (app/ml/valkey), this chart only defines one (the "app" key), and
+        # app-template gives a lone service the bare release name.
         rules:
           - backendRefs:
-              - name: "{{ .Release.Name }}-app"
+              - name: "{{ .Release.Name }}"
                 port: 8123
           # /auth/ covers the login_flow + token exchange endpoints (the
           # actual username/password submission) - named so the
@@ -164,7 +168,7 @@ spec:
                   type: PathPrefix
                   value: /auth/
             backendRefs:
-              - name: "{{ .Release.Name }}-app"
+              - name: "{{ .Release.Name }}"
                 port: 8123
     persistence:
       config:
