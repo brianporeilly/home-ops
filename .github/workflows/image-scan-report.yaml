@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
   issues: write
+  # For add-pr-comment's artifact-upload truncation mode (see the "Post
+  # scan report" step) - it falls back to a plain truncation notice
+  # without this, so not strictly required, but the downloadable full
+  # report is worth the extra scope on an internal-only scheduled job.
+  actions: write
 
 jobs:
   report:
@@ -75,15 +80,35 @@ jobs:
           } > /tmp/full-report.md
           cat /tmp/full-report.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upsert tracking issue
+      - name: Ensure tracking issue
+        id: issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh label create image-scan-report --color FF6B6B --description "Scheduled HIGH/CRITICAL image vulnerability report" --force
 
+          # Issue body stays static - the report itself goes in a sticky
+          # comment below (bodies have the same 65536-char GraphQL cap the
+          # comment action already handles for us; a 60-image scan
+          # regularly blows past that as a body, but a comment can be
+          # truncated).
           ISSUE_NUMBER=$(gh issue list --label image-scan-report --state open --json number --jq '.[0].number')
-          if [ -n "$ISSUE_NUMBER" ]; then
-            gh issue edit "$ISSUE_NUMBER" --body-file /tmp/full-report.md
-          else
-            gh issue create --title "Image Scan Report" --label image-scan-report --body-file /tmp/full-report.md
+          if [ -z "$ISSUE_NUMBER" ]; then
+            # gh issue create has no --json/--jq output mode - it just
+            # prints the created issue's URL, so pull the number off the end.
+            ISSUE_URL=$(gh issue create \
+              --title "Image Scan Report" \
+              --label image-scan-report \
+              --body "Daily Trivy scan of every pinned image in the repo. Latest results are in the comment below.")
+            ISSUE_NUMBER=${ISSUE_URL##*/}
           fi
+          echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Post scan report
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue: ${{ steps.issue.outputs.number }}
+          message-id: image-scan-report
+          message-path: /tmp/full-report.md
+          truncate: artifact
