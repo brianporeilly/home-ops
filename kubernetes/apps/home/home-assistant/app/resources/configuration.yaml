@@ -44,7 +44,18 @@ rest_command:
 # (provider-home-assistant.yaml), client_id/slug: home-assistant.
 auth_oidc:
   client_id: home-assistant
-  discovery_url: https://auth.internal.oreillys.io/application/o/home-assistant/.well-known/openid-configuration
+  # Must be the EXTERNAL hostname, not auth.internal.oreillys.io - Authentik's
+  # discovery doc is host-header-sensitive (issuer_mode: per_provider), so
+  # every endpoint in it (including authorization_endpoint, which becomes
+  # the browser's actual login redirect, not just this backend's own
+  # discovery/token calls) gets anchored to whatever hostname fetched it.
+  # Using the internal hostname broke login for anyone off the LAN - the
+  # browser got redirected to auth.internal.oreillys.io, unreachable from
+  # outside. Safe to use the external hostname for the in-cluster calls
+  # too: confirmed live, auth.oreillys.io resolves in-cluster straight to
+  # envoy-external's own VIP (10.21.0.1), no internet round-trip/NAT
+  # hairpin involved.
+  discovery_url: https://auth.oreillys.io/application/o/home-assistant/.well-known/openid-configuration
   # groups claim comes free from the profile scope (see the provider
   # blueprint's comment) - anyone in home-assistant-admins gets HA's
   # 'admin' role, everyone else who can complete login gets 'user'.
