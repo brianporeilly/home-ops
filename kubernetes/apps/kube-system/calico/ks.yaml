@@ -9,11 +9,19 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  dependsOn:
-    - name: envoy-gateway-config
-      namespace: network
-    - name: rook-ceph-cluster
-      namespace: rook-ceph
+  # Deliberately NO dependsOn - this was copy-pasted from the standard
+  # "new app" template default (envoy-gateway-config + rook-ceph-cluster)
+  # without adapting it, which is backwards for the CNI itself: Ceph needs
+  # working pod networking to come up, and Envoy Gateway needs the CNI to
+  # route anything - neither can be a real prerequisite for Calico.
+  # Real incident (2026-08-23, docs/incidents/2026-08-23-dns-outage.md):
+  # rook-ceph-cluster stalled on an unrelated Flux/DNS issue, which
+  # transitively blocked calico-policies (dependsOn: calico) from
+  # promoting allow-dns-ingress - the exact policy needed to fix DNS in
+  # the first place. Self-inflicted deadlock, only escapable by a manual
+  # kubectl apply bypassing Flux entirely. Keep this Kustomization
+  # dependency-free so it can never be held hostage by something
+  # downstream of it in the actual dependency direction.
   interval: 1h
   path: ./kubernetes/apps/kube-system/calico/app
   prune: true
