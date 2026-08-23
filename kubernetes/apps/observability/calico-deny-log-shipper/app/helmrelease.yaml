@@ -9,14 +9,22 @@
 #   - job=calico-deny-log: flows whose real, currently-enforced action is
 #     Deny.
 #   - job=calico-pending-diff-log: flows where the enforced action and the
-#     resolved pending action disagree - i.e. "if every currently-staged
-#     policy were promoted right now, this specific source->dest pair
-#     would flip from Allow to Deny (or vice versa)". This is the
+#     resolved pending action disagree - originally meant as "if every
+#     currently-staged policy were promoted right now, this specific
+#     source->dest pair would flip from Allow to Deny (or vice versa)", the
 #     automated version of the pending_actions review done by hand
-#     throughout docs/network-policy-plan.md - useful for exactly as long
-#     as any StagedGlobalNetworkPolicy/StagedNetworkPolicy exists; once
-#     everything's promoted to enforcing this table is expected to sit
-#     empty until the next time something gets staged.
+#     throughout docs/network-policy-plan.md. Correction (2026-08-23): this
+#     table does NOT go empty once nothing's staged - Goldmane's own
+#     "pending" re-evaluation can still diverge from Felix's "enforced"
+#     dataplane state with zero StagedGlobalNetworkPolicy/StagedNetworkPolicy
+#     objects anywhere, mainly from a freshly-spawned pod's first packet
+#     hitting a brief cache-sync race (self-corrects within seconds - see
+#     DIFF_MIN_AGE_SECONDS below, which filters exactly that) or from a
+#     genuine per-node dataplane-programming lag after a real policy change
+#     (the 2026-08-23 DNS outage's root cause, docs/incidents/2026-08-23-dns-outage.md -
+#     a rolling `kubectl rollout restart daemonset/calico-node -n calico-system`
+#     is the fix if this table stays non-empty for something that isn't a
+#     fresh pod and isn't an intentional staged policy).
 #
 # 3-minute lookback window on a 1-minute schedule (deliberate overlap, not
 # a bug) - covers Goldmane's own aggregation lag and any single missed/slow
@@ -65,6 +73,19 @@ spec:
                 WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
                 LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
                 WINDOW_SECONDS = 180
+                # A freshly-spawned pod's very first packet routinely shows a
+                # pending/enforced mismatch that self-corrects within seconds -
+                # a Felix/Goldmane cache-sync race on the new endpoint, not a
+                # real policy gap (see docs/network-policy-plan.md's
+                # "Verification round 2" false-alarms section - same mechanism,
+                # observed there via allow-same-namespace on CronJob pods).
+                # Filtering on the flow's own age rather than pod-name pattern
+                # matching: Goldmane keeps a flow's start_time fixed while
+                # end_time keeps advancing for as long as it recurs, so a
+                # genuine, persistent gap ages past this threshold and still
+                # gets reported - only ever-brief, self-limiting blips from
+                # short-lived pods get filtered out.
+                DIFF_MIN_AGE_SECONDS = 90
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own
@@ -85,7 +106,8 @@ spec:
                 with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
                     data = json.load(r)
                 items = data.get("items", [])
-                cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=WINDOW_SECONDS)
+                now = datetime.datetime.now(datetime.timezone.utc)
+                cutoff = now - datetime.timedelta(seconds=WINDOW_SECONDS)
 
                 deny_values = []
                 diff_values = []
@@ -114,7 +136,18 @@ spec:
                     if f.get("action") == "Deny":
                         deny_values.append((ts_ns, json.dumps(base, sort_keys=True)))
 
-                    if pending_action and enforced_action and pending_action != enforced_action:
+                    start_time = f.get("start_time")
+                    flow_age = None
+                    if start_time:
+                        start_ts = datetime.datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                        flow_age = (now - start_ts).total_seconds()
+
+                    if (
+                        pending_action
+                        and enforced_action
+                        and pending_action != enforced_action
+                        and (flow_age is None or flow_age >= DIFF_MIN_AGE_SECONDS)
+                    ):
                         diff = dict(base)
                         diff["enforced_action"] = enforced_action
                         diff["enforced_policy"] = enforced_name
