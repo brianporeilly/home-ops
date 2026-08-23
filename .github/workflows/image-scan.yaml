@@ -1,0 +1,93 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Image Scan
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "kubernetes/apps/**/helmrelease.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Discover changed images
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.diff.outputs.images }}
+    steps:
+      - name: Checkout Pull Request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pull
+
+      - name: Checkout Default Branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Diff image refs
+        id: diff
+        run: |
+          # Extracting every image ref from each full tree and diffing the
+          # sets (rather than diffing file-by-file) means a digest bump, a
+          # brand-new app, or a values-only edit are all handled the same
+          # way - only refs genuinely new to the PR end up in NEW_IMAGES.
+          python3 pull/scripts/extract-images.py $(find base/kubernetes/apps -name helmrelease.yaml) | sort -u > /tmp/base-images.txt
+          python3 pull/scripts/extract-images.py $(find pull/kubernetes/apps -name helmrelease.yaml) | sort -u > /tmp/pull-images.txt
+          NEW_IMAGES=$(comm -23 /tmp/pull-images.txt /tmp/base-images.txt)
+          echo "New/changed images:"
+          echo "$NEW_IMAGES"
+          IMAGES_JSON=$(printf '%s\n' "$NEW_IMAGES" | jq -R -s -c '[splits("\n") | select(length > 0)]')
+          echo "images=$IMAGES_JSON" >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: Trivy scan
+    needs: discover
+    if: ${{ needs.discover.outputs.images != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.discover.outputs.images) }}
+    steps:
+      - name: Run Trivy
+        id: trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.image }}
+          # renovate: datasource=github-releases depName=aquasecurity/trivy
+          version: v0.74.0
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: table
+
+      - name: Comment on failure
+        if: failure()
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          message-id: image-scan/${{ matrix.image }}
+          message: |
+            🚨 Trivy found fixable **CRITICAL** vulnerabilities in `${{ matrix.image }}`.
+            See the [Image Scan job logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+            HIGH/MEDIUM findings aren't gated here - see the scheduled full-repo
+            report (`image-scan-report.yaml`) for those.
