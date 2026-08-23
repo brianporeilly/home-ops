@@ -31,6 +31,7 @@ resources:
   - ./forgejo-oidc-credentials.yaml
   - ./immich-oidc-credentials.yaml
   - ./whisker-oidc-credentials.yaml
+  - ./jellyfin-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
