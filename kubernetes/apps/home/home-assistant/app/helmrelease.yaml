@@ -21,6 +21,55 @@ spec:
       home-assistant:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # Installs the auth_oidc custom_component (hass-oidc-auth, see
+          # docs/security-plan.md §3.2) straight from its pinned GitHub
+          # release into the persistent /config volume - HACS itself isn't
+          # installed/used, this is a GitOps-managed substitute for it.
+          # Idempotent on the pinned version (checks .installed_version
+          # before re-downloading), same pattern as llama-cpp's
+          # fetch-model init container. Bump all three COMPONENT_* env
+          # vars together to upgrade (get the new sha256 from the
+          # release's hass-oidc-auth.zip asset).
+          install-oidc:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command: ["python3", "-c"]
+            args:
+              - |
+                import hashlib, os, sys, urllib.request, zipfile, io
+
+                url = os.environ["COMPONENT_URL"]
+                want_sha256 = os.environ["COMPONENT_SHA256"]
+                version = os.environ["COMPONENT_VERSION"]
+                dest = "/config/custom_components/auth_oidc"
+                marker = f"{dest}/.installed_version"
+
+                if os.path.exists(marker) and open(marker).read().strip() == version:
+                    print(f"auth_oidc {version} already installed, skipping")
+                    sys.exit(0)
+
+                print(f"downloading {url}")
+                data = urllib.request.urlopen(url).read()
+                got_sha256 = hashlib.sha256(data).hexdigest()
+                if got_sha256 != want_sha256:
+                    sys.exit(f"checksum mismatch: got {got_sha256}, want {want_sha256}")
+
+                os.makedirs(dest, exist_ok=True)
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    zf.extractall(dest)
+                with open(marker, "w") as f:
+                    f.write(version)
+                print(f"auth_oidc {version} installed")
+            env:
+              COMPONENT_URL: "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/v1.2.1/hass-oidc-auth.zip"
+              COMPONENT_SHA256: "e5badaaacaa63cfd6fe733924a05e76d75058836190398598fb24de57cd47ccd"
+              COMPONENT_VERSION: "1.2.1"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
@@ -81,6 +130,13 @@ spec:
           - home.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
+            namespace: network
+            sectionName: https
+      external:
+        hostnames:
+          - home.oreillys.io
+        parentRefs:
+          - name: envoy-external
             namespace: network
             sectionName: https
     persistence:

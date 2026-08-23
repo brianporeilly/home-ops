@@ -88,10 +88,10 @@ Worth stating explicitly so the roadmap below doesn't re-litigate it:
 - **SSO, where wired**: Authentik has two patterns — `protect`/`protect-external` (Envoy Gateway
   `SecurityPolicy` wrapping an app's `HTTPRoute`, for apps with no native OIDC: sonarr/radarr/
   prowlarr/lidarr, kopiur-ui, changedetection) and native OIDC (grafana, nebraska, paperless-ngx,
-  linkwarden, forgejo). Tiered groups + `PolicyBinding` gate access per-app (see
-  `home-ops-authentik-sso` memory for the full picture). **Not every externally-exposed app is
-  behind this yet** — immich, jellyfin, and home-assistant currently rely on their own native
-  accounts, not Authentik.
+  linkwarden, forgejo, home-assistant via `hass-oidc-auth` — see §3.2). Tiered groups +
+  `PolicyBinding` gate access per-app (see `home-ops-authentik-sso` memory for the full picture).
+  **Not every externally-exposed app is behind this yet** — immich and jellyfin still rely on
+  their own native accounts, not Authentik (a deliberate choice for immich, see §3 table).
 - **Secrets**: SOPS + age, nothing plaintext in git (this repo is public). OIDC creds specifically
   go through ESO + Reflector, never touch git at all.
 
@@ -171,7 +171,7 @@ default-yes. Status as of 2026-08-20:
 | App | Status | Auth today | Notes |
 |-----|--------|-----------|-------|
 | immich | **external** | native accounts (no SSO — explicitly out of scope, admin-UI-only OIDC config) | precedent for "native accounts are enough for family use" |
-| home-assistant | **external** | native accounts + optional TOTP | **TODO: wire Authentik SSO** — Home Assistant supports OIDC via the community `hass-auth-header`/native trusted-proxy-header pattern or a SAML/OIDC auth provider component; needs research into which fits its auth-provider model best (it's not a simple env-var client-id/secret like grafana/paperless-ngx). Until then, confirm MFA is actually turned on — proxying (`use_x_forwarded_for`/`trusted_proxies`) already confirmed correct |
+| home-assistant | **external** | Authentik SSO, live-tested (§3.2) | still native-account-capable as fallback (`hass-oidc-auth` doesn't remove it); rate limit is the shared 100 req/s blanket only (§2.3), no dedicated policy yet |
 | grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
@@ -211,6 +211,67 @@ future "did we miss anything" pass doesn't have to re-derive this list from scra
 
 ---
 
+## 3.2 Home Assistant SSO — research (2026-08-22)
+
+HA core has no built-in OIDC/SSO support, so this always needed a component. The option this
+table used to point at, `hass-auth-header` (BeryJu's header-trust component, meant to pair with
+Authentik's own forward-auth proxy), is **archived as of October 2025** — the maintainer's note
+says to use one of the newer OIDC-native components instead. Not viable.
+
+**Chosen: [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)** (HACS,
+actively maintained, dedicated Authentik setup guide). Makes HA itself a real OIDC relying party —
+same shape as grafana/paperless-ngx's native-OIDC pattern, but via a custom_component since it's
+not built into HA core. Fully YAML-configurable
+([docs](https://github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md)), so
+this can be wired entirely through git — no manual UI step required, unlike a plain HACS install.
+
+Three things worth being deliberate about, given how much this app controls:
+
+- **Replaces `components/authentik/protect`, doesn't layer with it.** The project's own FAQ says
+  to remove any reverse-proxy SSO layer once this is installed — HA's `HTTPRoute` does not get the
+  `protect` component; HA does the entire OIDC flow itself.
+- **No session revocation until token expiry.** Disabling/logging a user out in Authentik doesn't
+  kill an already-live HA session.
+- **Mobile companion app login is a device-code flow** (enter a code from the app into a browser),
+  not the seamless native redirect — a real regression from HA's current native-account mobile
+  login.
+
+**Implementation status:**
+- ✅ Authentik provider + application blueprint entry (`provider-home-assistant.yaml`, moved into
+  `blueprints-native-apps.yaml` — it belongs there, not `blueprints-protected-apps.yaml` where it
+  first landed in PR #670; that file's own header is explicit that it's for apps with no
+  `components/authentik/protect` SecurityPolicy, which is exactly HA's setup, same category as
+  grafana/paperless-ngx/linkwarden/forgejo/immich) — **public client** (project's own
+  recommendation: PKCE + redirect-URL matching is enough for a home setup, no client secret to
+  manage at all). Gated via a dedicated `home-assistant-users` group (`blueprints-groups.yaml`),
+  same convention as changedetection/linkwarden/forgejo — empty membership by default, add via the
+  Authentik UI.
+- ✅ `auth_oidc` custom_component installed via GitOps: an `initContainer` on the `home-assistant`
+  controller downloads the pinned `hass-oidc-auth` GitHub release zip, verifies its sha256, and
+  unpacks it into the persistent `/config/custom_components/auth_oidc` — no HACS runtime/UI
+  involved, version is pinned in git like every other image/chart in this repo.
+- ✅ `auth_oidc:` block added to `configuration.yaml` (`client_id`, `discovery_url` — no
+  `client_secret`, matching the public-client choice above).
+- ✅ **Live-tested and working (2026-08-22)** — real SSO login confirmed end-to-end.
+- ✅ **Admin-role auto-grant, done.** PR #670's "not done yet" note here was wrong — no custom
+  scope mapping was ever needed. `blueprints-native-apps.yaml`'s own header already documented
+  (confirmed against Authentik's shipped `scope-profile` mapping) that the default profile scope
+  already returns a `groups` claim — `[group.name for group in request.user.groups.all()]` — and
+  the home-assistant provider already requests that scope. Just needed `roles: {admin:
+  home-assistant-admins}` in `configuration.yaml` plus a new `home-assistant-admins` group,
+  same pattern as `grafana-admins`/`nebraska-admins`. Empty membership by default.
+- ✅ **External route added (2026-08-23)** — `route.external` (`home.oreillys.io`, `envoy-external`)
+  alongside the existing internal route. Safe to run both simultaneously: `hass-oidc-auth` derives
+  its `redirect_uri` from the live request's own hostname (confirmed against source,
+  `tools/helpers.py` `get_url()`), not a fixed configured value, so both callback URLs just needed
+  registering in Authentik's `redirect_uris` (`matching_mode: strict` requires an exact list, not a
+  wildcard). No `protect-external` component involved — same as the internal route, HA handles the
+  entire OIDC flow itself regardless of which hostname the request came in on. Inherits the shared
+  100 req/s `envoy-external-ratelimit` `BackendTrafficPolicy` automatically (Gateway-level
+  `targetRefs`, not per-route) — no dedicated rate limit yet, see §4.
+
+---
+
 ## 4. Suggested sequencing
 
 1. ~~**Authentik login-flow hardening** (§2.1)~~ — done and live-tested, branches
@@ -218,9 +279,9 @@ future "did we miss anything" pass doesn't have to re-derive this list from scra
 2. **Network segmentation, phased** (§2.2) — start observing flow data now on the namespaces about
    to gain external exposure, so policy work isn't blocking the app rollout below.
 3. **Finish copy-party** (in progress) and expose it, since the ACL redesign is already done.
-4. **Home Assistant** — already external; wire Authentik SSO (needs its own research, not the
-   simple client-id/secret env-var pattern the native-OIDC apps use - see the table above), confirm
-   MFA is actually on, add its own rate-limit policy (§2.3).
+4. ~~**Home Assistant**~~ — SSO live and working (§3.2), external route added 2026-08-23. Still
+   open: dedicated rate-limit policy (§2.3) — currently just the shared 100 req/s blanket — and
+   confirming the native-login fallback's MFA/password strength.
 5. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
 6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
@@ -230,9 +291,11 @@ future "did we miss anything" pass doesn't have to re-derive this list from scra
 
 ## 5. Open items to confirm
 
-- Home Assistant SSO — which integration path fits (auth-provider component vs. header-based
-  trusted-proxy auth vs. a community OIDC integration) - needs research before implementation.
-- Home Assistant MFA — actually enabled, or just available?
+- Home Assistant SSO — live and working, admin-role auto-grant wired (§3.2). Add yourself to
+  `home-assistant-users` (and `home-assistant-admins` if you want the HA admin role) via the
+  Authentik UI if not already done.
+- Home Assistant MFA — actually enabled, or just available? Matters less once SSO lands (Authentik
+  becomes the real credential boundary), but still worth confirming for the native-login fallback.
 - Grocy — not deployed yet; revisit auth model and exposure once it's actually enabled.
 - Grimmory's auth model — native accounts? anything at all?
 - Frigate / omada-controller — worth a deliberate MFA/password-strength review given what they

@@ -1,0 +1,162 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+# Polls whisker-backend's flow API directly (in-cluster Service, not the
+# SSO-wrapped HTTPRoute - a CronJob can't do an interactive OIDC login;
+# see kubernetes/apps/kube-system/calico/route/networkpolicy.yaml for the
+# ingress rule this needs) and ships two things to Loki as structured JSON
+# log lines, feeding the two tables in
+# kubernetes/apps/observability/grafana/app/calico-deny-dashboard.yaml:
+#   - job=calico-deny-log: flows whose real, currently-enforced action is
+#     Deny.
+#   - job=calico-pending-diff-log: flows where the enforced action and the
+#     resolved pending action disagree - i.e. "if every currently-staged
+#     policy were promoted right now, this specific source->dest pair
+#     would flip from Allow to Deny (or vice versa)". This is the
+#     automated version of the pending_actions review done by hand
+#     throughout docs/network-policy-plan.md - useful for exactly as long
+#     as any StagedGlobalNetworkPolicy/StagedNetworkPolicy exists; once
+#     everything's promoted to enforcing this table is expected to sit
+#     empty until the next time something gets staged.
+#
+# 3-minute lookback window on a 1-minute schedule (deliberate overlap, not
+# a bug) - covers Goldmane's own aggregation lag and any single missed/slow
+# run without a gap. Overlap means the same flow can get pushed to Loki
+# more than once, but each push uses the flow's own end_time as the log
+# line's timestamp (not "now"), so an identical (timestamp, line) pair
+# lands as an exact duplicate, which Loki accepts as a no-op rather than
+# double-counting.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: calico-deny-log-shipper
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: calico-deny-log-shipper
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      calico-deny-log-shipper:
+        type: cronjob
+        cronjob:
+          schedule: "* * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command:
+              - python3
+              - -c
+              - |
+                import json, urllib.request, datetime
+
+                WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
+                LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
+                WINDOW_SECONDS = 180
+
+                def resolve(policy_list):
+                    # Last entry is the resolved decision - either a policy's own
+                    # explicit Allow/Deny, or EndOfTier (action always Deny). For
+                    # EndOfTier, the specific staged/real policy that was being
+                    # evaluated when the tier ran out lives in trigger.name.
+                    if not policy_list:
+                        return None, None
+                    last = policy_list[-1]
+                    action = last.get("action")
+                    if last.get("kind") == "EndOfTier":
+                        trigger = last.get("trigger") or {}
+                        name = trigger.get("name") or "(no staged policy - end of tier)"
+                    else:
+                        name = last.get("name")
+                    return action, name
+
+                with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
+                    data = json.load(r)
+                items = data.get("items", [])
+                cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=WINDOW_SECONDS)
+
+                deny_values = []
+                diff_values = []
+                for f in items:
+                    end_time = f.get("end_time")
+                    if not end_time:
+                        continue
+                    ts = datetime.datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                    if ts < cutoff:
+                        continue
+                    ts_ns = str(int(ts.timestamp() * 1_000_000_000))
+                    base = {
+                        "source_namespace": f.get("source_namespace") or f.get("source_name"),
+                        "source_name": f.get("source_name"),
+                        "dest_namespace": f.get("dest_namespace") or f.get("dest_name"),
+                        "dest_name": f.get("dest_name"),
+                        "protocol": f.get("protocol"),
+                        "dest_port": f.get("dest_port"),
+                        "reporter": f.get("reporter"),
+                    }
+
+                    policies = f.get("policies") or {}
+                    enforced_action, enforced_name = resolve(policies.get("enforced"))
+                    pending_action, pending_name = resolve(policies.get("pending"))
+
+                    if f.get("action") == "Deny":
+                        deny_values.append((ts_ns, json.dumps(base, sort_keys=True)))
+
+                    if pending_action and enforced_action and pending_action != enforced_action:
+                        diff = dict(base)
+                        diff["enforced_action"] = enforced_action
+                        diff["enforced_policy"] = enforced_name
+                        diff["pending_action"] = pending_action
+                        diff["pending_policy"] = pending_name
+                        diff_values.append((ts_ns, json.dumps(diff, sort_keys=True)))
+
+                streams = []
+                if deny_values:
+                    deny_values.sort()
+                    streams.append({"stream": {"job": "calico-deny-log"}, "values": [list(v) for v in deny_values]})
+                if diff_values:
+                    diff_values.sort()
+                    streams.append({"stream": {"job": "calico-pending-diff-log"}, "values": [list(v) for v in diff_values]})
+
+                if not streams:
+                    print("nothing to ship this run")
+                else:
+                    payload = {"streams": streams}
+                    req = urllib.request.Request(
+                        LOKI_URL,
+                        data=json.dumps(payload).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=30) as r:
+                        print(f"pushed {len(deny_values)} deny, {len(diff_values)} pending-diff flows, status {r.status}")
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
