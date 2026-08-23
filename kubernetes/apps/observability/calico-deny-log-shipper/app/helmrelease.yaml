@@ -73,30 +73,58 @@ spec:
                 WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
                 LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
                 WINDOW_SECONDS = 180
-                # A freshly-spawned pod's very first packet routinely shows a
-                # pending/enforced mismatch that self-corrects within seconds -
-                # a Felix/Goldmane cache-sync race on the new endpoint, not a
-                # real policy gap (see docs/network-policy-plan.md's
-                # "Verification round 2" false-alarms section - same mechanism,
-                # observed there via allow-same-namespace on CronJob pods).
-                # Filtering on the flow's own age rather than pod-name pattern
-                # matching: Goldmane keeps a flow's start_time fixed while
-                # end_time keeps advancing for as long as it recurs, so a
-                # genuine, persistent gap ages past this threshold and still
-                # gets reported - only ever-brief, self-limiting blips from
-                # short-lived pods get filtered out.
+                # Correction (2026-08-23), replacing two earlier, wrong
+                # theories about this noise - keeping the history since the
+                # real mechanism was only found by ruling both out:
+                #   1. First guess: a freshly-spawned pod's first packet hits
+                #      a brief cache-sync race that self-corrects within
+                #      seconds - wrong. Live-tracked specific flows
+                #      (calico-deny-log-shipper -> loki, immich-oidc-sync ->
+                #      immich-server) for 5+ minutes; they persisted 78-320s+,
+                #      some outliving the whole tracking window. Not brief,
+                #      not self-correcting.
+                #   2. Second guess: stale Goldmane state needing a restart,
+                #      same class of fix as the calico-node DaemonSet restart
+                #      that fixed a real Felix dataplane-sync bug earlier the
+                #      same day - also wrong. Restarting the goldmane
+                #      Deployment made the noise vanish for one poll, then it
+                #      came right back, identical, including for flows older
+                #      than the restart itself.
+                # Real mechanism, confirmed via a direct flow trace: Felix's
+                # real enforcement (`enforced`) correctly walks the full
+                # default-tier policy chain and lands on
+                # allow-observability-ingress - Allow. Goldmane's own
+                # "pending" re-evaluation checks only the *first*
+                # selector:all() policy in the tier (allow-apiserver-webhooks),
+                # doesn't match, and returns EndOfTier immediately instead of
+                # continuing to the next all()-selector policy the way Felix
+                # does. This is a real limitation in Goldmane's own
+                # multi-policy-tier walk, not a caching issue - and since this
+                # cluster now permanently carries several selector:all()
+                # policies in the default tier, it's a standing source of
+                # noise, not a temporary one.
                 #
-                # 30s, not something larger: every flow start_time/end_time
-                # observed all session lands on a 15s boundary, so Goldmane's
-                # own aggregation bucket is ~15s - "self-corrects within
-                # seconds" means within the first bucket or two, not anywhere
-                # close to a minute+. This isn't a free filter: anything
-                # suppressed here is also detection latency added to a real,
-                # fast-onset problem (the 2026-08-23 DNS outage would have
-                # been silent in this table for the full suppression window),
-                # so keep this as tight as the mechanism actually needs, not
-                # a round, unjustified number.
-                DIFF_MIN_AGE_SECONDS = 30
+                # Fix: this table exists to preview what a *staged* policy
+                # would do if promoted - so only ship a diff when the
+                # resolved "pending" decision actually involves a
+                # Staged{Global,}NetworkPolicy. Every instance of today's
+                # noise resolves via a real GlobalNetworkPolicy on both sides
+                # (there are zero staged policies live right now), so this
+                # eliminates the whole class directly, without guessing at
+                # timing. Once something real gets staged again, its name
+                # will show up in the pending chain and pass this check.
+                #
+                # Known tradeoff: this also means a future recurrence of the
+                # *other* real bug found the same day (Felix's dataplane
+                # falling behind its own control-plane state after a policy
+                # change - fixed via `kubectl rollout restart daemonset/
+                # calico-node -n calico-system`, see
+                # docs/incidents/2026-08-23-dns-outage.md) would resolve via
+                # real policy names on both sides too, and wouldn't show up
+                # here either. This table was never the primary way that bug
+                # got found (a direct flow trace via the whisker-backend API
+                # was) - if something looks cluster-networking-wrong again,
+                # check that directly rather than relying on this panel alone.
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own
@@ -104,7 +132,7 @@ spec:
                     # EndOfTier, the specific staged/real policy that was being
                     # evaluated when the tier ran out lives in trigger.name.
                     if not policy_list:
-                        return None, None
+                        return None, None, False
                     last = policy_list[-1]
                     action = last.get("action")
                     if last.get("kind") == "EndOfTier":
@@ -112,7 +140,8 @@ spec:
                         name = trigger.get("name") or "(no staged policy - end of tier)"
                     else:
                         name = last.get("name")
-                    return action, name
+                    involves_staged = any((p.get("kind") or "").startswith("Staged") for p in policy_list)
+                    return action, name, involves_staged
 
                 with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
                     data = json.load(r)
@@ -141,23 +170,17 @@ spec:
                     }
 
                     policies = f.get("policies") or {}
-                    enforced_action, enforced_name = resolve(policies.get("enforced"))
-                    pending_action, pending_name = resolve(policies.get("pending"))
+                    enforced_action, enforced_name, _ = resolve(policies.get("enforced"))
+                    pending_action, pending_name, pending_involves_staged = resolve(policies.get("pending"))
 
                     if f.get("action") == "Deny":
                         deny_values.append((ts_ns, json.dumps(base, sort_keys=True)))
-
-                    start_time = f.get("start_time")
-                    flow_age = None
-                    if start_time:
-                        start_ts = datetime.datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                        flow_age = (now - start_ts).total_seconds()
 
                     if (
                         pending_action
                         and enforced_action
                         and pending_action != enforced_action
-                        and (flow_age is None or flow_age >= DIFF_MIN_AGE_SECONDS)
+                        and pending_involves_staged
                     ):
                         diff = dict(base)
                         diff["enforced_action"] = enforced_action
