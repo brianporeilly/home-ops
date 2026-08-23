@@ -172,6 +172,17 @@ spec:
           - backendRefs:
               - name: "{{ .Release.Name }}-app"
                 port: 2283
+          # Named so the BackendTrafficPolicy below
+          # (backendtrafficpolicy-login-ratelimit.yaml) can target just this
+          # rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /api/auth/login
+            backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 2283
 
     persistence:
       # retain the media volume across helm uninstall/remediation. Without this,
