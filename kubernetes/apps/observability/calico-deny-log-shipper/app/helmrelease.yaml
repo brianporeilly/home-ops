@@ -9,14 +9,22 @@
 #   - job=calico-deny-log: flows whose real, currently-enforced action is
 #     Deny.
 #   - job=calico-pending-diff-log: flows where the enforced action and the
-#     resolved pending action disagree - i.e. "if every currently-staged
-#     policy were promoted right now, this specific source->dest pair
-#     would flip from Allow to Deny (or vice versa)". This is the
+#     resolved pending action disagree - originally meant as "if every
+#     currently-staged policy were promoted right now, this specific
+#     source->dest pair would flip from Allow to Deny (or vice versa)", the
 #     automated version of the pending_actions review done by hand
-#     throughout docs/network-policy-plan.md - useful for exactly as long
-#     as any StagedGlobalNetworkPolicy/StagedNetworkPolicy exists; once
-#     everything's promoted to enforcing this table is expected to sit
-#     empty until the next time something gets staged.
+#     throughout docs/network-policy-plan.md. Correction (2026-08-23): this
+#     table does NOT go empty once nothing's staged - Goldmane's own
+#     "pending" re-evaluation can still diverge from Felix's "enforced"
+#     dataplane state with zero StagedGlobalNetworkPolicy/StagedNetworkPolicy
+#     objects anywhere, mainly from a freshly-spawned pod's first packet
+#     hitting a brief cache-sync race (self-corrects within seconds - see
+#     DIFF_MIN_AGE_SECONDS below, which filters exactly that) or from a
+#     genuine per-node dataplane-programming lag after a real policy change
+#     (the 2026-08-23 DNS outage's root cause, docs/incidents/2026-08-23-dns-outage.md -
+#     a rolling `kubectl rollout restart daemonset/calico-node -n calico-system`
+#     is the fix if this table stays non-empty for something that isn't a
+#     fresh pod and isn't an intentional staged policy).
 #
 # 3-minute lookback window on a 1-minute schedule (deliberate overlap, not
 # a bug) - covers Goldmane's own aggregation lag and any single missed/slow
@@ -65,6 +73,16 @@ spec:
                 WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
                 LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
                 WINDOW_SECONDS = 180
+                # Only ships a pending-diff when the resolved decision
+                # involves a Staged{Global,}NetworkPolicy (see resolve()) -
+                # Goldmane's own "pending" re-evaluation stops at the first
+                # selector:all() policy in a tier instead of walking the rest
+                # the way Felix's real enforcement does, which is a standing
+                # false-positive source now that several selector:all()
+                # policies live in the default tier permanently. Doesn't
+                # catch a Felix/dataplane-lag bug either (see
+                # docs/incidents/2026-08-23-dns-outage.md) - that needs a
+                # direct whisker-backend flow trace, not this table.
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own
@@ -72,7 +90,7 @@ spec:
                     # EndOfTier, the specific staged/real policy that was being
                     # evaluated when the tier ran out lives in trigger.name.
                     if not policy_list:
-                        return None, None
+                        return None, None, False
                     last = policy_list[-1]
                     action = last.get("action")
                     if last.get("kind") == "EndOfTier":
@@ -80,12 +98,14 @@ spec:
                         name = trigger.get("name") or "(no staged policy - end of tier)"
                     else:
                         name = last.get("name")
-                    return action, name
+                    involves_staged = any((p.get("kind") or "").startswith("Staged") for p in policy_list)
+                    return action, name, involves_staged
 
                 with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
                     data = json.load(r)
                 items = data.get("items", [])
-                cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=WINDOW_SECONDS)
+                now = datetime.datetime.now(datetime.timezone.utc)
+                cutoff = now - datetime.timedelta(seconds=WINDOW_SECONDS)
 
                 deny_values = []
                 diff_values = []
@@ -108,13 +128,18 @@ spec:
                     }
 
                     policies = f.get("policies") or {}
-                    enforced_action, enforced_name = resolve(policies.get("enforced"))
-                    pending_action, pending_name = resolve(policies.get("pending"))
+                    enforced_action, enforced_name, _ = resolve(policies.get("enforced"))
+                    pending_action, pending_name, pending_involves_staged = resolve(policies.get("pending"))
 
                     if f.get("action") == "Deny":
                         deny_values.append((ts_ns, json.dumps(base, sort_keys=True)))
 
-                    if pending_action and enforced_action and pending_action != enforced_action:
+                    if (
+                        pending_action
+                        and enforced_action
+                        and pending_action != enforced_action
+                        and pending_involves_staged
+                    ):
                         diff = dict(base)
                         diff["enforced_action"] = enforced_action
                         diff["enforced_policy"] = enforced_name
