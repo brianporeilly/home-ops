@@ -422,6 +422,18 @@ spec:
     alpnProtocols:
       - h2
       - http/1.1
+  # X-Frame-Options deliberately NOT set here (unlike envoy-external below) -
+  # Jellyfin's LG webOS app fails to connect through any reverse proxy that
+  # sends X-Frame-Options: SAMEORIGIN (well-documented upstream:
+  # jellyfin.org's own nginx/Traefik reverse-proxy guides call this out).
+  # lateResponseHeaders runs after HTTPRoute-level ResponseHeaderModifier
+  # filters and overwrites them (confirmed against Envoy Gateway's own
+  # HeaderSettings type + docs example - "the ClientTrafficPolicy overwrote
+  # all others"), and ClientTrafficPolicy can only target a whole
+  # Gateway/listener, never a single HTTPRoute - so there's no way to keep
+  # this header everywhere else on envoy-internal and carve out just
+  # jellyfin's route. Dropped here cluster-wide-on-internal instead;
+  # envoy-external keeps it, since jellyfin has no external route.
   headers:
     lateResponseHeaders:
       set:
@@ -429,8 +441,6 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
 ---
