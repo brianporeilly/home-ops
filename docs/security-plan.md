@@ -161,6 +161,25 @@ covers known-CVE patching *reactively*, but nothing catches a vulnerable image b
 or enforces baseline pod-security policy cluster-wide. Lower priority than 2.1–2.3 — worth doing,
 not worth blocking on.
 
+### 2.5 Teleport for kubectl access — watch, super low urgency
+
+Right now `kubectl` access means a copy of the cluster-admin kubeconfig sitting on whatever machine
+needs it — long-lived, full-privilege, no audit trail, no easy revocation short of rotating the
+underlying cert everywhere it's been copied.
+
+Researched 2026-08-23: Teleport's **Community Edition** (not Enterprise-gated) includes Kubernetes
+access as a core resource type, and supports a generic **OIDC** auth connector — could point it at
+the existing Authentik instance, same pattern as every other app in this repo. Users would `tsh
+login` via SSO, get a short-lived (hours, not indefinite) per-user cert, and `tsh kube login`
+configures a kubeconfig that proxies through Teleport instead of holding a static admin credential
+directly. Real security win: centrally revocable (disable the user in Authentik, access stops),
+audit-logged, session-recorded, no more long-lived static credential to leak.
+
+Cost: another always-on component to deploy and keep patched (auth+proxy+kube service), plus RBAC
+role-mapping work to translate Authentik groups into Kubernetes permissions correctly. Worth doing
+eventually, not remotely urgent for a single-operator cluster — revisit if/when more than one
+person needs `kubectl` access, or the admin kubeconfig's blast radius starts feeling wrong.
+
 ---
 
 ## 3. External-exposure candidates — per-app notes
@@ -287,8 +306,9 @@ Three things worth being deliberate about, given how much this app controls:
 
 1. ~~**Authentik login-flow hardening** (§2.1)~~ — done and live-tested, branches
    `authentik-brute-force-protection` + `authentik-brute-force-threshold` (see §2.1).
-2. **Network segmentation, phased** (§2.2) — start observing flow data now on the namespaces about
-   to gain external exposure, so policy work isn't blocking the app rollout below.
+2. ~~**Network segmentation, phased**~~ (§2.2) — promoted to enforcing 2026-08-23. Hit a real
+   incident during promotion (non-atomic rollout broke cross-namespace DNS); fixed live and
+   root-caused, see `docs/incidents/2026-08-23-dns-outage.md`.
 3. **Finish copy-party** (in progress) and expose it, since the ACL redesign is already done.
 4. ~~**Home Assistant**~~ — SSO live and working (§3.2), external route added 2026-08-23. Still
    open: dedicated rate-limit policy (§2.3) — currently just the shared 100 req/s blanket — and
@@ -299,6 +319,7 @@ Three things worth being deliberate about, given how much this app controls:
 7. **Grimmory** — after confirming its auth model.
 8. **Image scanning / admission control** (§2.4) — no urgency, pick up whenever.
 9. **Grocy** — not deployed yet; revisit exposure/auth model whenever it's actually enabled.
+10. **Teleport for kubectl access** (§2.5) — super low urgency, watch-item only.
 
 ## 5. Open items to confirm
 
