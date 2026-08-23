@@ -171,7 +171,7 @@ default-yes. Status as of 2026-08-20:
 | App | Status | Auth today | Notes |
 |-----|--------|-----------|-------|
 | immich | **external** | native accounts (no SSO — explicitly out of scope, admin-UI-only OIDC config) | precedent for "native accounts are enough for family use" |
-| home-assistant | **internal only** (corrected — `helmrelease.yaml` has only an `envoy-internal` route; this table previously said "external" incorrectly) | native accounts + optional TOTP | **SSO in progress** — see §3.2 for research + implementation status |
+| home-assistant | **internal only** (corrected — `helmrelease.yaml` has only an `envoy-internal` route; this table previously said "external" incorrectly) | Authentik SSO, live-tested (§3.2) | still native-account-capable as fallback (`hass-oidc-auth` doesn't remove it) |
 | grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
@@ -237,26 +237,29 @@ Three things worth being deliberate about, given how much this app controls:
   login.
 
 **Implementation status:**
-- ✅ Authentik provider + application blueprint entry (`provider-home-assistant.yaml` in
-  `blueprints-protected-apps.yaml`) — **public client** (project's own recommendation: PKCE +
-  redirect-URL matching is enough for a home setup, and it means no client secret to manage at
-  all — the only provider in that file that isn't confidential/`!Env`-sourced, since every other
-  entry there is driven through Envoy Gateway's `protect` SecurityPolicy, which always needs a
-  real secret for its own server-side token exchange). Gated via a new dedicated
-  `home-assistant-users` group (`blueprints-groups.yaml`), same convention as changedetection/
-  linkwarden/forgejo — empty membership by default, add via the Authentik UI.
+- ✅ Authentik provider + application blueprint entry (`provider-home-assistant.yaml`, moved into
+  `blueprints-native-apps.yaml` — it belongs there, not `blueprints-protected-apps.yaml` where it
+  first landed in PR #670; that file's own header is explicit that it's for apps with no
+  `components/authentik/protect` SecurityPolicy, which is exactly HA's setup, same category as
+  grafana/paperless-ngx/linkwarden/forgejo/immich) — **public client** (project's own
+  recommendation: PKCE + redirect-URL matching is enough for a home setup, no client secret to
+  manage at all). Gated via a dedicated `home-assistant-users` group (`blueprints-groups.yaml`),
+  same convention as changedetection/linkwarden/forgejo — empty membership by default, add via the
+  Authentik UI.
 - ✅ `auth_oidc` custom_component installed via GitOps: an `initContainer` on the `home-assistant`
   controller downloads the pinned `hass-oidc-auth` GitHub release zip, verifies its sha256, and
   unpacks it into the persistent `/config/custom_components/auth_oidc` — no HACS runtime/UI
   involved, version is pinned in git like every other image/chart in this repo.
 - ✅ `auth_oidc:` block added to `configuration.yaml` (`client_id`, `discovery_url` — no
   `client_secret`, matching the public-client choice above).
-- **Not done yet**: admin-role auto-grant via the `roles.admin`/groups-claim config option —
-  needs an Authentik `groups` scope mapping this repo hasn't used anywhere else yet, didn't want
-  to guess the managed-mapping name without verifying against the live instance. Everyone who logs
-  in gets HA's default `user` role for now; revisit once someone actually needs admin.
-- **Not done yet**: live end-to-end test (Authentik provider apply + HA restart + real login) —
-  next session.
+- ✅ **Live-tested and working (2026-08-22)** — real SSO login confirmed end-to-end.
+- ✅ **Admin-role auto-grant, done.** PR #670's "not done yet" note here was wrong — no custom
+  scope mapping was ever needed. `blueprints-native-apps.yaml`'s own header already documented
+  (confirmed against Authentik's shipped `scope-profile` mapping) that the default profile scope
+  already returns a `groups` claim — `[group.name for group in request.user.groups.all()]` — and
+  the home-assistant provider already requests that scope. Just needed `roles: {admin:
+  home-assistant-admins}` in `configuration.yaml` plus a new `home-assistant-admins` group,
+  same pattern as `grafana-admins`/`nebraska-admins`. Empty membership by default.
 
 ---
 
@@ -267,9 +270,8 @@ Three things worth being deliberate about, given how much this app controls:
 2. **Network segmentation, phased** (§2.2) — start observing flow data now on the namespaces about
    to gain external exposure, so policy work isn't blocking the app rollout below.
 3. **Finish copy-party** (in progress) and expose it, since the ACL redesign is already done.
-4. **Home Assistant** — internal only today; SSO wiring in progress (§3.2). Once live-tested,
-   confirm MFA/backup-login story and add its own rate-limit policy (§2.3) before considering
-   external exposure.
+4. **Home Assistant** — internal only today; SSO live and working (§3.2). Confirm MFA/backup-login
+   story and add its own rate-limit policy (§2.3) before considering external exposure.
 5. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
 6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
@@ -279,8 +281,9 @@ Three things worth being deliberate about, given how much this app controls:
 
 ## 5. Open items to confirm
 
-- Home Assistant SSO — admin-role auto-grant via groups claim not yet wired (§3.2); live
-  end-to-end login not yet tested.
+- Home Assistant SSO — live and working, admin-role auto-grant wired (§3.2). Add yourself to
+  `home-assistant-users` (and `home-assistant-admins` if you want the HA admin role) via the
+  Authentik UI if not already done.
 - Home Assistant MFA — actually enabled, or just available? Matters less once SSO lands (Authentik
   becomes the real credential boundary), but still worth confirming for the native-login fallback.
 - Grocy — not deployed yet; revisit auth model and exposure once it's actually enabled.
