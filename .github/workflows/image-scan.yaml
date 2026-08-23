@@ -12,12 +12,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: write
+  # For add-pr-comment's attach-path artifact upload (full per-CVE report).
+  actions: write
+
 jobs:
-  discover:
-    name: Discover changed images
+  scan:
+    name: Trivy scan
     runs-on: ubuntu-latest
-    outputs:
-      images: ${{ steps.diff.outputs.images }}
     steps:
       - name: Checkout Pull Request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,50 +48,83 @@ jobs:
           # Extracting every image ref from each full tree and diffing the
           # sets (rather than diffing file-by-file) means a digest bump, a
           # brand-new app, or a values-only edit are all handled the same
-          # way - only refs genuinely new to the PR end up in NEW_IMAGES.
+          # way - only refs genuinely new to the PR end up in new-images.txt.
           python3 pull/scripts/extract-images.py $(find base/kubernetes/apps -name helmrelease.yaml) | sort -u > /tmp/base-images.txt
           python3 pull/scripts/extract-images.py $(find pull/kubernetes/apps -name helmrelease.yaml) | sort -u > /tmp/pull-images.txt
-          NEW_IMAGES=$(comm -23 /tmp/pull-images.txt /tmp/base-images.txt)
+          comm -23 /tmp/pull-images.txt /tmp/base-images.txt > /tmp/new-images.txt
           echo "New/changed images:"
-          echo "$NEW_IMAGES"
-          IMAGES_JSON=$(printf '%s\n' "$NEW_IMAGES" | jq -R -s -c '[splits("\n") | select(length > 0)]')
-          echo "images=$IMAGES_JSON" >> "$GITHUB_OUTPUT"
+          cat /tmp/new-images.txt
+          if [ -s /tmp/new-images.txt ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
-  scan:
-    name: Trivy scan
-    needs: discover
-    if: ${{ needs.discover.outputs.images != '[]' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    strategy:
-      fail-fast: false
-      matrix:
-        image: ${{ fromJson(needs.discover.outputs.images) }}
-    steps:
-      - name: Run Trivy
-        id: trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      - name: Install Trivy
+        if: steps.diff.outputs.found == 'true'
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
-          scan-type: image
-          image-ref: ${{ matrix.image }}
           # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.74.0
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: 1
-          format: table
+          cache: true
 
-      - name: Comment on failure
-        if: failure()
+      - name: Scan new/changed images
+        if: steps.diff.outputs.found == 'true'
+        id: scan
+        run: |
+          mkdir -p /tmp/results
+          n=0
+          while read -r image; do
+            n=$((n + 1))
+            # No --exit-code here - the loop needs to keep scanning every
+            # image even after one comes back critical (this run step uses
+            # bash -e by default, and --exit-code 1 would abort the whole
+            # step on the first hit). Pass/fail is decided afterward from
+            # the aggregated results instead.
+            trivy image \
+              --severity CRITICAL \
+              --ignore-unfixed \
+              --format json \
+              --output "/tmp/results/${n}.json" \
+              "$image" || echo "::warning::Trivy failed on $image, skipping"
+          done < /tmp/new-images.txt
+
+          if grep -rl '"Severity": *"CRITICAL"' /tmp/results/*.json > /dev/null 2>&1; then
+            echo "critical=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "critical=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build report
+        if: steps.scan.outputs.critical == 'true'
+        run: |
+          python3 pull/scripts/aggregate-scan-results.py /tmp/results > /tmp/summary.md
+          python3 pull/scripts/aggregate-scan-results.py /tmp/results --full > /tmp/full.md
+          {
+            echo "🚨 Trivy found fixable **CRITICAL** vulnerabilities in this PR's changed images."
+            echo ""
+            cat /tmp/summary.md
+          } > /tmp/summary-report.md
+          {
+            echo "## Image Scan (full detail)"
+            echo ""
+            cat /tmp/full.md
+          } > /tmp/full-report.md
+
+      - name: Post scan report
+        if: steps.scan.outputs.critical == 'true'
         uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          message-id: image-scan/${{ matrix.image }}
-          message: |
-            🚨 Trivy found fixable **CRITICAL** vulnerabilities in `${{ matrix.image }}`.
-            See the [Image Scan job logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+          message-id: image-scan
+          message-path: /tmp/summary-report.md
+          attach-path: /tmp/full-report.md
+          attach-name: image-scan-full-report
+          attach-text: "Full per-CVE breakdown: %ARTIFACT_URL%"
+          truncate: artifact
 
-            HIGH/MEDIUM findings aren't gated here - see the scheduled full-repo
-            report (`image-scan-report.yaml`) for those.
+      - name: Fail on CRITICAL findings
+        if: steps.scan.outputs.critical == 'true'
+        run: |
+          echo "::error::Trivy found fixable CRITICAL vulnerabilities - see the PR comment for details."
+          exit 1
