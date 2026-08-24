@@ -1,9 +1,15 @@
 # Network Segmentation Plan (Calico NetworkPolicy)
 
-Status: **Plan only, informed by real flow data.** Written 2026-08-22, picking up
-`docs/security-plan.md` §2.2 ("Network segmentation — the biggest structural gap" — Calico's
-fully deployed, including Whisker/Goldmane flow visibility, but zero policies enforced today).
-This doc owns the actual design/rollout; §2.2 now just points here.
+Status: **Done.** Written 2026-08-22, picking up `docs/security-plan.md` §2.2 ("Network
+segmentation — the biggest structural gap" — Calico's fully deployed, including
+Whisker/Goldmane flow visibility, but zero policies enforced at the time). Every staged policy
+below was promoted to enforcing on 2026-08-23 (`feat(calico): step 7 - promote every staged
+policy to enforcing`, PR #666) - confirmed live via `kubectl get networkpolicy.projectcalico.org
+-A` / `globalnetworkpolicy.projectcalico.org` (default-deny + `allow-same-namespace` in every
+namespace, 16 `GlobalNetworkPolicy` cluster-wide exceptions). That promotion was non-atomic
+across the two Flux Kustomizations carrying it and caused a real ~39-minute DNS outage - see
+`docs/incidents/2026-08-23-dns-outage.md` for the RCA and `fix(calico): remove bogus dependsOn`
+(PR #677) for the structural fix.
 
 ## Decision
 
