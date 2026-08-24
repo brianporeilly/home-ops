@@ -206,6 +206,17 @@ spec:
             backendRefs:
               - name: jellyfin
                 port: *port
+          # Named so the BackendTrafficPolicy below
+          # (backendtrafficpolicy-login-ratelimit.yaml) can target just this
+          # rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /Users/AuthenticateByName
+            backendRefs:
+              - name: jellyfin
+                port: *port
 
     persistence:
       config:

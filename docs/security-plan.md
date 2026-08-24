@@ -84,7 +84,11 @@ Worth stating explicitly so the roadmap below doesn't re-litigate it:
   into a Grafana dashboard) — the actual bouncer/enforcement lives **upstream on OPNsense**, not
   in the cluster.
 - **A rate-limit backstop**: `envoy-external-ratelimit` `BackendTrafficPolicy` caps the whole
-  `https` listener at 100 req/s (local, **shared across every externally-exposed app** — see §2.3).
+  `https` listener at 100 req/s (local, shared across every externally-exposed app), plus
+  tighter login-path-scoped policies per app — see §2.3.
+- **Network segmentation**: Calico `NetworkPolicy`/`GlobalNetworkPolicy` enforcing east-west
+  traffic cluster-wide (namespace default-deny baseline + a short list of cluster-wide
+  exceptions) — see §2.2.
 - **SSO, where wired**: Authentik has two patterns — `protect`/`protect-external` (Envoy Gateway
   `SecurityPolicy` wrapping an app's `HTTPRoute`, for apps with no native OIDC: sonarr/radarr/
   prowlarr/lidarr, kopiur-ui, changedetection) and native OIDC (grafana, nebraska, paperless-ngx,
@@ -125,41 +129,48 @@ is gated to trusted emails/domains, and the password policy for that one remaini
 and tightened. **Still open**: `akadmin` itself has zero MFA devices enrolled — the `configure`
 action will force this on next password login, but hasn't happened yet (owner task, in progress).
 
-### 2.2 Network segmentation — the biggest structural gap
+### 2.2 Network segmentation — done
 
-**Nothing enforces east-west traffic.** Calico is fully deployed — including Whisker + Goldmane,
-its flow-visibility stack — but there are **zero** `NetworkPolicy`/`GlobalNetworkPolicy` resources
-anywhere in this repo. Every pod can reach every other pod/service regardless of namespace. If any
-externally-exposed app gets popped (RCE, a bad dependency, whatever), there's currently zero
-lateral-movement friction to CNPG databases, Ceph, Authentik, kopiur backups — anything.
+Was the biggest structural gap: Calico was fully deployed (Whisker + Goldmane flow visibility
+included) but zero `NetworkPolicy`/`GlobalNetworkPolicy` resources existed anywhere, so any pod
+could reach any other pod/service regardless of namespace. Rolled out via Calico's staged
+policies (evaluate-without-enforcing first), promoted to enforcing 2026-08-23. Baseline is
+namespace-level default-deny + `allow-same-namespace` in every namespace, plus 16
+`GlobalNetworkPolicy` cluster-wide exceptions (DNS, Envoy Gateway ingress, Prometheus scraping,
+a handful of narrow app-to-app pairs) — confirmed live via `kubectl get
+networkpolicy.projectcalico.org -A` / `globalnetworkpolicy.projectcalico.org`. Full
+design/rollout/flow-data review: `docs/network-policy-plan.md`.
 
-**Full plan, including a real flow-data review: `docs/network-policy-plan.md`.** Short version:
-Calico `NetworkPolicy`/`GlobalNetworkPolicy` (not plain Kubernetes `NetworkPolicy`, not a service
-mesh — see that doc for why), rolled out via Calico's staged policies (already installed) so
-nothing is enforced blind, baseline is namespace-level default-deny plus a short list of
-cluster-wide exceptions (DNS, Envoy Gateway ingress, Prometheus scraping) rather than a bespoke
-policy per app.
+**One real incident from the promotion itself**: it was applied across two separate Flux
+Kustomizations non-atomically, and a bogus `dependsOn` stalled the second one — caused a ~39
+minute cluster-wide DNS outage. RCA in `docs/incidents/2026-08-23-dns-outage.md`, structural fix
+(removed the bogus `dependsOn`) in the PR that closed it out.
 
-### 2.3 Per-app rate limiting
+### 2.3 Per-app rate limiting — done
 
-Only `llama-cpp` has its own `BackendTrafficPolicy` today; every other externally-exposed app
-shares the one blanket 100 req/s limit on the `envoy-external` `https` listener. That's a
-reasonable backstop but coarse — a login endpoint (jellyfin, audiobookshelf) getting hammered for
-credential stuffing doesn't need 100 req/s, and one noisy/abused app can eat the whole external
-budget for everyone else sharing that listener.
+Was: only `llama-cpp` had its own `BackendTrafficPolicy`; every other externally-exposed app
+shared the one blanket 100 req/s limit on the `envoy-external` `https` listener — coarse, since a
+login endpoint getting hammered for credential stuffing doesn't need 100 req/s, and one
+noisy/abused app could eat the whole external budget for everyone else sharing that listener.
 
-Plan: add a tighter, per-route `BackendTrafficPolicy` (`targetRefs` an app's `HTTPRoute`, not the
-whole Gateway) for each newly-external app, especially ones fronting a login form. Revisit the
-global 100 req/s once there are enough external apps that legitimate combined traffic could
-plausibly bump into it.
+Added a tighter, login-path-scoped `BackendTrafficPolicy` (named `PathPrefix` rule + `sectionName`
+target, not the whole route) for the four confirmed external + login-fronting apps: authentik,
+home-assistant, immich, jellyfin. Scoped to just the login path rather than the whole route
+deliberately — Envoy's `Local` rate limit is a single shared bucket with no per-client-IP
+splitting, so a whole-route limit risked locking out the whole household the moment one person
+streamed something on jellyfin/immich.
 
-### 2.4 Image scanning / admission control
+### 2.4 Image scanning / admission control — half done
 
-No Trivy (or equivalent) scanning images pre-deploy, no Kyverno/Gatekeeper enforcing pod security
-baselines beyond what's hand-written per-`HelmRelease`. Renovate keeps images current, which
-covers known-CVE patching *reactively*, but nothing catches a vulnerable image before it deploys
-or enforces baseline pod-security policy cluster-wide. Lower priority than 2.1–2.3 — worth doing,
-not worth blocking on.
+**Pre-deploy scanning: done.** `image-scan.yaml` gates every PR touching a `helmrelease.yaml` —
+diffs the image refs against the PR's base, runs Trivy against only what's new/changed, fails on
+fixable CRITICAL findings. `image-scan-report.yaml` runs daily against every pinned image in the
+repo at HIGH+CRITICAL (non-blocking) and posts a per-image summary to a tracking issue, with the
+full per-CVE detail as a downloadable artifact.
+
+**Admission control: still open.** No Kyverno/Gatekeeper enforcing pod security baselines beyond
+what's hand-written per-`HelmRelease`. Lower priority than everything else in this section —
+worth doing, not worth blocking on.
 
 ### 2.5 Teleport for kubectl access — watch, super low urgency
 

@@ -36,6 +36,7 @@ resources:
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
   - ./backendtrafficpolicy-admin-block.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml

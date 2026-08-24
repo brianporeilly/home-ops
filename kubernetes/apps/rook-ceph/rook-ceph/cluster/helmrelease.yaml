@@ -91,15 +91,20 @@ spec:
           osd_mclock_scheduler_background_best_effort_lim: "0.9"
           # Deep scrubs are a major slow-op source on spinning disks, and all
           # 3 hdd OSDs replicate nearly the whole cluster (136/142 PGs), so
-          # stretch the interval and confine scrubs to an off-peak window -
-          # extra headroom on top of the reservation fix above.
+          # stretch the interval for extra headroom on top of the reservation
+          # fix above.
           osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
-          # Cluster runs UTC; these are wall-clock UTC hours, not local. 07:00
-          # UTC = 23:00 AKDT (America/Anchorage, UTC-8, current DST rules).
-          # Note: Ceph has no DST awareness, so this drifts to 22:00 local
-          # once Alaska falls back to AKST (UTC-9) in Nov.
-          osd_scrub_begin_hour: "7" # quote, ~23:00 Alaska (AKDT)
-          osd_scrub_end_hour: "17" # quote, ~09:00 Alaska (AKDT), 10h window
+          # Previously confined to a 10h/day off-peak window
+          # (osd_scrub_begin_hour/end_hour) on top of the interval above -
+          # removed 2026-08-24 after 5 PGs still missed the 14d deadline
+          # despite it (confirmed live: PG_NOT_DEEP_SCRUBBED, oldest since
+          # 2026-08-10). 140 scrub-hours/14d wasn't enough headroom for
+          # 136 PGs mostly on 3 slow HDDs. The mclock reservation above is
+          # what actually protects client I/O from scrub contention - the
+          # clock window was redundant with it, not an independent
+          # safeguard, so removing it (falls back to Ceph's unrestricted
+          # 0-24 default) just gives scrubs the other ~14h/day back rather
+          # than trading away any real protection.
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:
