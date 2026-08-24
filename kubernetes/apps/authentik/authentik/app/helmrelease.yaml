@@ -163,6 +163,19 @@ spec:
             secretKeyRef:
               name: whisker-oidc-credentials
               key: client-secret
+        # Consumed by the provider-audiobookshelf.yaml key in blueprints-native-apps.yaml.
+        # Sourced from audiobookshelf-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-id
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-secret
         # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
         - name: CHANGEDETECTION_OAUTH_CLIENT_ID
           valueFrom:
