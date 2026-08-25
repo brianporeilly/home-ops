@@ -137,8 +137,6 @@ spec:
                     # ABS prefixes its OIDC callback path with this value;
                     # unset it renders literally as "undefined" in the URL.
                     # "" is required (not omission) for a root-hosted app.
-                    # Avoid dollar-brace syntax in this file's comments -
-                    # Flux's envsubst matches it literally, build fails.
                     "authOpenIDSubfolderForRedirectURLs": "",
                 }
 
