@@ -31,11 +31,6 @@ spec:
               CONFIG_PATH: /config
               METADATA_PATH: /metadata
               BACKUP_PATH: /metadata/backups
-              # Defaults to "/audiobookshelf" (index.js) if unset; this app
-              # is root-hosted, and the default leaks into absolute URLs it
-              # builds itself (e.g. the OIDC post_logout_redirect_uri),
-              # which then don't match what's registered on the provider.
-              ROUTER_BASE_PATH: ""
             probes:
               liveness: &probes
                 enabled: true
