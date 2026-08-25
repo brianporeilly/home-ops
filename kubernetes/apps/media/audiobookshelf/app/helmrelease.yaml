@@ -134,6 +134,17 @@ spec:
                     # only if no existing account matches.
                     "authOpenIDMatchExistingBy": "username",
                     "authOpenIDAutoRegister": True,
+                    # Server/OidcAuthStrategy.js builds the callback as
+                    # `${authOpenIDSubfolderForRedirectURLs}/auth/openid/callback`
+                    # - never set here before, so it evaluated to the JS
+                    # literal "undefined" and got baked into the redirect_uri
+                    # ABS actually sent (confirmed live in authentik-server's
+                    # access log: .../undefined/auth/openid/callback, 400).
+                    # ABS's own migration explicitly special-cases empty
+                    # string as the valid value for a root-hosted deployment
+                    # (MiscController.js won't null it out like every other
+                    # setting) - this app has no subfolder.
+                    "authOpenIDSubfolderForRedirectURLs": "",
                 }
 
                 result = call("PATCH", "/api/auth-settings", payload, token=token)
