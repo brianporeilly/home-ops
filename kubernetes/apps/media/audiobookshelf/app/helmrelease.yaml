@@ -204,24 +204,37 @@ spec:
           apiGroup: kopiur.home-operations.com
           kind: Restore
           name: audiobookshelf
-        globalMounts:
-          - path: /config
+        # advancedMounts, not globalMounts - oidc-bootstrap only calls the
+        # ABS HTTP API and must not mount this RWO PVC: it's already
+        # attached to the audiobookshelf controller's pod, so a bootstrap
+        # pod landing on a different node would hang in ContainerCreating
+        # forever waiting for an attach that can never happen.
+        advancedMounts:
+          audiobookshelf:
+            app:
+              - path: /config
       metadata:
         suffix: metadata
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "10Gi"
-        globalMounts:
-          - path: /metadata
+        advancedMounts:
+          audiobookshelf:
+            app:
+              - path: /metadata
       # NAS static NFS mount. Server exports /media with an
       # `audiobooks` subdirectory dedicated to this app.
       media:
         type: nfs
         server: 10.20.30.11
         path: /media/audiobooks
-        globalMounts:
-          - path: /media
+        advancedMounts:
+          audiobookshelf:
+            app:
+              - path: /media
       tmpfs:
         type: emptyDir
-        globalMounts:
-          - path: /tmp
+        advancedMounts:
+          audiobookshelf:
+            app:
+              - path: /tmp
