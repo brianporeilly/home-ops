@@ -325,5 +325,12 @@ spec:
         requests:
           cpu: 100m
           memory: 512Mi
+        # blueprint-reapply-cronjob execs `ak apply_blueprint` into this
+        # pod, spawning a full second Django bootstrap on top of the
+        # resident worker process (~440-860Mi observed) - 1Gi wasn't
+        # enough headroom and manifested as SIGBUS (cgroup memory limit
+        # hit during an mmap page fault) rather than a clean OOM kill,
+        # confirmed live: every blueprint file failed the same way,
+        # including a bare `ak shell`.
         limits:
-          memory: 1Gi
+          memory: 1.5Gi
