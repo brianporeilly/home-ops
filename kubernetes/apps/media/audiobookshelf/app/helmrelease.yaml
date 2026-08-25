@@ -134,24 +134,11 @@ spec:
                     # only if no existing account matches.
                     "authOpenIDMatchExistingBy": "username",
                     "authOpenIDAutoRegister": True,
-                    # Server/OidcAuthStrategy.js prefixes the callback path
-                    # with this setting's value - never set here before, so
-                    # it evaluated to the JS literal "undefined" and got
-                    # baked into the redirect_uri ABS actually sent
-                    # (confirmed live in authentik-server's access log:
-                    # .../undefined/auth/openid/callback, 400). ABS's own
-                    # migration explicitly special-cases empty string as the
-                    # valid value for a root-hosted deployment
-                    # (MiscController.js won't null it out like every other
-                    # setting) - this app has no subfolder.
-                    # NOTE: never write a dollar-sign-brace placeholder
-                    # around this key name in a comment here - Flux's
-                    # postBuild.substitute (envsubst, strict mode) matches
-                    # that pattern literally anywhere in this file, comments
-                    # included, and fails the whole Kustomization build if
-                    # the "variable" isn't defined (confirmed live: this
-                    # exact mistake broke this file's reconciliation for a
-                    # full day).
+                    # ABS prefixes its OIDC callback path with this value;
+                    # unset it renders literally as "undefined" in the URL.
+                    # "" is required (not omission) for a root-hosted app.
+                    # Avoid dollar-brace syntax in this file's comments -
+                    # Flux's envsubst matches it literally, build fails.
                     "authOpenIDSubfolderForRedirectURLs": "",
                 }
 
