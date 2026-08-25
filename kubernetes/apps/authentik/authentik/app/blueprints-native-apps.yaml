@@ -401,7 +401,7 @@ data:
               redirect_uri_type: authorization
             - matching_mode: strict
               url: https://books.internal.oreillys.io/login
-              redirect_uri_type: post_logout
+              redirect_uri_type: logout
           grant_types:
             - authorization_code
             - refresh_token
