@@ -79,7 +79,10 @@ spec:
               - |
                 import json, os, urllib.request
 
-                ABS_URL = "http://audiobookshelf-app.media.svc.cluster.local:8080"
+                # Service is the bare release name, not "-app" suffixed -
+                # this is a single-service release (service.app has
+                # primary: true), which collapses to the release name.
+                ABS_URL = "http://audiobookshelf.media.svc.cluster.local:8080"
                 # External hostname, not auth.internal.oreillys.io, even
                 # though this app is internal-only today - this is the
                 # backend's own server-to-Authentik traffic (discovery,
