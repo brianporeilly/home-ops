@@ -400,7 +400,11 @@ data:
               url: https://books.internal.oreillys.io/auth/openid/mobile-redirect
               redirect_uri_type: authorization
             - matching_mode: strict
-              url: https://books.internal.oreillys.io/login
+              # Built from ROUTER_BASE_PATH (defaults to "/audiobookshelf",
+              # unlike the callback URLs above which use a different,
+              # separately-configured setting) - see OidcAuthStrategy.js
+              # getEndSessionUrl().
+              url: https://books.internal.oreillys.io/audiobookshelf/login
               redirect_uri_type: logout
           grant_types:
             - authorization_code
