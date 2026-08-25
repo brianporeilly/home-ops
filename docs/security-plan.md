@@ -205,7 +205,7 @@ default-yes. Status as of 2026-08-20:
 | grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
-| audiobookshelf | internal only, candidate | native accounts, no SSO | same profile as jellyfin but much smaller surface (little/no transcoding) — lower risk, reasonable to expose sooner with strong unique passwords |
+| audiobookshelf | **external** (2026-08-25) | Authentik SSO, native account fallback | renamed `books.*` → `audiobooks.*` before exposing (naming clash with grimmory's book/comics library); dedicated login-path rate limit in place (§2.3 pattern) |
 | copy-party | internal only, candidate | volume ACLs (see "Done" above) | ACL redesign in progress; public read-only + root-only write is the right shape before this goes external |
 | grimmory | internal only, candidate | **not yet checked** | confirm its auth model before considering external exposure |
 | tuwunel | not deployed for real use yet | n/a | holding off is the right call — if federation is ever wanted, that's a different exposure model entirely (server reachable on 8448 or `.well-known` delegation on 443, closed registration, its own hardening), not a routine HTTPRoute add. Revisit once you've actually used it and know if you want federation vs. just remote client access |
@@ -324,7 +324,8 @@ Three things worth being deliberate about, given how much this app controls:
 4. ~~**Home Assistant**~~ — SSO live and working (§3.2), external route added 2026-08-23. Still
    open: dedicated rate-limit policy (§2.3) — currently just the shared 100 req/s blanket — and
    confirming the native-login fallback's MFA/password strength.
-5. **Audiobookshelf** — lower risk than jellyfin, reasonable next.
+5. ~~**Audiobookshelf**~~ — SSO live (§3.2-style native OIDC), external route + dedicated
+   rate-limit policy added 2026-08-25; hostname renamed to `audiobooks.*` first.
 6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
 7. **Grimmory** — after confirming its auth model.
