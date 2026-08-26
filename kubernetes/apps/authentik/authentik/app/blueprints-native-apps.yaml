@@ -430,3 +430,67 @@ data:
       - model: authentik_core.group
         identifiers:
           name: jellyfin-admins
+  provider-audiobookshelf.yaml: |
+    metadata:
+      name: OIDC Provider - audiobookshelf
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: audiobookshelf
+        id: audiobookshelf-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env AUDIOBOOKSHELF_OAUTH_CLIENT_ID
+          client_secret: !Env AUDIOBOOKSHELF_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # Audiobookshelf's own callback paths, not /oauth2/callback -
+              # this app isn't behind components/authentik/protect. Both
+              # hostnames listed (like home-assistant below) since ABS
+              # derives its redirect_uri from the live request, not a
+              # fixed value - whichever hostname the browser used needs
+              # to be registered too, now that both are routed.
+              url: https://audiobooks.internal.oreillys.io/auth/openid/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/auth/openid/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.internal.oreillys.io/auth/openid/mobile-redirect
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/auth/openid/mobile-redirect
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              # Built from ROUTER_BASE_PATH (defaults to "/audiobookshelf",
+              # unlike the callback URLs above) - see OidcAuthStrategy.js
+              # getEndSessionUrl().
+              url: https://audiobooks.internal.oreillys.io/audiobookshelf/login
+              redirect_uri_type: logout
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/audiobookshelf/login
+              redirect_uri_type: logout
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: audiobookshelf
+        id: audiobookshelf-application
+        attrs:
+          name: Audiobookshelf
+          provider: !KeyOf audiobookshelf-provider
+      # media-users, not a dedicated group - see that group's own comment
+      # in blueprints-groups.yaml, immich uses the same one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf audiobookshelf-application
+          group: !Find [authentik_core.group, [name, media-users]]

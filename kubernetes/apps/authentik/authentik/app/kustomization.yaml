@@ -32,10 +32,12 @@ resources:
   - ./immich-oidc-credentials.yaml
   - ./whisker-oidc-credentials.yaml
   - ./jellyfin-oidc-credentials.yaml
+  - ./audiobookshelf-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
   - ./backendtrafficpolicy-admin-block.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml

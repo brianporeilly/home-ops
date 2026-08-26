@@ -11,3 +11,4 @@ resources:
   - ./backendtrafficpolicy-metrics-block.yaml
   - ./oidc-secret.yaml
   - ./admin-secret.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml

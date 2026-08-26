@@ -133,12 +133,43 @@ spec:
             namespace: network
             sectionName: https
       external:
+        annotations:
+          # gatus-sidecar's HTTPRoute auto-discovery skips a bare "/" match
+          # and picks the next PathPrefix rule it finds instead (see the
+          # authentik-server-external and jellyfin comments for the same
+          # bug) - without this override it started probing /auth/ instead
+          # of / the moment the login-rate-limited rule below was added,
+          # and that path 302s instead of returning 200.
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - home.oreillys.io
         parentRefs:
           - name: envoy-external
             namespace: network
             sectionName: https
+        # Explicit now that there's a named sub-rule - chart's implicit
+        # catch-all is gone once rules: is set at all.
+        # Backend is the bare "{{ .Release.Name }}" Service, not
+        # "-app"-suffixed - unlike immich's multiple named services
+        # (app/ml/valkey), this chart only defines one (the "app" key), and
+        # app-template gives a lone service the bare release name.
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: 8123
+          # /auth/ covers the login_flow + token exchange endpoints (the
+          # actual username/password submission) - named so the
+          # BackendTrafficPolicy below (backendtrafficpolicy-login-ratelimit.yaml)
+          # can target just this rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /auth/
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: 8123
     persistence:
       config:
         suffix: config

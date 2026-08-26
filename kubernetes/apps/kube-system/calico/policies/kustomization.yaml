@@ -19,3 +19,4 @@ resources:
   - ./globalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
+  - ./globalnetworkpolicy-download-to-jellyfin.yaml
