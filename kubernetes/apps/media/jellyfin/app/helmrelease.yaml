@@ -301,6 +301,36 @@ spec:
                 )
                 with urllib.request.urlopen(req, timeout=15) as r:
                     print(f"OIDC RBAC configured, status {r.status}")
+
+                # Without this, Jellyfin builds the OIDC redirect_uri from
+                # the raw connection it sees (the pod's own ClusterIP:port,
+                # since Envoy Gateway sits in front) instead of whatever
+                # hostname the browser actually used - confirmed live:
+                # Authentik rejected redirect_uri=http://10.x.x.x:8096/...
+                # as unregistered. This makes Jellyfin derive its own base
+                # URL from the incoming request's Host header instead (the
+                # same "whichever hostname reached it" approach every other
+                # app here already uses), matching the plugin's own
+                # changelog note about needing "Jellyfin's published URL".
+                # GET-then-POST, not a partial payload - this endpoint
+                # replaces the whole NetworkConfiguration section, so a
+                # partial body would reset every other field (ports, etc)
+                # to their C# defaults.
+                net_get = urllib.request.Request(
+                    f"{JELLYFIN_URL}/System/Configuration/network",
+                    headers={"X-Emby-Token": os.environ["API_KEY"]},
+                )
+                with urllib.request.urlopen(net_get, timeout=15) as r:
+                    net_config = json.loads(r.read())
+                net_config["EnablePublishedServerUriByRequest"] = True
+                net_req = urllib.request.Request(
+                    f"{JELLYFIN_URL}/System/Configuration/network",
+                    data=json.dumps(net_config).encode(),
+                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(net_req, timeout=15) as r:
+                    print(f"Network config updated, status {r.status}")
             env:
               API_KEY:
                 valueFrom:
