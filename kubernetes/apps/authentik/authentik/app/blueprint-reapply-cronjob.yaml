@@ -4,15 +4,11 @@
 # resolved !Env values - a credential rotation never changes the
 # blueprint file text, so neither a worker restart nor Authentik's own
 # periodic blueprint-discovery task ever picks up a pure secret-value
-# change (confirmed against source, and hit for real this session after
-# the ESO/Reflector OIDC migration - every already-protected app's
-# client_id/secret went stale until manually re-applied via
-# `ak apply_blueprint`). This automates that manual step: `kubectl exec`
-# into the already-running authentik-worker pod (same thing done by hand
-# all session) and re-apply every mounted blueprint file. Idempotent and
-# cheap - re-applying an unchanged blueprint is a no-op upsert - so
-# looping over all of them unconditionally is simpler and more robust
-# than tracking which ones might have a rotated credential.
+# change. This automates the fix: `kubectl exec` into the running
+# authentik-worker pod and re-apply every mounted blueprint file.
+# Idempotent and cheap - re-applying an unchanged blueprint is a no-op
+# upsert - so looping over all of them unconditionally is simpler and
+# more robust than tracking which ones might have a rotated credential.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -26,9 +22,9 @@ spec:
     spec:
       backoffLimit: 2
       # Each `ak apply_blueprint` call has real Django bootstrap overhead
-      # (~5s, confirmed live) and there are 14 blueprint files today - this
-      # list only grows as more apps get added, so sized with real headroom
-      # rather than just enough to clear the current count.
+      # (~5s) and there are 14 blueprint files today - this list only grows
+      # as more apps get added, so sized with real headroom rather than
+      # just enough to clear the current count.
       activeDeadlineSeconds: 600
       template:
         spec:
@@ -40,9 +36,9 @@ spec:
             runAsGroup: 1000
           containers:
             - name: reapply
-              # rancher/kubectl has no shell at all (confirmed live: "stat
-              # /bin/sh: no such file or directory") - this one bundles
-              # kubectl with a full alpine shell.
+              # rancher/kubectl has no shell at all ("stat /bin/sh: no
+              # such file or directory") - this one bundles kubectl with a
+              # full alpine shell.
               image: docker.io/alpine/k8s:1.36.2@sha256:1af42341bac2392c9af30f79019aa94dd9d3be018c970383debfb3d6f76acf87
               command:
                 - /bin/sh

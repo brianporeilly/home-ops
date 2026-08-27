@@ -89,12 +89,11 @@ spec:
                 # token exchange), and Authentik's discovery response is
                 # host-header-sensitive (issuer_mode: per_provider), so
                 # whatever hostname is pinned here becomes fixed for every
-                # login regardless of which route the browser used. Learned
-                # this the hard way with home-assistant - auth.oreillys.io
-                # resolves in-cluster straight to envoy-external's own VIP,
-                # no NAT hairpin, so there's no cost to picking it now and
-                # it means audiobookshelf's eventual external route (next
-                # on the security-plan roadmap) won't need this redone.
+                # login regardless of which route the browser used.
+                # auth.oreillys.io resolves in-cluster straight to
+                # envoy-external's own VIP (no NAT hairpin), so there's no
+                # cost to picking it now, and it means audiobookshelf's
+                # eventual external route won't need this redone.
                 AUTH_HOSTNAME = "auth.oreillys.io"
                 SLUG = "audiobookshelf"
 

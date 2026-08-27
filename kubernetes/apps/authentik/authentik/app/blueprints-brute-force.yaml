@@ -5,25 +5,22 @@ kind: ConfigMap
 metadata:
   name: authentik-blueprints-brute-force
 data:
-  # default-authentication-flow ships with zero brute-force protection -
-  # confirmed live via `ak shell` (authentik.flows.models.FlowStageBinding):
-  # its only two PolicyBindings are ExpressionPolicies that just skip
-  # stages (password stage skipped if already backend-authenticated, MFA
-  # skipped for passwordless), and zero ReputationPolicy objects exist
-  # anywhere in the system. Unlimited login attempts, no lockout, no
-  # slowdown, at whatever rate an attacker can push - a real gap once more
-  # apps sit behind Authentik externally (see docs/security-plan.md §2.1).
+  # default-authentication-flow ships with zero brute-force protection: its
+  # only two PolicyBindings are ExpressionPolicies that just skip stages
+  # (password stage skipped if already backend-authenticated, MFA skipped
+  # for passwordless), and no ReputationPolicy objects exist by default -
+  # unlimited login attempts at whatever rate an attacker can push (see
+  # docs/security-plan.md §2.1).
   #
   # authentik_policies_reputation.ReputationPolicy.passes() returns True
-  # when score <= threshold - i.e. it "passes" (matches) when reputation is
-  # BAD, confirmed by reading the model's passes() source live. That's
-  # backwards from a normal allow-policy, so it's bound to a DenyStage
-  # (execute the stage - i.e. deny the user - only when reputation is bad),
+  # when score <= threshold, i.e. it "passes" (matches) when reputation is
+  # BAD - backwards from a normal allow-policy, so it's bound to a DenyStage
+  # (execute the stage, i.e. deny the user, only when reputation is bad),
   # not used to gate the identification/password stages directly.
-  # threshold: -3, check both IP and username. Confirmed live the decrement
-  # isn't a flat -1/failure (12 failed attempts only brought a test account
-  # to -5, not -12) - -3 is deliberately tighter than Authentik's documented
-  # -5 example to compensate, closer to "3-ish attempts" in practice.
+  # threshold: -3, check both IP and username. The decrement isn't a flat
+  # -1/failure (12 failed attempts only brought a test account to -5) - -3
+  # is deliberately tighter than Authentik's documented -5 example to
+  # compensate, closer to "3-ish attempts" in practice.
   brute-force.yaml: |
     metadata:
       name: Brute-force protection - default authentication flow

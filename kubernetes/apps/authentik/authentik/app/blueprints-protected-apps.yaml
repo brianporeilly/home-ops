@@ -11,32 +11,24 @@ data:
   # Google/GitHub act as IdPs FOR authentik. One data key per protected
   # app, consolidated into a single ConfigMap so adding a new app only
   # means appending a key here + one blueprints.configMaps list entry
-  # that's already permanently present (see helmrelease.yaml) - not a new
-  # ConfigMap resource and list entry every time. Each key still stays
-  # independently addable/removable, same as before.
+  # that's already permanently present (see helmrelease.yaml).
   #
-  # Schema confirmed against a real shipped blueprint
-  # (blueprints/testing/oidc-conformance.yaml) and the default scope
-  # mappings (blueprints/system/providers-oauth2.yaml), not guessed.
-  # Flow slugs: default-provider-authorization-implicit-consent (skips the
-  # "do you want to share your info with <app>?" click - confirmed by
-  # reading both flows: explicit-consent binds one extra ConsentStage,
-  # implicit-consent has zero stages bound at all, immediate pass-through.
-  # Both still require authentication: require_authenticated - this only
-  # removes the consent click, not any actual auth check. Fine for apps we
-  # control ourselves. Not to be confused with the OAuth2 "implicit" *grant
-  # type* below - unrelated "implicit", every provider here only uses
-  # authorization_code/refresh_token grants) and
-  # default-provider-invalidation-flow.
+  # Flow slugs: default-provider-authorization-implicit-consent skips the
+  # "do you want to share your info with <app>?" click (implicit-consent
+  # has zero stages bound; explicit-consent binds an extra ConsentStage).
+  # Both still require_authenticated - this only removes the consent
+  # click, not any auth check, fine for apps we control ourselves. Not to
+  # be confused with the OAuth2 "implicit" *grant type* below - unrelated;
+  # every provider here only uses authorization_code/refresh_token grants.
+  # Also default-provider-invalidation-flow.
   #
-  # Issuer URL confirmed from authentik/providers/oauth2/{models,apps,urls}.py:
-  # mountpoint application/o/ + <application_slug>/, default issuer_mode
-  # (per_provider, not global) - https://auth.internal.oreillys.io/application/o/<slug>/
+  # Issuer URL: mountpoint application/o/ + <application_slug>/, default
+  # issuer_mode (per_provider, not global) -
+  # https://auth.internal.oreillys.io/application/o/<slug>/
   #
   # Redirect URI matches Envoy Gateway's own OIDC callback convention
-  # (<route-path-prefix>/oauth2/callback, confirmed against envoyproxy/gateway's
-  # own docs example) - see each app's own SecurityPolicy (via
-  # kubernetes/components/authentik/protect).
+  # (<route-path-prefix>/oauth2/callback) - see each app's own
+  # SecurityPolicy (via kubernetes/components/authentik/protect).
   provider-echo.yaml: |
     metadata:
       name: OIDC Provider - echo

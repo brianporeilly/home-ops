@@ -6,10 +6,9 @@ metadata:
   name: authentik-blueprints-notification-destinations
 data:
   # The four NotificationRules authentik ships by default already point at
-  # default-email-transport, but confirmed live none of them had a
-  # destination_group set - so even with SMTP now wired up
-  # (helmrelease.yaml's authentik.email block), these were still going
-  # nowhere. Points them at the authentik-notifications group
+  # default-email-transport, but none have a destination_group set - so
+  # even with SMTP wired up (helmrelease.yaml's authentik.email block),
+  # these go nowhere without one. Points them at the authentik-notifications group
   # (blueprints-groups.yaml) instead - empty by default, add yourself via
   # the Authentik UI to actually receive these.
   notification-destinations.yaml: |

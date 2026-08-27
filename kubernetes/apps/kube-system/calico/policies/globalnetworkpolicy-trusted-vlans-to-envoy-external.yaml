@@ -1,7 +1,6 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 6 of docs/network-policy-plan.md's proposed baseline - the
-# trusted-VLAN counterpart to allow-opnsense-to-envoy-external.
+# Trusted-VLAN counterpart to allow-opnsense-to-envoy-external.
 #
 # Split DNS: hostnames on external routes still resolve internally to
 # envoy-external's own VIP for clients on the trusted network, so that

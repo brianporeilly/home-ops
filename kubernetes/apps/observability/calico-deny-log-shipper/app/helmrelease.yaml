@@ -1,38 +1,28 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
 # Polls whisker-backend's flow API directly (in-cluster Service, not the
-# SSO-wrapped HTTPRoute - a CronJob can't do an interactive OIDC login;
-# see kubernetes/apps/kube-system/calico/route/networkpolicy.yaml for the
-# ingress rule this needs) and ships two things to Loki as structured JSON
-# log lines, feeding the two tables in
+# SSO-wrapped HTTPRoute - a CronJob can't do interactive OIDC login; see
+# kubernetes/apps/kube-system/calico/route/networkpolicy.yaml for the
+# ingress rule) and ships two log streams to Loki, feeding
 # kubernetes/apps/observability/grafana/app/calico-deny-dashboard.yaml:
-#   - job=calico-deny-log: flows whose real, currently-enforced action is
-#     Deny.
-#   - job=calico-pending-diff-log: flows where the enforced action and the
-#     resolved pending action disagree - originally meant as "if every
-#     currently-staged policy were promoted right now, this specific
-#     source->dest pair would flip from Allow to Deny (or vice versa)", the
-#     automated version of the pending_actions review done by hand
-#     throughout docs/network-policy-plan.md. Correction (2026-08-23): this
-#     table does NOT go empty once nothing's staged - Goldmane's own
-#     "pending" re-evaluation can still diverge from Felix's "enforced"
-#     dataplane state with zero StagedGlobalNetworkPolicy/StagedNetworkPolicy
-#     objects anywhere, mainly from a freshly-spawned pod's first packet
-#     hitting a brief cache-sync race (self-corrects within seconds - see
-#     DIFF_MIN_AGE_SECONDS below, which filters exactly that) or from a
-#     genuine per-node dataplane-programming lag after a real policy change
-#     (the 2026-08-23 DNS outage's root cause, docs/incidents/2026-08-23-dns-outage.md -
-#     a rolling `kubectl rollout restart daemonset/calico-node -n calico-system`
-#     is the fix if this table stays non-empty for something that isn't a
-#     fresh pod and isn't an intentional staged policy).
+#   - job=calico-deny-log: flows whose enforced action is Deny.
+#   - job=calico-pending-diff-log: flows where the enforced and resolved
+#     pending action disagree (would flip Allow<->Deny if staged policy were
+#     promoted now). This table does NOT go empty once nothing's staged -
+#     Goldmane's "pending" re-evaluation can diverge from Felix's enforced
+#     dataplane state with zero Staged{Global,}NetworkPolicy objects, from
+#     either a fresh pod's cache-sync race (self-corrects in seconds - see
+#     DIFF_MIN_AGE_SECONDS below) or a genuine per-node dataplane-programming
+#     lag after a policy change (fix: rolling-restart
+#     daemonset/calico-node -n calico-system if this table stays non-empty
+#     with no staged policy and no fresh pods).
 #
-# 3-minute lookback window on a 1-minute schedule (deliberate overlap, not
-# a bug) - covers Goldmane's own aggregation lag and any single missed/slow
-# run without a gap. Overlap means the same flow can get pushed to Loki
-# more than once, but each push uses the flow's own end_time as the log
-# line's timestamp (not "now"), so an identical (timestamp, line) pair
-# lands as an exact duplicate, which Loki accepts as a no-op rather than
-# double-counting.
+# 3-minute lookback window on a 1-minute schedule (deliberate overlap) -
+# covers Goldmane's own aggregation lag and any single missed/slow run
+# without a gap. Duplicate pushes are harmless: each push uses the flow's
+# own end_time as the log line's timestamp, so an identical (timestamp,
+# line) pair lands as an exact duplicate, which Loki no-ops rather than
+# double-counts.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -75,14 +65,13 @@ spec:
                 WINDOW_SECONDS = 180
                 # Only ships a pending-diff when the resolved decision
                 # involves a Staged{Global,}NetworkPolicy (see resolve()) -
-                # Goldmane's own "pending" re-evaluation stops at the first
-                # selector:all() policy in a tier instead of walking the rest
-                # the way Felix's real enforcement does, which is a standing
+                # Goldmane's "pending" re-evaluation stops at the first
+                # selector:all() policy in a tier rather than walking the
+                # rest like Felix's real enforcement does, a standing
                 # false-positive source now that several selector:all()
                 # policies live in the default tier permanently. Doesn't
-                # catch a Felix/dataplane-lag bug either (see
-                # docs/incidents/2026-08-23-dns-outage.md) - that needs a
-                # direct whisker-backend flow trace, not this table.
+                # catch a Felix/dataplane-lag bug - that needs a direct
+                # whisker-backend flow trace, not this table.
 
                 def resolve(policy_list):
                     # Last entry is the resolved decision - either a policy's own

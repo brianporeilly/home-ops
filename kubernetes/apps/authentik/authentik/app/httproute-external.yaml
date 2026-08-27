@@ -6,8 +6,7 @@
 # for that pattern: separate route.app/route.internal blocks). Kept
 # route.main internal-only and added this as a plain second HTTPRoute for
 # the external hostname instead, backed by the same authentik-server
-# Service the chart creates (name/port confirmed live via `kubectl get
-# httproute authentik-server -n authentik -o yaml`).
+# Service the chart creates.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -17,11 +16,8 @@ metadata:
     # bare "/" on purpose (isProbablePath treats root as "no explicit path"
     # and keeps scanning) and picks the next PathPrefix it finds instead -
     # with only these two rules that's always /if/admin, the blocked one,
-    # regardless of which rule is listed first. A prior fix here tried
-    # reordering the rules based on a wrong read of that logic (confirmed
-    # live: restarting gatus-sidecar re-derived the same wrong URL after the
-    # reorder was already in place) - this annotation bypasses the
-    # auto-derivation entirely instead, so it can't regress the same way.
+    # regardless of rule order. This annotation bypasses the
+    # auto-derivation entirely instead, so it can't regress that way.
     gatus.home-operations.com/endpoint: |-
       path: /
 spec:

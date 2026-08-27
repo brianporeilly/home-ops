@@ -51,10 +51,9 @@ auth_oidc:
   # discovery/token calls) gets anchored to whatever hostname fetched it.
   # Using the internal hostname broke login for anyone off the LAN - the
   # browser got redirected to auth.internal.oreillys.io, unreachable from
-  # outside. Safe to use the external hostname for the in-cluster calls
-  # too: confirmed live, auth.oreillys.io resolves in-cluster straight to
-  # envoy-external's own VIP (10.21.0.1), no internet round-trip/NAT
-  # hairpin involved.
+  # outside. Safe to use the external hostname for in-cluster calls too:
+  # auth.oreillys.io resolves in-cluster straight to envoy-external's own
+  # VIP (10.21.0.1), no internet round-trip/NAT hairpin involved.
   discovery_url: https://auth.oreillys.io/application/o/home-assistant/.well-known/openid-configuration
   # groups claim comes free from the profile scope (see the provider
   # blueprint's comment) - anyone in home-assistant-admins gets HA's

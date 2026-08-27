@@ -16,8 +16,7 @@ data:
   # No custom "groups" scope mapping needed: Authentik's own default
   # profile scope mapping (blueprints/system/providers-oauth2.yaml,
   # scope-profile) already returns a `groups` claim -
-  # `[group.name for group in request.user.groups.all()]` - confirmed
-  # against that shipped blueprint directly, not assumed. Every provider
+  # `[group.name for group in request.user.groups.all()]`. Every provider
   # here requests the same openid/email/profile scopes as every
   # SecurityPolicy-wrapped provider, so RBAC-by-group works for free.
   provider-grafana.yaml: |
@@ -71,18 +70,14 @@ data:
           name: nebraska
         id: nebraska-provider
         attrs:
-          # Public client, no client_secret - nebraska's own architecture:
-          # the frontend SPA does the entire authorization_code+PKCE
-          # exchange itself, browser-to-Authentik (confirmed against
-          # frontend/src/utils/oidc.ts - code_challenge/S256, no
-          # client_secret sent anywhere). The Go backend only validates
-          # the resulting access token as a bearer token, it never
-          # participates in the OAuth flow (confirmed against
-          # backend/pkg/auth/oidc.go - LoginCb/Login both explicitly
-          # return 501, "frontend handles OAuth flow directly"). Confirmed
-          # Authentik's own token endpoint only checks client_secret when
-          # client_type == CONFIDENTIAL (providers/oauth2/token/base.py) -
-          # public skips that check entirely, so this is safe without one.
+          # Public client, no client_secret - nebraska's frontend SPA does
+          # the entire authorization_code+PKCE exchange itself,
+          # browser-to-Authentik (frontend/src/utils/oidc.ts); the Go
+          # backend only validates the resulting access token as a bearer
+          # token and never participates in the OAuth flow
+          # (backend/pkg/auth/oidc.go). Authentik's token endpoint only
+          # checks client_secret when client_type == CONFIDENTIAL, so
+          # public skips that check entirely - safe without one.
           client_type: public
           authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
@@ -267,11 +262,9 @@ data:
           client_secret: !Env IMMICH_OAUTH_CLIENT_SECRET
           redirect_uris:
             - matching_mode: strict
-              # NOT /api/oauth/callback (that's a backend API path, not
-              # what the browser actually gets redirected to) - the web
-              # frontend's real redirect target, confirmed live via
-              # Authentik's own rejection log (cause: redirect_uri_no_match)
-              # after guessing wrong from the OpenAPI spec's path list alone.
+              # NOT /api/oauth/callback (that's a backend API path) - the
+              # web frontend's real redirect target; the OpenAPI spec's
+              # path list alone points at the wrong one.
               url: https://photos.internal.oreillys.io/auth/login
               redirect_uri_type: authorization
             - matching_mode: strict
@@ -280,10 +273,8 @@ data:
             - matching_mode: strict
               # Immich mobile app's actual redirect target - its own
               # custom URI scheme, requested directly (not the HTTP
-              # /api/oauth/mobile-redirect bounce page guessed here
-              # originally, which the app never asked for - confirmed via
-              # Authentik's rejection log from a real Android login
-              # attempt: redirect_uri=app.immich:///oauth-callback).
+              # /api/oauth/mobile-redirect bounce page, which the app
+              # never actually asks for).
               url: app.immich:///oauth-callback
               redirect_uri_type: authorization
           grant_types:
@@ -332,9 +323,8 @@ data:
               # hass-oidc-auth's own callback path, not /oauth2/callback -
               # this app isn't behind components/authentik/protect. Both
               # hostnames listed since hass-oidc-auth derives redirect_uri
-              # from the live request (confirmed against its own source,
-              # tools/helpers.py get_url()), not a fixed configured
-              # value - whichever hostname the browser used just needs to
+              # from the live request (tools/helpers.py get_url()), not a
+              # fixed value - whichever hostname the browser used needs to
               # be registered here too.
               url: https://home.internal.oreillys.io/auth/oidc/callback
               redirect_uri_type: authorization
@@ -400,20 +390,15 @@ data:
               # post-logout redirect_uri - the plugin doesn't implement
               # OIDC single-logout, just clears the local Jellyfin session.
               #
-              # http, not https - confirmed live, Jellyfin's GetSmartApiUrl
-              # (which the plugin calls) takes scheme from its own
-              # EnableHttps setting, not from X-Forwarded-Proto/Host/For or
-              # RFC 7239 Forwarded (tested all of them directly, none
-              # changed it) - Envoy terminates TLS in front of it, so
-              # EnableHttps is correctly false and it always reports http.
-              # This relies on the cluster's existing global http->https
-              # redirect (envoy-gateway's "https-redirect" HTTPRoute, no
-              # path rewrite - preserves the full path+query including
+              # http, not https - Jellyfin's GetSmartApiUrl (which the
+              # plugin calls) takes scheme from its own EnableHttps
+              # setting, not from any forwarded-proto header; Envoy
+              # terminates TLS in front of it, so EnableHttps is correctly
+              # false and it always reports http. Relies on the cluster's
+              # global http->https redirect (no path rewrite, preserves
               # ?code=...) to bridge the gap after Authentik issues the
-              # code. Both hostnames listed, like home-assistant/
-              # audiobookshelf, for the same "whichever hostname the
-              # browser used" reason - this app has both an internal and
-              # an external route.
+              # code. Both hostnames listed since this app has both an
+              # internal and an external route.
               url: http://media.internal.oreillys.io/sso/OIDC/Callback/authentik
               redirect_uri_type: authorization
             - matching_mode: strict
@@ -529,8 +514,8 @@ data:
           redirect_uris:
             - matching_mode: strict
               # Grimmory (BookLore) builds this client-side from
-              # window.location.origin (confirmed in the shipped frontend
-              # JS bundle) - not /oauth2/callback, this app isn't behind
+              # window.location.origin (shipped frontend JS bundle) - not
+              # /oauth2/callback, this app isn't behind
               # components/authentik/protect. Internal-only for now.
               url: https://grimmory.internal.oreillys.io/oauth2-callback
               redirect_uri_type: authorization

@@ -150,9 +150,7 @@ spec:
                       gauge:
                         path: [status, stoppedAt]
               # Flux no longer exposes gotk_reconcile_condition (removed from
-              # the controllers in a later release than flux-alerts.yaml's
-              # rules were written against - confirmed live, zero series,
-              # scrape itself is healthy). Derive Ready status here instead.
+              # the controllers); derive Ready status here instead.
               - groupVersionKind:
                   group: kustomize.toolkit.fluxcd.io
                   version: v1

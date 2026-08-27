@@ -1,28 +1,23 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_networkpolicies.yaml
-# Missing piece found via real pending_actions data while validating
-# docs/network-policy-plan.md's steps 2-3 (2026-08-22): a GlobalNetworkPolicy
-# with `selector: all()` (used for the "wide fan-out" rules) claims every
-# endpoint in the cluster for ingress-policy purposes - once that happens,
-# Calico stops falling back to the permissive per-namespace `kns.<ns>`
-# Profile for ANY pod, even for traffic the fan-out rules were never meant
-# to cover. Real flow data confirmed this would silently deny ordinary
-# same-namespace traffic (app -> its own DB, sidecars, etc.) the moment
-# steps 2-3 are promoted, unless something explicitly allows it first.
+# A GlobalNetworkPolicy with `selector: all()` (used for the "wide
+# fan-out" rules) claims every endpoint in the cluster for ingress-policy
+# purposes - once that happens, Calico stops falling back to the
+# permissive per-namespace `kns.<ns>` Profile for ANY pod, even for
+# traffic the fan-out rules were never meant to cover, silently denying
+# ordinary same-namespace traffic (app -> its own DB, sidecars, etc.)
+# unless something explicitly allows it first.
 #
 # Namespaced NetworkPolicy, not Global, deliberately: Calico's "no
 # namespaceSelector on a source = same namespace as the policy" default
 # only exists for namespaced NetworkPolicy - GlobalNetworkPolicy has no
 # home namespace of its own to default to, and there's no selector syntax
-# for "same namespace as the destination endpoint" (confirmed against
-# Calico's own docs). This component is already included in every app
-# namespace's kustomization.yaml (see namespace.yaml, sops/ alongside this
-# file) and has no explicit metadata.namespace, so Kustomize's namespace
-# transformer injects the right one per consumer automatically - one file
-# instead of ~17 near-duplicates.
-#
-# Promoted to enforcing 2026-08-22 (step 7 of the plan) after a full
-# staged-verification pass - see the doc's Verification sections.
+# for "same namespace as the destination endpoint". This component is
+# already included in every app namespace's kustomization.yaml (see
+# namespace.yaml, sops/ alongside this file) and has no explicit
+# metadata.namespace, so Kustomize's namespace transformer injects the
+# right one per consumer automatically - one file instead of ~17
+# near-duplicates.
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:

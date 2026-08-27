@@ -14,14 +14,13 @@
 # policy's explicit Allow is what actually lets the traffic through, order
 # relative to calico-system.whisker doesn't matter.
 #
-# Confirmed live as the cause of the whisker route's 503s: Envoy
-# (`network` namespace) couldn't reach the pod on 8081 at all - connection
-# silently dropped, not refused (Envoy's own access log showed an 8s+ hang
-# with response_flags DC, not a fast RST).
+# Without this, Envoy (`network` namespace) can't reach the pod on 8081 -
+# connection silently dropped, not refused (response_flags DC, not a fast
+# RST), which surfaces as 503s on the whisker route.
 #
-# `observability` added 2026-08-22 for calico-deny-log-shipper, which polls
+# `observability` is needed for calico-deny-log-shipper, which polls
 # whisker-backend's flow API directly (in-cluster, not through the
-# SSO-wrapped HTTPRoute - a CronJob can't do an interactive OIDC login).
+# SSO-wrapped HTTPRoute - a CronJob can't do interactive OIDC login).
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:

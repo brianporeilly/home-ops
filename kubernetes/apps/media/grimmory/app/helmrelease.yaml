@@ -77,11 +77,9 @@ spec:
 
       # Grimmory (BookLore) has real, first-class OIDC support - unlike
       # audiobookshelf/jellyfin this isn't an admin-API workaround for a
-      # missing config path, it's the app's own documented settings
-      # schema (PUT /api/v1/settings, AppSettingKey.OIDC_* - confirmed
-      # against the shipped app.jar's compiled classes, no source access
-      # needed). Idempotent - PUTting the same settings every run is a
-      # no-op after the first.
+      # missing config path, it's the app's own documented settings schema
+      # (PUT /api/v1/settings, AppSettingKey.OIDC_*). Idempotent - PUTting
+      # the same settings every run is a no-op after the first.
       oidc-bootstrap:
         type: cronjob
         cronjob:
@@ -147,14 +145,13 @@ spec:
                             },
                         },
                     },
-                    # OIDC_REDIRECT_URIS deliberately omitted - confirmed
-                    # live it's for mobile app deep links only (rejects
-                    # anything without a custom non-http scheme: "Redirect
-                    # URI must use a custom mobile scheme", 400). The web
-                    # flow doesn't use it at all - the frontend builds its
-                    # own redirect_uri client-side from window.location
-                    # .origin (confirmed in the shipped JS bundle), which
-                    # is what actually gets registered with Authentik (see
+                    # OIDC_REDIRECT_URIS deliberately omitted - it's for
+                    # mobile app deep links only (rejects anything without a
+                    # custom non-http scheme: "Redirect URI must use a
+                    # custom mobile scheme", 400). The web flow doesn't use
+                    # it - the frontend builds its own redirect_uri
+                    # client-side from window.location.origin, which is
+                    # what actually gets registered with Authentik (see
                     # blueprints-native-apps.yaml).
                     {
                         "name": "OIDC_AUTO_PROVISION_DETAILS",

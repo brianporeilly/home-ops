@@ -12,15 +12,12 @@ spec:
   groups:
     - name: flux
       rules:
-        # gotk_reconcile_condition (used below until this rewrite) was
-        # removed from Flux's own metrics in a release newer than these
-        # rules were written against - confirmed live, zero series despite
-        # a healthy scrape. Ready/Reconciling condition state now comes from
-        # kube-state-metrics customResourceState instead (see
-        # kube-prometheus-stack's helmrelease.yaml), covering Kustomization
-        # and HelmRelease. Source staleness (GitRepository/OCIRepository/
-        # HelmRepository) isn't instrumented that way yet, so there's no
-        # FluxSourceStale here - add it if that gap matters.
+        # gotk_reconcile_condition was removed from Flux's own metrics.
+        # Ready/Reconciling condition state now comes from kube-state-metrics
+        # customResourceState instead (see kube-prometheus-stack's
+        # helmrelease.yaml), covering Kustomization and HelmRelease. Source
+        # staleness (GitRepository/OCIRepository/HelmRepository) isn't
+        # instrumented that way yet, so there's no FluxSourceStale here.
         - alert: FluxResourceNotReady
           annotations:
             summary: "Flux resource {{ $labels.name }} is not ready"

@@ -1,15 +1,10 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 3 of docs/network-policy-plan.md's proposed baseline. `observability`
-# is the other wide fan-out the flow data review found (13 destination
-# namespaces observed): Prometheus scraping ServiceMonitor/PodMonitor
-# targets everywhere, plus `gatus-sidecar` health-checking `network`'s
-# Envoy pods directly.
+# `observability` is a wide fan-out (13 destination namespaces observed):
+# Prometheus scraping ServiceMonitor/PodMonitor targets everywhere, plus
+# `gatus-sidecar` health-checking `network`'s Envoy pods directly.
 #
-# Promoted to enforcing 2026-08-22 (step 7) after a full staged-verification
-# pass - see the doc's Verification sections for what was checked.
-#
-# Same deliberately-broad shape as step 2 (`allow-network-ingress`):
+# Same deliberately-broad shape as allow-network-ingress:
 # selector all() + source namespaceSelector observability, no per-app port
 # list. An overly-broad ALLOW is harmless on its own - narrowing to
 # per-app metrics/health ports is a refinement once staged data confirms

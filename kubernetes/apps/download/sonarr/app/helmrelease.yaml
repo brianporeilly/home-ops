@@ -85,11 +85,10 @@ spec:
       # API's cross-route precedence (longest path match wins) sends
       # /api traffic here instead of through the SecurityPolicy-protected
       # app route below. Adding this second route key renames that one
-      # from `sonarr` to `sonarr-app` (see ks.yaml's HTTPROUTE_NAME) -
-      # confirmed via `helm template` against this chart version. Still
-      # gated by Sonarr's own API key - confirmed live that /api/v3/*
-      # returns 401 without one even for in-cluster requests, so this
-      # isn't a net new exposure versus the pre-SSO baseline.
+      # from `sonarr` to `sonarr-app` (see ks.yaml's HTTPROUTE_NAME). Still
+      # gated by Sonarr's own API key - /api/v3/* returns 401 without one
+      # even for in-cluster requests, so this isn't a net new exposure
+      # versus the pre-SSO baseline.
       api:
         annotations:
           # No 401-expecting UI check for this one - not meaningful to

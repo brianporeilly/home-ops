@@ -1,21 +1,14 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 6 of docs/network-policy-plan.md's proposed baseline - the external
-# counterpart to allow-trusted-vlans-to-envoy-internal.
+# External counterpart to allow-trusted-vlans-to-envoy-internal.
 #
-# Correction (2026-08-22): the original version of this rule scoped source
-# to `10.2.0.1/32` only (OPNsense's own transit address), on the theory
-# that OPNsense NATs (masquerades) all internet-bound traffic before it
-# reaches the cluster. Wrong - confirmed live via a real ~1hr Jellyfin
-# streaming session from outside the network on cellular data: Whisker
-# classified the source as "PUBLIC NETWORK" (a real non-RFC1918 address),
-# not "PRIVATE NETWORK"/10.2.0.1. OPNsense's port-forward is doing
-# destination NAT only, not source NAT, for this path - consistent with
-# `10.21.0.0/16` (the LoadBalancer pool) being routed rather than bridged
-# (docs/node-inventory.md), which doesn't require masquerading the source
-# to route the return path correctly. The original theory also produced a
-# false "this is fine" read on stale data at first - see the plan doc's
-# Verification round 2 for the full story of how that got caught.
+# Source can't be scoped to `10.2.0.1/32` (OPNsense's own transit address)
+# on the assumption that OPNsense NATs (masquerades) all internet-bound
+# traffic - it doesn't for this path. OPNsense's port-forward does
+# destination NAT only, not source NAT, so real client IPs arrive intact;
+# consistent with `10.21.0.0/16` (the LoadBalancer pool) being routed
+# rather than bridged (docs/node-inventory.md), which doesn't require
+# masquerading the source to route the return path correctly.
 #
 # So the source really is unbounded ("the whole internet"), and that's
 # correct/intentional for this one specific destination - envoy-external's

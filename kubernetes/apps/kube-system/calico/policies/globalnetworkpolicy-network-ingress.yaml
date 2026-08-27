@@ -1,14 +1,10 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 2 of docs/network-policy-plan.md's proposed baseline. Envoy Gateway
-# (envoy-internal/envoy-external, both in the network namespace) is one of
-# the two wide fan-outs the flow data review found - it routes HTTPRoute
-# traffic to backend Services across nearly every namespace.
+# Envoy Gateway (envoy-internal/envoy-external, both in the network
+# namespace) is a wide fan-out - it routes HTTPRoute traffic to backend
+# Services across nearly every namespace.
 #
-# Promoted to enforcing 2026-08-22 (step 7) after a full staged-verification
-# pass - see the doc's Verification sections for what was checked.
-#
-# Deliberately broad for this first pass: selector all() + source
+# Deliberately broad: selector all() + source
 # namespaceSelector network, no per-app port list. An overly-broad ALLOW
 # is harmless on its own (allow rules only ever widen access; the
 # default-deny baseline in a later step is what actually narrows things) -
