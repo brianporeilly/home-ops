@@ -556,3 +556,12 @@ data:
           order: 0
           target: !KeyOf grimmory-application
           group: !Find [authentik_core.group, [name, media-users]]
+      # Like jellyfin-admins (not audiobookshelf's hardcoded groups) -
+      # BookLore's OidcGroupMapping is a safe best-effort sync with no
+      # login-denial-on-no-match behavior, confirmed against the app.jar's
+      # OidcGroupMappingService. oidc-bootstrap maps this group name to
+      # isAdmin: true. Empty membership by default, add via the Authentik
+      # UI.
+      - model: authentik_core.group
+        identifiers:
+          name: grimmory-admins
