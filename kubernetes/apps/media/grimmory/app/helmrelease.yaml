@@ -177,11 +177,8 @@ spec:
                             # preserves history instead of creating a
                             # duplicate account.
                             "allowLocalAccountLinking": True,
-                            # Deliberately empty/no admin grant, same
-                            # reasoning as audiobookshelf/jellyfin - a
-                            # brand-new auto-provisioned account gets
-                            # BookLore's own baseline defaults, promote to
-                            # admin manually via the UI if needed.
+                            # No admin grant here - that's the
+                            # grimmory-admins group mapping below instead.
                             "defaultPermissions": [],
                             "defaultLibraryIds": [],
                         },
@@ -189,6 +186,24 @@ spec:
                 ]
                 call("PUT", "/api/v1/settings", settings, token=token)
                 print("OIDC settings updated")
+
+                # Idempotent create-or-update, not a blind POST -
+                # /admin/oidc-group-mappings has no upsert-by-claim
+                # behavior of its own, and this runs every 15m.
+                mappings = call("GET", "/api/v1/admin/oidc-group-mappings", token=token) or []
+                existing = next((m for m in mappings if m["oidcGroupClaim"] == "grimmory-admins"), None)
+                group_mapping = {
+                    "oidcGroupClaim": "grimmory-admins",
+                    "isAdmin": True,
+                    "permissions": [],
+                    "libraryIds": [],
+                    "description": "Authentik grimmory-admins group",
+                }
+                if existing:
+                    call("PUT", f"/api/v1/admin/oidc-group-mappings/{existing['id']}", {**group_mapping, "id": existing["id"]}, token=token)
+                else:
+                    call("POST", "/api/v1/admin/oidc-group-mappings", group_mapping, token=token)
+                print("OIDC group mapping updated")
             env:
               ADMIN_USERNAME:
                 valueFrom:
