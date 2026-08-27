@@ -120,7 +120,11 @@ spec:
                         headers["Authorization"] = f"Bearer {token}"
                     req = urllib.request.Request(f"{GRIMMORY_URL}{path}", data=data, headers=headers, method=method)
                     with urllib.request.urlopen(req, timeout=15) as r:
-                        return json.loads(r.read())
+                        # PUT /api/v1/settings returns 200 with an empty
+                        # body on success (confirmed live) - login returns
+                        # a real JSON body, so this can't just always parse.
+                        raw = r.read()
+                        return json.loads(raw) if raw else None
 
                 login = call("POST", "/api/v1/auth/login", {
                     "username": os.environ["ADMIN_USERNAME"],
