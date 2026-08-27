@@ -187,6 +187,17 @@ spec:
             secretKeyRef:
               name: audiobookshelf-oidc-credentials
               key: client-secret
+        # Consumed by the provider-grimmory.yaml key in blueprints-native-apps.yaml.
+        - name: GRIMMORY_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
+              key: client-id
+        - name: GRIMMORY_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
+              key: client-secret
         # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
         - name: CHANGEDETECTION_OAUTH_CLIENT_ID
           valueFrom:

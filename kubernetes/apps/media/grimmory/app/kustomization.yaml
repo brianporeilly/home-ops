@@ -8,3 +8,5 @@ resources:
   - ./mariadb.yaml
   - ./backup.yaml
   - ./kopiur-snapshot.yaml
+  - ./oidc-secret.yaml
+  - ./admin-secret.yaml

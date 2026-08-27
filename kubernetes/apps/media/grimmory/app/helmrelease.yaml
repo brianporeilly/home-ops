@@ -75,6 +75,141 @@ spec:
               limits:
                 memory: 1Gi
 
+      # Grimmory (BookLore) has real, first-class OIDC support - unlike
+      # audiobookshelf/jellyfin this isn't an admin-API workaround for a
+      # missing config path, it's the app's own documented settings
+      # schema (PUT /api/v1/settings, AppSettingKey.OIDC_* - confirmed
+      # against the shipped app.jar's compiled classes, no source access
+      # needed). Idempotent - PUTting the same settings every run is a
+      # no-op after the first.
+      oidc-bootstrap:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        pod:
+          # defaultPodOptions below runs the main app as root (0:0) for
+          # its own file-permission handling - this container needs none
+          # of that, override back to the repo's normal non-root default.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command:
+              - python3
+              - -c
+              - |
+                import json, os, urllib.request
+
+                GRIMMORY_URL = "http://grimmory.media.svc.cluster.local:6060"
+                AUTH_HOSTNAME = "auth.oreillys.io"
+                SLUG = "grimmory"
+
+                def call(method, path, body=None, token=None):
+                    data = json.dumps(body).encode() if body is not None else None
+                    headers = {"Content-Type": "application/json"}
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                    req = urllib.request.Request(f"{GRIMMORY_URL}{path}", data=data, headers=headers, method=method)
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        return json.loads(r.read())
+
+                login = call("POST", "/api/v1/auth/login", {
+                    "username": os.environ["ADMIN_USERNAME"],
+                    "password": os.environ["ADMIN_PASSWORD"],
+                })
+                token = login["accessToken"]
+
+                issuer = f"https://{AUTH_HOSTNAME}/application/o/{SLUG}/"
+                settings = [
+                    {"name": "OIDC_ENABLED", "value": True},
+                    {
+                        "name": "OIDC_PROVIDER_DETAILS",
+                        "value": {
+                            "providerName": "Authentik",
+                            "clientId": os.environ["OIDC_CLIENT_ID"],
+                            "clientSecret": os.environ["OIDC_CLIENT_SECRET"],
+                            "issuerUri": issuer,
+                            "scopes": "openid profile email groups",
+                            "claimMapping": {
+                                "username": "preferred_username",
+                                "name": "name",
+                                "email": "email",
+                                "groups": "groups",
+                            },
+                        },
+                    },
+                    # The frontend builds its own redirect_uri client-side
+                    # from window.location.origin (confirmed in the shipped
+                    # JS bundle) - this is BookLore's own allowlist that
+                    # value has to match, not what gets registered with
+                    # Authentik (that's the blueprint's job, see
+                    # blueprints-native-apps.yaml). Internal-only for now.
+                    {
+                        "name": "OIDC_REDIRECT_URIS",
+                        "value": ["https://grimmory.internal.oreillys.io/oauth2-callback"],
+                    },
+                    {
+                        "name": "OIDC_AUTO_PROVISION_DETAILS",
+                        "value": {
+                            "enableAutoProvisioning": True,
+                            # Links an existing local account by username
+                            # first, same as every other app here -
+                            # preserves history instead of creating a
+                            # duplicate account.
+                            "allowLocalAccountLinking": True,
+                            # Deliberately empty/no admin grant, same
+                            # reasoning as audiobookshelf/jellyfin - a
+                            # brand-new auto-provisioned account gets
+                            # BookLore's own baseline defaults, promote to
+                            # admin manually via the UI if needed.
+                            "defaultPermissions": [],
+                            "defaultLibraryIds": [],
+                        },
+                    },
+                ]
+                call("PUT", "/api/v1/settings", settings, token=token)
+                print("OIDC settings updated")
+            env:
+              ADMIN_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-admin-secret
+                    key: ADMIN_USERNAME
+              ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-admin-secret
+                    key: ADMIN_PASSWORD
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -103,8 +238,10 @@ spec:
     persistence:
       tmp:
         type: emptyDir
-        globalMounts:
-          - path: /tmp
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /tmp
       data:
         suffix: data
         storageClass: "ceph-block"
@@ -119,26 +256,40 @@ spec:
           apiGroup: kopiur.home-operations.com
           kind: Restore
           name: grimmory
-        globalMounts:
-          - path: /app/data
+        # advancedMounts, not globalMounts - oidc-bootstrap only calls the
+        # admin HTTP API and must not mount these RWO PVCs: they're already
+        # attached to the grimmory controller's pod, so a bootstrap pod
+        # landing on a different node would hang in ContainerCreating
+        # forever waiting for an attach that can never happen (same bug
+        # already hit and fixed for audiobookshelf).
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /app/data
       # NAS static NFS mount - dedicated comics export subdirectory.
       books:
         type: nfs
         server: 10.20.30.11
         path: /media/comics
-        globalMounts:
-          - path: /books
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /books
       # NAS static NFS mount - dedicated ebooks export subdirectory.
       ebooks:
         type: nfs
         server: 10.20.30.11
         path: /media/books
-        globalMounts:
-          - path: /ebooks
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /ebooks
       bookdrop:
         suffix: bookdrop
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "10Gi"
-        globalMounts:
-          - path: /bookdrop
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /bookdrop

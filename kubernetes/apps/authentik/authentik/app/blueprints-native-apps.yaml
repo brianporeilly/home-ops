@@ -512,3 +512,47 @@ data:
           order: 0
           target: !KeyOf audiobookshelf-application
           group: !Find [authentik_core.group, [name, media-users]]
+  provider-grimmory.yaml: |
+    metadata:
+      name: OIDC Provider - grimmory
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: grimmory
+        id: grimmory-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env GRIMMORY_OAUTH_CLIENT_ID
+          client_secret: !Env GRIMMORY_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # Grimmory (BookLore) builds this client-side from
+              # window.location.origin (confirmed in the shipped frontend
+              # JS bundle) - not /oauth2/callback, this app isn't behind
+              # components/authentik/protect. Internal-only for now.
+              url: https://grimmory.internal.oreillys.io/oauth2-callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: grimmory
+        id: grimmory-application
+        attrs:
+          name: Grimmory
+          provider: !KeyOf grimmory-provider
+      # media-users, not a dedicated group - see that group's own comment
+      # in blueprints-groups.yaml, immich/audiobookshelf use the same one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf grimmory-application
+          group: !Find [authentik_core.group, [name, media-users]]
