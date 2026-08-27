@@ -399,7 +399,25 @@ data:
               # this app isn't behind components/authentik/protect. No
               # post-logout redirect_uri - the plugin doesn't implement
               # OIDC single-logout, just clears the local Jellyfin session.
-              url: https://media.internal.oreillys.io/sso/OIDC/Callback/authentik
+              #
+              # http, not https - confirmed live, Jellyfin's GetSmartApiUrl
+              # (which the plugin calls) takes scheme from its own
+              # EnableHttps setting, not from X-Forwarded-Proto/Host/For or
+              # RFC 7239 Forwarded (tested all of them directly, none
+              # changed it) - Envoy terminates TLS in front of it, so
+              # EnableHttps is correctly false and it always reports http.
+              # This relies on the cluster's existing global http->https
+              # redirect (envoy-gateway's "https-redirect" HTTPRoute, no
+              # path rewrite - preserves the full path+query including
+              # ?code=...) to bridge the gap after Authentik issues the
+              # code. Both hostnames listed, like home-assistant/
+              # audiobookshelf, for the same "whichever hostname the
+              # browser used" reason - this app has both an internal and
+              # an external route.
+              url: http://media.internal.oreillys.io/sso/OIDC/Callback/authentik
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: http://media.oreillys.io/sso/OIDC/Callback/authentik
               redirect_uri_type: authorization
           grant_types:
             - authorization_code
