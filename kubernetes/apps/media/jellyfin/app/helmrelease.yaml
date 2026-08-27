@@ -323,6 +323,15 @@ spec:
                 with urllib.request.urlopen(net_get, timeout=15) as r:
                     net_config = json.loads(r.read())
                 net_config["EnablePublishedServerUriByRequest"] = True
+                # Fixed the hostname, but the redirect_uri Authentik saw was
+                # still http:// not https:// - confirmed live. Envoy
+                # terminates TLS and forwards to Jellyfin over plain HTTP,
+                # so the raw connection genuinely is HTTP; Jellyfin only
+                # trusts the X-Forwarded-Proto it's given from IPs in
+                # KnownProxies (empty by default = trust nothing). Pod CIDR
+                # covers Envoy Gateway's pods regardless of which one/how
+                # many replicas are actually running.
+                net_config["KnownProxies"] = ["10.246.0.0/16"]
                 net_req = urllib.request.Request(
                     f"{JELLYFIN_URL}/System/Configuration/network",
                     data=json.dumps(net_config).encode(),
