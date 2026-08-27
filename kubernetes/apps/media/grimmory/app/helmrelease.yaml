@@ -39,6 +39,14 @@ spec:
                     key: password
               API_DOCS_ENABLED: "false"
               DISK_TYPE: local
+              # BookLore's outbound SSRF filter (application.yaml,
+              # outbound.restricted-ranges) blocks the OIDC token
+              # exchange's own discovery-document fetch by default -
+              # auth.oreillys.io resolves to a cluster-private IP, so
+              # every login failed with FilteredHostException (confirmed
+              # live). This is the app's own documented escape hatch for
+              # exactly that.
+              OIDC_ALLOW_UNSAFE_HOSTS: "true"
             probes:
               liveness: &probes
                 enabled: true
