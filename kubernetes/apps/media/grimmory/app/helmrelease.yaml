@@ -147,16 +147,15 @@ spec:
                             },
                         },
                     },
-                    # The frontend builds its own redirect_uri client-side
-                    # from window.location.origin (confirmed in the shipped
-                    # JS bundle) - this is BookLore's own allowlist that
-                    # value has to match, not what gets registered with
-                    # Authentik (that's the blueprint's job, see
-                    # blueprints-native-apps.yaml). Internal-only for now.
-                    {
-                        "name": "OIDC_REDIRECT_URIS",
-                        "value": ["https://grimmory.internal.oreillys.io/oauth2-callback"],
-                    },
+                    # OIDC_REDIRECT_URIS deliberately omitted - confirmed
+                    # live it's for mobile app deep links only (rejects
+                    # anything without a custom non-http scheme: "Redirect
+                    # URI must use a custom mobile scheme", 400). The web
+                    # flow doesn't use it at all - the frontend builds its
+                    # own redirect_uri client-side from window.location
+                    # .origin (confirmed in the shipped JS bundle), which
+                    # is what actually gets registered with Authentik (see
+                    # blueprints-native-apps.yaml).
                     {
                         "name": "OIDC_AUTO_PROVISION_DETAILS",
                         "value": {
