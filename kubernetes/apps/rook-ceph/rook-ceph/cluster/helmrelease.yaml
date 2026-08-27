@@ -94,17 +94,11 @@ spec:
           # stretch the interval for extra headroom on top of the reservation
           # fix above.
           osd_deep_scrub_interval: "1209600" # quote, 14d (default 7d = 604800)
-          # Previously confined to a 10h/day off-peak window
-          # (osd_scrub_begin_hour/end_hour) on top of the interval above -
-          # removed 2026-08-24 after 5 PGs still missed the 14d deadline
-          # despite it (confirmed live: PG_NOT_DEEP_SCRUBBED, oldest since
-          # 2026-08-10). 140 scrub-hours/14d wasn't enough headroom for
-          # 136 PGs mostly on 3 slow HDDs. The mclock reservation above is
-          # what actually protects client I/O from scrub contention - the
-          # clock window was redundant with it, not an independent
-          # safeguard, so removing it (falls back to Ceph's unrestricted
-          # 0-24 default) just gives scrubs the other ~14h/day back rather
-          # than trading away any real protection.
+          # No scrub time-window (osd_scrub_begin_hour/end_hour) - a 10h/day
+          # off-peak window wasn't enough headroom for 136 PGs on 3 slow
+          # HDDs (PG_NOT_DEEP_SCRUBBED misses). The mclock reservation above
+          # already protects client I/O from scrub contention, so the window
+          # was redundant; scrubs now run unrestricted 0-24.
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:
@@ -120,39 +114,31 @@ spec:
         osdMaintenanceTimeout: 30      # minutes to hold noout on a draining failure domain
         pgHealthCheckTimeout: 0        # 0 = wait until PGs are healthy before unblocking next drain
       # Phase 1 of docs/ceph-cephx-key-rotation-plan.md (CVE-2025-30156) -
-      # rotates mon/osd/mgr/mds/rgw/admin keys from the old aes type to the
-      # new aes256k one. Rook docs: daemon rotation doesn't affect client
-      # connections (old key stays valid until the new one is used). CSI
-      # rotation is a separate, later phase - blocked on node kernel 7.0+
-      # (nodes are currently 6.12.102-flatcar), not attempted here.
+      # rotates mon/osd/mgr/mds/rgw/admin keys from aes to aes256k. Daemon
+      # rotation doesn't affect client connections (old key stays valid
+      # until the new one is used). CSI rotation is a separate, later phase
+      # - blocked on node kernel 7.0+ (nodes are 6.12.102-flatcar).
       #
-      # keyGeneration must be strictly greater than status.cephx.<entity>.keyGeneration
-      # to actually trigger a rotation - Rook's baseline (before this block
-      # ever existed) already reports every entity at generation 1, so
-      # keyGeneration: 1 here was a silent no-op (confirmed live: the
-      # previous PR merged clean, Helm/Flux showed no error, but
-      # status.cephx never moved off aes) - 2 is required to fire it.
+      # keyGeneration must be strictly greater than
+      # status.cephx.<entity>.keyGeneration to trigger a rotation; Rook's
+      # baseline is already generation 1, so keyGeneration: 1 is a silent
+      # no-op - 2 is required to fire it.
       #
-      # keyType intentionally dropped now that rotation is confirmed complete
-      # (verified live: all daemon-side entities off `ceph health detail`,
-      # HEALTH_ERR -> HEALTH_WARN). Rook sets --mon-auth-emergency-allowed-
-      # ciphers on every mon for as long as daemon.keyType is non-empty
-      # (pkg/operator/ceph/cluster/mon/spec.go - unconditional on the field
-      # being set, not on rotation state), which is what's been keeping
-      # AUTH_EMERGENCY_CIPHERS_SET/AUTH_INSECURE_KEYS_ALLOWED/_CREATABLE
-      # warning even after every entity finished. keyGeneration must stay
-      # (the CRD forbids removing it once set - CEL validation) and
-      # keyRotationPolicy stays KeyGeneration too - harmless with keyType
-      # unset, and it's what makes a future rotation just a keyGeneration
-      # bump + re-adding keyType instead of restoring this whole block.
+      # keyType is intentionally unset now that rotation is complete: Rook
+      # sets --mon-auth-emergency-allowed-ciphers on every mon for as long
+      # as daemon.keyType is non-empty (pkg/operator/ceph/cluster/mon/spec.go,
+      # unconditional on the field being set, not on rotation state), which
+      # keeps AUTH_EMERGENCY_CIPHERS_SET/AUTH_INSECURE_KEYS_ALLOWED/_CREATABLE
+      # warnings alive even after rotation finishes. keyGeneration must stay
+      # (CRD forbids removing it once set) and keyRotationPolicy stays
+      # KeyGeneration - harmless with keyType unset, and makes a future
+      # rotation just a keyGeneration bump + re-adding keyType.
       # Phase 2 of docs/ceph-cephx-key-rotation-plan.md - rbd-mirror-peer key.
-      # RBD mirroring isn't configured in this cluster (no CephRBDMirror
-      # resource, both blockpools have mirroring.enabled unset) - Rook just
-      # creates this identity by default regardless, so this is essentially
-      # zero-risk: nothing actually uses the key being rotated. keyGeneration
-      # baseline confirmed live before writing this (status.cephx.rbdMirrorPeer
-      # was generation 1) - 2 is what actually triggers it, per the Phase 1
-      # keyGeneration: 1-was-a-no-op lesson above.
+      # RBD mirroring isn't configured (no CephRBDMirror resource, both
+      # blockpools have mirroring.enabled unset) - Rook creates this
+      # identity by default regardless, so nothing actually uses the key
+      # being rotated. keyGeneration: 2 is what triggers it, per the
+      # Phase-1 no-op lesson above.
       security:
         cephx:
           daemon:

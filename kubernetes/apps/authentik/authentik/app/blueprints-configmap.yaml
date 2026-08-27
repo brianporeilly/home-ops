@@ -5,86 +5,40 @@ kind: ConfigMap
 metadata:
   name: authentik-blueprints-oauth-sources
 data:
-  # Authentik's own GitOps-native config mechanism - mounted via the chart's
-  # blueprints.configMaps value (helmrelease.yaml), which lands this at
-  # /blueprints/mounted/cm-<name>/ on the worker only (blueprint discovery
-  # is a background task, not something the server process needs). !Env
-  # pulls consumer_key/consumer_secret from environment variables at apply
-  # time (see global.env in helmrelease.yaml) rather than embedding OAuth
-  # client secrets directly in this ConfigMap - verified against
-  # authentik/blueprints/v1/common.py's Env YAMLTag class.
+  # Mounted via the chart's blueprints.configMaps (helmrelease.yaml) to
+  # /blueprints/mounted/cm-<name>/ on the worker. !Env pulls OAuth secrets
+  # from env vars (global.env in helmrelease.yaml) instead of embedding them.
   #
-  # Creating the OAuthSource objects alone isn't enough for them to appear
-  # as login buttons - confirmed live (PR #523 merged, sources existed and
-  # were enabled, but nothing showed on the login page). The default
+  # Creating an OAuthSource alone doesn't add a login button: the default
   # authentication flow's IdentificationStage has its own `sources` M2M
-  # field, separate from each Source's own `enabled` flag, and starts
-  # empty - the identification-stage entry below adds ours to it, matched
-  # by !Find rather than a hardcoded PK.
+  # field (separate from each Source's `enabled` flag) that starts empty -
+  # the identification-stage entry below adds ours via !Find.
   #
-  # Nor is that enough on its own: a first-time login via an external
-  # source with no authentication_flow/enrollment_flow set fails post-
-  # callback with "source is not configured for enrollment" - both fields
-  # (on the base Source model, authentik/core/models.py) default to null.
-  # Pointed at authentik's own shipped default-source-authentication /
-  # default-source-enrollment flows - confirmed live (PR #524 fixed the
-  # sources-not-showing gap, then this exact error surfaced on the actual
-  # callback once a real login was attempted).
+  # A source also needs authentication_flow/enrollment_flow set explicitly
+  # (both null by default on OAuthSource), or first-time login fails post-
+  # callback with "source is not configured for enrollment". Pointed at
+  # authentik's shipped default-source-authentication/-enrollment flows.
   #
-  # Schema for all of this confirmed against real shipped blueprints and
-  # each model's own blueprint test fixtures in goauthentik/authentik, not
-  # guessed - see also the live DB checks that caught both gaps: `ak shell`
-  # -> IdentificationStage.objects.first().sources.all() returned [], and
-  # OAuthSource.objects.first().{authentication_flow,enrollment_flow} were
-  # both None, despite the sources themselves existing and being enabled.
+  # Silent enrollment (no username prompt, username = email): the default
+  # enrollment flow skips its prompt stage when `username` is already in
+  # prompt_data, so the mapping below resolves username from email for both
+  # providers - GitHub otherwise defaults to the user's handle, Google has
+  # no username concept and always prompts.
   #
-  # Fully-silent enrollment (no "choose a username" prompt, username =
-  # email for both providers): authentik's own default enrollment flow
-  # (default-source-enrollment) already has a policy that SKIPS its prompt
-  # stage whenever `username` is already present in the resolved profile
-  # data (`'username' not in context.get('prompt_data', {})` - see
-  # goauthentik/authentik's flow-default-source-enrollment.yaml) - so no
-  # custom flow is needed, just a property mapping that resolves username
-  # ourselves. GitHub already sets username to the user's GitHub handle by
-  # default (get_base_user_properties in sources/oauth/types/github.py);
-  # Google has no username concept at all and always prompted. The mapping
-  # below overrides both to the same email-derived value for consistency
-  # regardless of which provider was used, keying off `properties.get`
-  # (the already-resolved base properties, including GitHub's fallback
-  # email-list lookup when no public email is set) rather than the raw
-  # `info` dict directly. Verified by exercising authentik's own
-  # SourceMapper.build_object_properties() in `ak shell` with synthetic
-  # profile data for both providers - confirmed username resolves to the
-  # email in both cases, correctly overriding GitHub's handle-based default.
+  # user_matching_mode: email_link, not the default `identifier` (per-source
+  # ID) - keeps both providers resolving to one account per email instead of
+  # a separate account per source. Safe here because Google/GitHub both
+  # verify email ownership before exposing it via OAuth; reconsider for a
+  # source that doesn't.
   #
-  # user_matching_mode: email_link on both - default is `identifier`
-  # (source-specific ID, e.g. Google's sub / GitHub's numeric id), which
-  # would create a SEPARATE account per source even for the same person's
-  # email. email_link resolves both to the same account instead. authentik's
-  # own docs flag a security caveat for this mode ("can have security
-  # implications when a source doesn't validate email addresses") - not a
-  # concern for Google/GitHub specifically, both verify email ownership
-  # before exposing it via their OAuth APIs; would need reconsidering for
-  # a source that doesn't.
-  #
-  # Auto-promote trusted emails to type=internal at enrollment time - by
-  # default SSO-enrolled users get type=external, which authentik's own
-  # BrandDefaultRedirectView (authentik/core/views/interface.py) hard-
-  # redirects away from BOTH /if/user/ (account settings, MFA, logout) and
-  # /if/admin/ to the Brand's default_application, with no way through -
-  # hit live testing echo, confirmed via `ak shell` that two enrolled test
-  # accounts had zero path to their own account settings despite both
-  # existing and being enabled. Traced the fix via
-  # authentik/stages/user_write/stage.py: UserWriteStage.update_user() does
-  # a generic setattr(user, key, value) for any key in the resolved
-  # profile properties that the User model has a real attribute for and
-  # isn't on its disallowed list (groups/id/pk) - same mechanism that
-  # already sets username from our own mapping above, "type" just isn't
-  # blocked. This only fires at first-time enrollment (UserWriteStage runs
-  # in the enrollment flow, not the authentication flow returning users
-  # take) - doesn't retroactively touch already-enrolled accounts, and an
-  # admin can always override any user's type by hand in the UI regardless
-  # of what this set at enrollment time.
+  # Auto-promotes trusted emails to type=internal at enrollment. Default
+  # type=external gets hard-redirected by BrandDefaultRedirectView away from
+  # both /if/user/ and /if/admin/ with no way through, so external accounts
+  # can't reach their own settings. UserWriteStage.update_user() setattr's
+  # any resolved profile key the User model has (unless disallowed:
+  # groups/id/pk) - "type" isn't blocked, same mechanism that sets username
+  # above. Only fires at first-time enrollment; doesn't touch already-
+  # enrolled accounts, and admins can always override type by hand.
   oauth-sources.yaml: |
     metadata:
       name: OAuth sources (Google, GitHub)
@@ -105,17 +59,10 @@ data:
         id: internal-type-for-trusted-emails
         attrs:
           expression: |
-            # Allowlist, not a denylist - default stays external (limited,
-            # app-only access) for anyone not listed here. Extend as more
-            # people/addresses become trusted; an admin can also just
-            # override a specific user's type by hand in the UI any time,
-            # regardless of what this sets at enrollment.
-            #
-            # Also the sole source of truth for whether a new SSO signup is
-            # allowed to enroll at all, not just its UI-access tier -
-            # blueprints-sso-enrollment-allowlist.yaml denies enrollment
-            # outright for anyone this doesn't return type: internal for.
-            # Change the lists below and that gate inherits it automatically.
+            # Allowlist, not denylist - anyone unlisted stays external (limited access).
+            # Also the sole source of truth for whether enrollment is allowed at all:
+            # blueprints-sso-enrollment-allowlist.yaml denies enrollment outright for
+            # anyone this doesn't return type: internal for.
             trusted_domains = ["oreillys.io"]
             trusted_emails = ["brianporeilly@gmail.com"]
 

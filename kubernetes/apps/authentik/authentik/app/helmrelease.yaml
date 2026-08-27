@@ -27,10 +27,10 @@ spec:
     # duplicate-password approach).
     postgresql:
       enabled: false
-    # Chart-native blueprint mounting (confirmed against templates/worker/deployment.yaml -
-    # only the worker mounts these, since blueprint discovery/apply is a background
-    # task, not something the request-serving server process needs). Each name here
-    # is just the ConfigMap's name - the chart handles the volume/mount itself,
+    # Chart-native blueprint mounting - only the worker mounts these, since
+    # blueprint discovery/apply is a background task, not something the
+    # request-serving server process needs. Each name here is just the
+    # ConfigMap's name - the chart handles the volume/mount itself,
     # auto-discovered under /blueprints/mounted/cm-<name>/.
     blueprints:
       configMaps:
@@ -49,14 +49,12 @@ spec:
         name: authentik
         user: authentik
         port: 5432
-      # In-cluster no-auth relay (see maddy-smtp-relay memory) - same
-      # host:port, no username/password, as forgejo's FORGEJO__mailer__*
-      # config. Not previously configured at all (confirmed live - empty
-      # host/password, `email.host: localhost` default), so nothing sent:
-      # not password-recovery (moot now, only akadmin has a local password),
-      # not the four shipped NotificationRules (config-error/warning,
-      # update-available, exception) that already point at
-      # default-email-transport but were silently going nowhere.
+      # In-cluster no-auth relay, same host:port/no username/password as
+      # forgejo's FORGEJO__mailer__* config. Without this, email.host
+      # defaults to localhost and nothing sends: not password-recovery
+      # (moot now, only akadmin has a local password), not the four
+      # shipped NotificationRules (config-error/warning, update-available,
+      # exception) that already point at default-email-transport.
       email:
         host: maddy.misc.svc.cluster.local
         port: 25
@@ -351,8 +349,6 @@ spec:
         # pod, spawning a full second Django bootstrap on top of the
         # resident worker process (~440-860Mi observed) - 1Gi wasn't
         # enough headroom and manifested as SIGBUS (cgroup memory limit
-        # hit during an mmap page fault) rather than a clean OOM kill,
-        # confirmed live: every blueprint file failed the same way,
-        # including a bare `ak shell`.
+        # hit during an mmap page fault) rather than a clean OOM kill.
         limits:
           memory: 1.5Gi

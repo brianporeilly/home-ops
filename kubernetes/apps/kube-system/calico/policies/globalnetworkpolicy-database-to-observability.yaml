@@ -1,7 +1,6 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 4 (narrow pairs) of docs/network-policy-plan.md's proposed baseline
-# - staged. clickhouse-operator (runs in `database`, chart name
+# clickhouse-operator (runs in `database`, chart name
 # altinity-clickhouse-operator) manages Akvorado's ClickHouse instance
 # (`chi-akvorado-clickhouse`, lives in `observability`) - same
 # centralized-operator pattern as the mariadb pair.

@@ -1,11 +1,10 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 6 of docs/network-policy-plan.md's proposed baseline. Network gear
-# (switch/router/OPNsense) streams NetFlow/IPFIX to Akvorado's inlet -
-# real, observed flow data. Narrower than the envoy-internal/envoy-external
-# trusted-VLAN list on purpose (confirmed 2026-08-22): only `10.10.0.0/16`
-# and `10.20.0.0/16` have anything that actually sends flow data here -
-# notably NOT just `10.20.0.0/16` alone: the primary switch's own
+# Network gear (switch/router/OPNsense) streams NetFlow/IPFIX to Akvorado's
+# inlet. Narrower than the envoy-internal/envoy-external trusted-VLAN list
+# on purpose: only `10.10.0.0/16` and `10.20.0.0/16` have anything that
+# actually sends flow data here - notably NOT just `10.20.0.0/16` alone: the
+# primary switch's own
 # management IP is `10.10.0.1` (docs/network-observability-plan.md), a
 # different VLAN entirely, so a servers-VLAN-only rule would have missed
 # the actual switch traffic.

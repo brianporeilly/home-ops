@@ -2,10 +2,9 @@
 # Immich has no env-var/config-file OIDC mechanism (unlike every other
 # native-OIDC app in this repo except forgejo) - OAuth settings live in
 # Immich's own system config, readable/writable only via its admin REST
-# API (GET/PUT /api/system-config, confirmed against the shipped OpenAPI
-# spec - x-immich-admin-only, api_key auth accepted). Same rationale as
-# forgejo's CronJob: get-merge-put hourly, self-healing on drift
-# instead of a one-time manual step, using the admin API key from
+# API (GET/PUT /api/system-config, x-immich-admin-only, api_key auth).
+# Same rationale as forgejo's CronJob: get-merge-put hourly, self-healing
+# on drift instead of a one-time manual step, using the admin API key from
 # oidc-admin-api-key-secret.yaml (that one genuinely can't be automated -
 # API keys can only be created through an authenticated admin session).
 #
@@ -19,20 +18,14 @@
 # internal and external route - Immich only supports one fixed issuer
 # (unlike SecurityPolicy-wrapped apps, which get a per-route issuer via
 # issuer_mode: per_provider), and auth.internal.oreillys.io has no
-# HTTPRoute on envoy-external at all, so it's simply unreachable for
-# anyone logging in from outside the LAN. auth.oreillys.io works
-# universally instead - confirmed live via NAT hairpin from inside the
-# immich pod (curl to auth.oreillys.io's discovery doc: 200 in ~80ms),
-# so internal/cluster-side calls (discovery, token exchange) work too.
+# HTTPRoute on envoy-external at all, so it's unreachable from outside
+# the LAN. auth.oreillys.io works universally, including for in-cluster
+# calls (discovery, token exchange) via NAT hairpin.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: immich-oidc-system-config-sync
 spec:
-  # Real key is in place (oidc-admin-api-key-secret.yaml) - live-verified
-  # end-to-end: manual job run succeeded, system-config's oauth section
-  # confirmed correct via the API, and the real /oauth/authorize redirect
-  # chain resolves to Authentik with the right client_id.
   schedule: "23 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1

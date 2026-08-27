@@ -78,10 +78,9 @@ spec:
         # already carries the right group (set by the restore mover), which
         # makes kubelet skip its recursive chown/chmod walk under
         # OnRootMismatch - leaving the originally-captured (often
-        # owner-only) permission bits on everything beneath it untouched
-        # and inaccessible to this non-root container. Confirmed live:
-        # thelounge crashed with EACCES on a restored 700 root:nobody dir
-        # despite fsGroup being applied to the volume root correctly.
+        # owner-only) permission bits on everything beneath it untouched and
+        # inaccessible to this non-root container (EACCES on a restored 700
+        # root:nobody dir, despite fsGroup applying to the volume root).
         fsGroupChangePolicy: Always
 
     service:

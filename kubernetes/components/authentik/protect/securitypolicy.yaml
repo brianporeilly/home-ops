@@ -17,14 +17,13 @@
 # dependsOn: authentik is required, not optional - without it, this
 # component's oidc-client-secret.yaml (a Reflector mirror) can lose a race
 # against authentik/app's own ExternalSecret and get stuck permanently
-# rejected. Confirmed live on whisker's initial rollout; fix confirmed
-# sufficient in practice despite not fully closing the window.
+# rejected (doesn't fully close the window, but sufficient in practice).
 #
 # HTTPROUTE_NAME is separate from APP because bjw-s app-template's named
 # route.<key> blocks (route.app + route.internal, e.g. grocy's
 # helmrelease.yaml) produce HTTPRoute objects named <release>-<key>, not
-# <release> or the app slug (confirmed via `helm template`). Single-route
-# apps (echo, kopiur-ui) just happen to have HTTPROUTE_NAME == APP.
+# <release> or the app slug. Single-route apps (echo, kopiur-ui) just
+# happen to have HTTPROUTE_NAME == APP.
 #
 # AUTH_HOSTNAME is a var (not hardcoded) so this component also covers the
 # external leg of a dual-exposure app - pair with
@@ -56,8 +55,7 @@ spec:
       name: ${HTTPROUTE_NAME}
   oidc:
     # No provider.backendRef needed - Envoy just resolves AUTH_HOSTNAME
-    # like any HTTPS client (confirmed end-to-end on echo/kopiur-ui).
-    # AUTH_HOSTNAME must exactly match a hostname actually routed to
+    # like any HTTPS client. AUTH_HOSTNAME must exactly match a hostname routed to
     # Authentik, since issuer_mode: per_provider derives the issuer from
     # the request's Host header - a mismatch fails OIDC's issuer check.
     #

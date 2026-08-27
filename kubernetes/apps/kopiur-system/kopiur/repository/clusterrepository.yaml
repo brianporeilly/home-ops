@@ -74,9 +74,8 @@ spec:
   # prompt after the SSO login rather than add real protection - anyone
   # who reaches this backend has already passed the SecurityPolicy gate.
   # acknowledgeInsecure: true is kopiur's own explicit opt-in for exactly
-  # this "something else already fronts it" case (confirmed via
-  # `kubectl explain clusterrepository.spec.server.auth` - omitting the
-  # field defaults to generate, "never no-auth" by accident).
+  # this "something else already fronts it" case - omitting the field
+  # defaults to generate, "never no-auth" by accident.
   server:
     namespace: kopiur-system
     auth:

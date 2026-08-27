@@ -9,19 +9,13 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
-  # Deliberately NO dependsOn - this was copy-pasted from the standard
-  # "new app" template default (envoy-gateway-config + rook-ceph-cluster)
-  # without adapting it, which is backwards for the CNI itself: Ceph needs
-  # working pod networking to come up, and Envoy Gateway needs the CNI to
-  # route anything - neither can be a real prerequisite for Calico.
-  # Real incident (2026-08-23, docs/incidents/2026-08-23-dns-outage.md):
-  # rook-ceph-cluster stalled on an unrelated Flux/DNS issue, which
-  # transitively blocked calico-policies (dependsOn: calico) from
-  # promoting allow-dns-ingress - the exact policy needed to fix DNS in
-  # the first place. Self-inflicted deadlock, only escapable by a manual
-  # kubectl apply bypassing Flux entirely. Keep this Kustomization
-  # dependency-free so it can never be held hostage by something
-  # downstream of it in the actual dependency direction.
+  # Deliberately NO dependsOn - neither Ceph (needs pod networking) nor
+  # Envoy Gateway (needs the CNI to route anything) can be a real
+  # prerequisite for Calico itself. A dependsOn here previously created a
+  # deadlock: rook-ceph-cluster stalling blocked calico-policies
+  # (dependsOn: calico) from promoting the DNS-fix policy it needed to
+  # recover, escapable only by a manual kubectl apply bypassing Flux. Keep
+  # this dependency-free so it can never be held hostage downstream.
   interval: 1h
   path: ./kubernetes/apps/kube-system/calico/app
   prune: true
@@ -89,8 +83,8 @@ spec:
   dependsOn:
     - name: calico
       namespace: kube-system
-    # protect's Reflector mirror lost this exact race on whisker's own
-    # rollout - see kubernetes/apps/download/lidarr/ks.yaml for the incident.
+    # Required: protect's Reflector mirror can lose this race without it
+    # (see kubernetes/apps/download/lidarr/ks.yaml for the same pattern).
     - name: authentik
       namespace: authentik
   interval: 1h

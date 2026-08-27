@@ -188,13 +188,11 @@ spec:
   # (SEND_SAME_HTTP_CODE on that app makes error-pages report it correctly
   # when hit as a direct backend like this, not body-swapped by a proxy).
   #
-  # One block per status code, deliberately - confirmed via error-pages'
-  # own Envoy Gateway guide (docs/guides/k8s_ingress_envoy.md in
-  # tarampampam/error-pages): Envoy Gateway has no dynamic status-code
-  # placeholder in replaceFullPath, so a range like 400-499 would silently
-  # map every distinct code to the same page and still report the
-  # original (correct) status - misleading content, not just a display bug.
-  # Add more blocks here for any other code worth a styled page.
+  # One block per status code, deliberately - Envoy Gateway has no dynamic
+  # status-code placeholder in replaceFullPath, so a range like 400-499
+  # would silently map every distinct code to the same page and still
+  # report the original (correct) status - misleading content, not just a
+  # display bug. Add more blocks here for any other code worth a styled page.
   #
   # No format/Accept-header wrangling needed - Envoy's internal fetch
   # forwards the original request's headers, so error-pages' own content
@@ -203,10 +201,8 @@ spec:
   #
   # 400/401 deliberately excluded - those are the codes most likely to carry
   # a real, actionable app-level message (e.g. Authentik's OIDC errors), and
-  # this override replaces the body entirely with a generic styled page,
-  # masking it. Cost a debugging session on the Whisker OIDC rollout: the
-  # browser only ever showed error-pages' generic 400, not Authentik's real
-  # "Invalid client identifier".
+  # this override would replace the body entirely with a generic styled
+  # page, masking it.
   responseOverride:
     - match:
         statusCodes:
@@ -438,13 +434,10 @@ spec:
       # ('self' file:) than every other app - well-documented upstream
       # issue, jellyfin.org's own nginx/Traefik guides call it out. Its
       # own HTTPRoute (route.app.rules[].filters, helmrelease.yaml) sets
-      # Content-Security-Policy itself; addIfAbsent backs off for any app
-      # that already has the header by the time this late-stage check
-      # runs (confirmed via Envoy Gateway's HTTPHeaderFilter source -
-      # AddIfAbsent is "a no-op if the header is already present"),
-      # unlike set here which would win regardless and stomp jellyfin's
-      # own value (confirmed via the same source + docs: lateResponseHeaders
-      # runs after route-level filters and normally overwrites them).
+      # Content-Security-Policy itself; addIfAbsent is a no-op if the header
+      # is already present, unlike set here which would win regardless and
+      # stomp jellyfin's own value (lateResponseHeaders runs after
+      # route-level filters and normally overwrites them).
       addIfAbsent:
         - name: Content-Security-Policy
           value: "frame-ancestors 'self';"
@@ -493,8 +486,7 @@ spec:
   # internet traffic and already sets X-Forwarded-For to the real client).
   #
   # trustedCIDRs, not numTrustedHops: Envoy Gateway v1.8.3 silently drops
-  # numTrustedHops - it never makes it into the XffConfig proto at all
-  # (confirmed via the rendered config at admin :19000/config_dump), so
+  # numTrustedHops - it never makes it into the XffConfig proto at all, so
   # client_ip stayed OPNsense's own address no matter what. trustedCIDRs
   # pinned to OPNsense's actual transit address renders correctly and is
   # arguably the better fit anyway: it explicitly trusts the one known

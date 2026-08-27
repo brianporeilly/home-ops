@@ -2,23 +2,20 @@
 # Native mariadb-operator backup to a PVC (picked up by kopiur, see
 # kopiur-snapshot.yaml). See docs/backup-dr-plan.md.
 #
-# Was S3 (Ceph RGW) until Ceph 20.2.4's SigV4 hardening (rgw: Follow
-# guidelines when verifying SigV4 signatures) started rejecting
-# mariadb-operator's uploads: its minio-go client always sends a Content-Type
-# header on chunked/streaming PutObject but hardcodes Content-Type into the
-# headers it excludes from SignedHeaders (see minio-go's
-# ignoredStreamingHeaders in pkg/signer/request-signature-streaming.go), so
-# RGW's now-correct "if content-type is present it must be signed" check
-# rejects every upload with AccessDenied. That's unconditional in minio-go's
-# PutObject path - no client-side option avoids it, and the only server-side
-# workaround (rgw_sigv4_insecure) would weaken SigV4 validation for every S3
-# client on this RGW, not just this one. PVC storage sidesteps RGW/S3
-# entirely. Revisit S3 if minio-go/mariadb-operator ever fixes the signing.
-# Renamed from grimmory-mariadb-backup (dropping the S3 storage above is
-# what actually needed this) - spec.storage is immutable on this CRD, so an
-# in-place edit gets rejected by the admission webhook; a new name makes
-# Flux delete+recreate instead of update. The old S3-backed object gets
-# pruned; the RGW bucket itself is untouched (Retain reclaim policy).
+# Was S3 (Ceph RGW) until Ceph 20.2.4's SigV4 hardening started rejecting
+# mariadb-operator's uploads: its minio-go client excludes Content-Type from
+# SignedHeaders on chunked/streaming PutObject even though it always sends
+# the header, so RGW's now-correct "if content-type is present it must be
+# signed" check rejects every upload with AccessDenied. Unconditional in
+# minio-go's PutObject path (no client-side fix), and the server-side
+# workaround (rgw_sigv4_insecure) would weaken SigV4 for every S3 client on
+# this RGW. PVC storage sidesteps RGW/S3 entirely; revisit if minio-go/
+# mariadb-operator ever fixes the signing.
+#
+# Renamed from grimmory-mariadb-backup because spec.storage is immutable on
+# this CRD - an in-place edit is rejected by the admission webhook, so a new
+# name makes Flux delete+recreate instead. The RGW bucket is untouched
+# (Retain reclaim policy).
 apiVersion: k8s.mariadb.com/v1alpha1
 kind: Backup
 metadata:

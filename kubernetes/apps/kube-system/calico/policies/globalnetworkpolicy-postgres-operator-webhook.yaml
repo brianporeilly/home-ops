@@ -1,16 +1,12 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Found via real pending_actions data after exercising every app
-# (2026-08-22): CloudNativePG's operator (`database`) reaches every
-# instance it manages on tcp/8000 (the instance manager's own API, used
-# for health/status/backup coordination) - observed hitting Postgres pods
-# across `authentik`, `home` (home-assistant, paperless-ngx), `immich`,
-# and `misc` (forgejo, linkwarden, nebraska). CNPG spans nearly every
-# namespace with a database, unlike mariadb's single grimmory instance
-# (step 4's narrow allow-database-to-media pair) - not a small, fixed set
-# of pairs, so this is modeled source-scoped-only like
-# allow-apiserver-webhooks/allow-spegel-mirror instead of one rule per
-# managed instance.
+# CloudNativePG's operator (`database`) reaches every instance it manages
+# on tcp/8000 (the instance manager's own API, used for health/status/backup
+# coordination) - spans nearly every namespace with a database (authentik,
+# home, immich, misc), unlike mariadb's single grimmory instance
+# (allow-database-to-media). Not a small, fixed set of pairs, so this is
+# modeled source-scoped-only like allow-apiserver-webhooks/allow-spegel-mirror
+# instead of one rule per managed instance.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:

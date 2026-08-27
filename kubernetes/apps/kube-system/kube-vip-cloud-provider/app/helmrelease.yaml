@@ -32,9 +32,7 @@ spec:
         # L2-adjacent to whichever node currently holds a VIP couldn't ARP
         # for it despite its own route saying on-link. 10.21.0.0/16 is
         # deliberately off-link from 10.20.0.0/16 instead, so it's always
-        # routed via the default gateway, no ARP dependency. Every service
-        # was migrated off the old pool before it was removed here -
-        # confirmed live, nothing left on 10.20.250.0/24.
+        # routed via the default gateway, no ARP dependency.
         #
         # Requires an OPNsense static route (10.21.0.0/16 via 10.2.0.2,
         # mirroring the existing 10.20.0.0/16 one) - not tracked in this

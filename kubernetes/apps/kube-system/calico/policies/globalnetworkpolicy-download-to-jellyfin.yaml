@@ -1,8 +1,8 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Found via a real deny in the flow data (2026-08-24): sonarr's "notify
-# Jellyfin" webhook (library refresh on import) was being blocked - the
-# baseline has no ingress exception for `download` -> `media`. Source is
+# sonarr's "notify Jellyfin" webhook (library refresh on import) was being
+# blocked - the baseline has no ingress exception for `download` -> `media`.
+# Source is
 # the whole `download` namespace rather than just sonarr, since radarr/
 # lidarr/bazarr use the same webhook notification pattern to Jellyfin;
 # destination stays narrow to just jellyfin, not all of `media`, since

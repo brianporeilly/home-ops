@@ -1,8 +1,7 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Generalizes the original narrow allow-misc-to-network (step 4) - real
-# pending_actions data after exercising every app (2026-08-22) showed this
-# is a recurring pattern, not a one-off: forgejo (misc), paperless-ngx
+# Generalizes the original narrow allow-misc-to-network rule - a recurring
+# pattern, not a one-off: forgejo (misc), paperless-ngx
 # (home), and immich-server (immich) all separately call out through
 # envoy-internal/envoy-external to reach a hostname that resolves back to
 # the Gateway VIP (OIDC discovery, webhooks, etc.) - the same shape as any

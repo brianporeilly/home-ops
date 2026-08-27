@@ -115,14 +115,12 @@ spec:
       # Forgejo has no env-var/config-file mechanism for its OIDC auth
       # source (unlike every other native-OIDC app in this repo) - only a
       # CLI (`forgejo admin auth add-oauth`/`update-oauth`) with no
-      # built-in idempotent apply. Runs hourly against the same DB the
-      # main controller uses (same image, same FORGEJO__database__* env),
-      # self-healing on drift (credential rotation, a DB restore that
-      # loses the auth source row, etc.) instead of being a one-time
-      # manual step. list-then-upsert logic and exact CLI flags confirmed
-      # live against this exact chart/image version before being written
-      # here - Forgejo's add-oauth validates the OIDC discovery URL at
-      # creation time, so this only works once
+      # built-in idempotent apply. Runs hourly against the same DB the main
+      # controller uses (same image, same FORGEJO__database__* env),
+      # self-healing on drift (credential rotation, a DB restore that loses
+      # the auth source row, etc.) instead of being a one-time manual step.
+      # add-oauth validates the OIDC discovery URL at creation time, so
+      # this only works once
       # authentik/authentik/app/blueprints-native-apps.yaml's
       # provider-forgejo.yaml entry already exists.
       oidc-source-sync:
@@ -139,16 +137,14 @@ spec:
               repository: codeberg.org/forgejo/forgejo
               tag: 16.0.3-rootless@sha256:214f4ae63ee78be1e445e58573c88dc7215e72091210852e0df94eaac1a25685
             # forgejo's FORGEJO__section__KEY env-var config only gets turned
-            # into an app.ini by /usr/local/bin/docker-setup.sh, which runs as
-            # part of the image's own ENTRYPOINT (confirmed by reading it
-            # live) - overriding `command` bypasses that entirely, and
-            # GITEA_APP_INI's default location lives on the same PVC the main
-            # controller already holds RWO (Multi-Attach conflict - confirmed
-            # live). admin auth only needs DB connectivity, not the full
+            # into an app.ini by /usr/local/bin/docker-setup.sh, part of the
+            # image's own ENTRYPOINT - overriding `command` bypasses that
+            # entirely, and GITEA_APP_INI's default location lives on the
+            # same PVC the main controller already holds RWO (Multi-Attach
+            # conflict). admin auth only needs DB connectivity, not the full
             # server config, so this writes its own minimal app.ini to /tmp
             # instead (INSTALL_LOCK = true is required - MustInstalled()
-            # rejects a config without it even with valid DB settings,
-            # confirmed live).
+            # rejects a config without it even with valid DB settings).
             command:
               - /bin/sh
               - -c
@@ -172,9 +168,9 @@ spec:
                 # (ks.yaml) string-replaces ANY dollar-brace pattern across the
                 # whole rendered manifest, comments included, and either mangles
                 # it (undefined var -> empty string) or hard-fails the build
-                # (invalid variable name) - confirmed both failure modes live via
-                # `flux build`. Brace-wrapped bash parameter expansion is unsafe
-                # anywhere inside a postBuild.substitute-enabled Kustomization.
+                # (invalid variable name). Brace-wrapped bash parameter
+                # expansion is unsafe anywhere in a postBuild.substitute-enabled
+                # Kustomization.
                 if [ -n "$ID" ]; then
                   echo "Updating existing auth source id=$ID"
                   forgejo admin auth update-oauth --config /tmp/app.ini --id="$ID" --name=authentik --provider=openidConnect \
@@ -283,8 +279,8 @@ spec:
           name: forgejo
         # advancedMounts, not globalMounts - the oidc-source-sync CronJob
         # controller below doesn't touch this PVC at all, and globalMounts
-        # would've mounted it there too, causing a Multi-Attach conflict
-        # with the main forgejo pod (both RWO) - confirmed live.
+        # would mount it there too, causing a Multi-Attach conflict with the
+        # main forgejo pod (both RWO).
         advancedMounts:
           forgejo:
             app:
@@ -310,11 +306,11 @@ spec:
             app:
               - path: /tmp
           # oidc-source-sync also needs a writable /tmp under
-          # readOnlyRootFilesystem - confirmed live: with none at all it
-          # exits immediately with no log output at all (forgejo's CLI
-          # needs somewhere to write). Safe to share this same emptyDir
-          # entry across controllers - unlike the RWO PVCs above, emptyDir
-          # is pod-local, no Multi-Attach concern.
+          # readOnlyRootFilesystem - with none at all it exits immediately
+          # with no log output (forgejo's CLI needs somewhere to write).
+          # Safe to share this same emptyDir entry across controllers -
+          # unlike the RWO PVCs above, emptyDir is pod-local, no
+          # Multi-Attach concern.
           oidc-source-sync:
             app:
               - path: /tmp

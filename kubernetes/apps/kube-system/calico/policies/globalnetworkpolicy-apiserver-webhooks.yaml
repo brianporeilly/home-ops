@@ -1,7 +1,6 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
-# Step 6 of docs/network-policy-plan.md's proposed baseline. kube-apiserver
-# runs as a static pod on each control-plane node (host network, not the
+# kube-apiserver runs as a static pod on each control-plane node (host network, not the
 # pod overlay), so its calls to admission/conversion webhooks and
 # aggregated APIs show up in flow data as an external "PRIVATE NETWORK"
 # source, not a normal cluster pod - one recurring shape across many

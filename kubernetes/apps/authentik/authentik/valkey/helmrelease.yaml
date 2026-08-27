@@ -20,9 +20,9 @@ spec:
     # Dedicated cache/task-queue instance for authentik - not shared with any
     # other app's redis/valkey, matching this repo's per-app isolation
     # convention (immich, paperless-ngx each have their own too). authentik's
-    # official chart doesn't bundle one (confirmed against its values.yaml),
-    # so this is a standalone release rather than a second controller inside
-    # the authentik chart's own HelmRelease.
+    # official chart doesn't bundle one, so this is a standalone release
+    # rather than a second controller inside the authentik chart's own
+    # HelmRelease.
     controllers:
       valkey:
         pod:

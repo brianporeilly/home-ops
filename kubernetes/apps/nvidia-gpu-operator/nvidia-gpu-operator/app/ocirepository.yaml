@@ -10,22 +10,17 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    # Pinned below 26.7.0 (2026-08-22) - that version's ClusterPolicy never
-    # goes Ready on this cluster (driver.enabled: false, toolkit.enabled:
-    # false - driver is host-managed by Flatcar's nvidia.service, see
-    # gpu-nodes-flatcar-nvidia memory). Confirmed live, reproduced twice:
-    # the cuda-validator init container crash-loops with
-    # "ERROR: driverInitFileInfo 578 result=11" (libnvidia-container driver
-    # init failure) until Helm's own timeout gives up and rolls back.
-    # Ruled out GPU resource contention as the cause (retried with the
-    # cluster's only GPU workload scaled to 0 - identical failure). Leading
-    # theory: 26.7.0 bumped the chart's default driver.version
-    # (580.126.20 -> 595.91.07), and something now checks/expects that
-    # version even with driver.enabled: false, while the actual host driver
-    # stays at 580.105.08. v26.7.0 was published 2026-08-21, <24h before
-    # this was hit - no matching upstream issue found yet, may be
-    # unreported. Renovate is paused on this package in renovate.json
-    # while this gets root-caused - re-enable once resolved, don't just
-    # bump the pin back up without re-testing.
+    # Pinned below 26.7.0 - that version's ClusterPolicy never goes Ready on
+    # this cluster (driver.enabled: false, toolkit.enabled: false - driver is
+    # host-managed by Flatcar's nvidia.service). The cuda-validator init
+    # container crash-loops with "ERROR: driverInitFileInfo 578 result=11"
+    # until Helm's timeout gives up and rolls back; not GPU resource
+    # contention (reproduces with the only GPU workload scaled to 0).
+    # Leading theory: 26.7.0 bumped the chart's default driver.version
+    # (580.126.20 -> 595.91.07) and something checks/expects that version
+    # even with driver.enabled: false, while the host driver stays at
+    # 580.105.08. Renovate is paused on this package in renovate.json until
+    # root-caused - re-enable once resolved, don't just bump the pin back
+    # up without re-testing.
     tag: 26.3.3
   url: oci://ghcr.io/home-operations/charts-mirror/nvidia-gpu-operator

@@ -3,57 +3,23 @@
 # meta/parsed fields crowdsecurity/http-logs (s02-enrich, installed via the
 # PARSERS env var) and crowdsecurity/http-probing (scenario) expect.
 #
-# Fixed 2026-08-19 after discovering this was a total no-op since it was
-# first written: `cscli metrics` showed 100% of events reaching this parser
-# as "parsed" but zero ever poured into any scenario bucket, despite live
-# traffic with scanners hitting 100+ distinct 404 paths in under a minute
-# (way past crowdsecurity/http-probing's capacity:10/leakspeed:10s
-# threshold). Root-caused with `cscli explain -v` against a real captured
-# log line (see chat history) - two compounding bugs, both now fixed:
+# Loki stores these as fluent-bit-wrapped Kubernetes log lines: {"log":
+# "<ts> stdout F <the real envoy JSON>", ...}. Field references must target
+# the INNER envoy JSON, not the outer wrapper - split .log on the fixed
+# "stdout F " marker (SplitN(..., ' ', 4)[3]) and UnmarshalJSON that into a
+# second key. A field pointed at the wrong object silently evaluates to nil
+# (CrowdSec doesn't error on a nil expression, it just skips the field).
 #
-# 1. Loki stores these as fluent-bit-wrapped Kubernetes log lines - a JSON
-#    object like {"log": "<RFC3339 timestamp> stdout F <the real envoy
-#    JSON>", "k_pod_id": ..., "k_container_hash": ..., ...}. The original
-#    parser's single UnmarshalJSON call correctly parsed this OUTER
-#    wrapper, but every field reference (client_ip, path, response_code,
-#    etc, all previously written with a nonexistent "msg_" prefix) pointed
-#    at paths that only exist on the INNER envoy JSON, nested inside the
-#    wrapper's .log string - not the outer object. Every field silently
-#    evaluated to nil (CrowdSec doesn't error on a nil expression, it just
-#    skips setting that field), so parsing "succeeded" while producing
-#    nothing usable. Fixed by splitting .log on the fixed "stdout F "
-#    marker (SplitN(..., ' ', 4)[3], not grok - see point 3) and
-#    UnmarshalJSON-ing THAT into a second key.
-# 2. UnmarshalJSON works by SIDE EFFECT (Go source:
-#    pkg/exprhelpers/jsonextract.go - it mutates the map passed as its 2nd
-#    arg, target[key] = parsed, and always returns nil). It must be called
-#    inside a boolean context (a filter, checked against `in ['', nil]`),
-#    never assigned via a `target:`/`expression:` static - doing that
-#    would overwrite the whole map with the return value (nil, even on
-#    success), silently destroying anything already unmarshaled into it.
+# UnmarshalJSON works by side effect (mutates the map passed as its 2nd
+# arg, always returns nil) - it must be called inside a boolean filter
+# context (`in ['', nil]`), never assigned via a `target:`/`expression:`
+# static, or it overwrites the whole map with nil.
 #
-# 3. (Design note, not a bug fix) Originally tried extracting the inner
-#    JSON substring via a `grok` node instead of SplitN, chained through
-#    multiple sibling `nodes:` entries (extract raw line -> grok -> filter
-#    +statics). That never ran past the first sibling: this file's
-#    top-level `onsuccess: next_stage` doesn't just control the
-#    stage-transition after the whole file succeeds - per CrowdSec source
-#    (pkg/parser/node.go, processLeaves) it ALSO makes iteration over
-#    sibling `nodes:` stop at the first child that returns success, since
-#    onsuccess governs that loop too. The first (trivial, filter-less,
-#    always-succeeds) sibling broke the loop before grok or the later
-#    unmarshal ever ran. Confirmed via `cscli explain -v` showing only
-#    that first node's effects, nothing from the rest of the file. Kept
-#    everything in one flat node (filter + statics, no `nodes:` list) to
-#    sidestep this entirely, once SplitN made grok unnecessary anyway.
-#
-# All of the above verified live with `cscli explain -v -f <captured-line>
-# --type envoy --labels type:envoy` against a real scanner's log line,
-# iterated against a writable copy of /etc/crowdsec (config_paths edited to
-# point there) so testing never touched the live acquisition pipeline -
-# see chat history for the exact commands. Confirmed crowdsecurity/http-logs
-# (s02-enrich) and the crowdsecurity/http-probing scenario itself both go
-# green end to end, not just this parser.
+# Keep this as one flat node (filter + statics), not split across sibling
+# `nodes:` entries: this file's `onsuccess: next_stage` also governs
+# sibling-node iteration (CrowdSec pkg/parser/node.go processLeaves) - it
+# stops at the first child that succeeds, so a trivial always-succeeds
+# sibling would short-circuit any nodes after it.
 filter: |
   (evt.Line.Labels.type == 'envoy' || evt.Parsed.program == 'envoy') &&
   UnmarshalJSON(evt.Line.Raw, evt.Unmarshaled, 'wrapper') in ['', nil] &&

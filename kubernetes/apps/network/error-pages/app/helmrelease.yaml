@@ -104,8 +104,8 @@ spec:
         hostnames:
           - error-pages.internal.oreillys.io
         # Both gateways, not just envoy-internal - Envoy Gateway runs a
-        # separate Envoy proxy fleet per Gateway (confirmed live, distinct
-        # Deployments), so envoy-external's own instance needs this route in
+        # separate Envoy proxy fleet (Deployment) per Gateway, so
+        # envoy-external's own instance needs this route in
         # its OWN table for its internal redirect to resolve at all - a
         # route parented only to envoy-internal would silently fall through
         # for external traffic (per upstream's own docs: an unresolvable
