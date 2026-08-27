@@ -163,6 +163,17 @@ spec:
             secretKeyRef:
               name: whisker-oidc-credentials
               key: client-secret
+        # Consumed by the provider-jellyfin.yaml key in blueprints-native-apps.yaml.
+        - name: JELLYFIN_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-id
+        - name: JELLYFIN_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-secret
         # Consumed by the provider-audiobookshelf.yaml key in blueprints-native-apps.yaml.
         # Sourced from audiobookshelf-oidc-credentials.yaml (ExternalSecret) -
         # see echo-oidc-credentials.yaml for the pattern rationale.
