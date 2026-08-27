@@ -73,6 +73,32 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
+          # jellyfin-plugin-oidc serves its login-button injector script at
+          # /sso/OIDC/LoginButtons but never adds a <script> tag anywhere
+          # for it - confirmed live, the plugin's own /Configuration and
+          # /sso/OIDC/Providers endpoints are correctly set up, but the
+          # actual served index.html has zero reference to it. Same image
+          # as the app container so /jellyfin/jellyfin-web always matches
+          # whatever ships with this jellyfin version - copies it onto the
+          # shared emptyDir below (can't patch in place, app's root fs is
+          # read-only) and inserts the script tag once, idempotently.
+          patch-web-sso:
+            image:
+              repository: ghcr.io/jellyfin/jellyfin
+              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                cp -r /jellyfin/jellyfin-web/. /web-patched/
+                if ! grep -q 'sso/OIDC/LoginButtons' /web-patched/index.html; then
+                  sed -i 's#</body>#<script src="/sso/OIDC/LoginButtons" defer></script></body>#' /web-patched/index.html
+                fi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
@@ -478,3 +504,11 @@ spec:
                 subPath: log
               - path: /tmp
                 subPath: tmp
+              # Overrides the image's own (read-only) jellyfin-web dir with
+              # patch-web-sso's copy, patched with the OIDC login button
+              # script tag - see that init container's comment above.
+              - path: /jellyfin/jellyfin-web
+                subPath: jellyfin-web
+            patch-web-sso:
+              - path: /web-patched
+                subPath: jellyfin-web
