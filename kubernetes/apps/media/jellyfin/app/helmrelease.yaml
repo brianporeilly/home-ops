@@ -21,6 +21,58 @@ spec:
       jellyfin:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # Installs the OIDC RBAC plugin (jellyfin-plugin-oidc, see
+          # docs/security-plan.md) straight from its pinned GitHub release
+          # into the persistent /config volume - Jellyfin has no plugin
+          # catalog-repository automation, this is a GitOps-managed
+          # substitute for the manual "Admin Dashboard > Plugins >
+          # Repositories" step. Idempotent on the pinned version (checks
+          # .installed_version before re-downloading), same pattern as
+          # llama-cpp's fetch-model / home-assistant's install-oidc init
+          # containers. Directory name matches the plugin's own documented
+          # manual-install path exactly. Bump all three COMPONENT_* env
+          # vars together to upgrade (get the new MD5 from the release's
+          # manifest.json, not a separately-published checksum file).
+          install-oidc:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command: ["python3", "-c"]
+            args:
+              - |
+                import hashlib, os, sys, urllib.request, zipfile, io
+
+                url = os.environ["COMPONENT_URL"]
+                want_md5 = os.environ["COMPONENT_MD5"]
+                version = os.environ["COMPONENT_VERSION"]
+                dest = "/config/plugins/OIDC-RBAC"
+                marker = f"{dest}/.installed_version"
+
+                if os.path.exists(marker) and open(marker).read().strip() == version:
+                    print(f"OIDC RBAC {version} already installed, skipping")
+                    sys.exit(0)
+
+                print(f"downloading {url}")
+                data = urllib.request.urlopen(url).read()
+                got_md5 = hashlib.md5(data).hexdigest()
+                if got_md5 != want_md5:
+                    sys.exit(f"checksum mismatch: got {got_md5}, want {want_md5}")
+
+                os.makedirs(dest, exist_ok=True)
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    zf.extractall(dest)
+                with open(marker, "w") as f:
+                    f.write(version)
+                print(f"OIDC RBAC {version} installed")
+            env:
+              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.8/oidc-rbac.zip"
+              COMPONENT_MD5: "d41a0b3792a51b50432c2a6710d10160"
+              COMPONENT_VERSION: "1.0.8"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
@@ -95,6 +147,160 @@ spec:
                 cpu: 10m
               limits:
                 memory: 128Mi
+
+      # OIDC RBAC has no config file/env var path either (server/api-only,
+      # like Audiobookshelf) - unlike Audiobookshelf though, saving config
+      # is Jellyfin's own generic POST /Plugins/{id}/Configuration
+      # endpoint (not something the plugin author had to build), auth'd
+      # with a plain admin API key instead of a username/password login
+      # dance. Idempotent - POSTing the same payload every run is a no-op
+      # after the first. Only runs once install-oidc has actually put the
+      # plugin's DLL in place and Jellyfin has restarted and loaded it -
+      # on a fresh install this may 404 for a few minutes until that
+      # happens, which is fine given the 15m schedule.
+      oidc-bootstrap:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+            command:
+              - python3
+              - -c
+              - |
+                import json, os, urllib.request
+
+                JELLYFIN_URL = "http://jellyfin.media.svc.cluster.local:8096"
+                PLUGIN_ID = "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f90"
+                # External hostname, not auth.internal.oreillys.io - same
+                # reasoning as audiobookshelf's oidc-bootstrap: this is the
+                # backend's own server-to-Authentik traffic, Authentik's
+                # discovery response is host-header-sensitive, and jellyfin
+                # is next on the security-plan external-exposure roadmap -
+                # auth.oreillys.io already resolves in-cluster straight to
+                # envoy-external's own VIP, no cost to picking it now.
+                AUTH_HOSTNAME = "auth.oreillys.io"
+
+                payload = {
+                    "Providers": [
+                        {
+                            "ProviderId": "authentik",
+                            "DisplayName": "Authentik",
+                            "Authority": f"https://{AUTH_HOSTNAME}/application/o/jellyfin/",
+                            "ClientId": os.environ["OIDC_CLIENT_ID"],
+                            "ClientSecret": os.environ["OIDC_CLIENT_SECRET"],
+                            "Scopes": "openid profile email groups",
+                            "RoleClaim": "groups",
+                            "UsernameClaim": "preferred_username",
+                            "DisplayNameClaim": "name",
+                            "PictureClaim": "picture",
+                            "SyncProfileImage": True,
+                            "Enabled": True,
+                            "ButtonColor": "#FC6D26",
+                            "ButtonIcon": "",
+                            "AdditionalParameters": "",
+                            # Deliberately blank, not a fixed hostname - the
+                            # plugin falls back to deriving the redirect_uri
+                            # from the live request when this is empty
+                            # (Api/OidcController.cs BuildRedirectUri), the
+                            # same fix already applied for home-assistant/
+                            # audiobookshelf, just for free here.
+                            "ServerBaseUrl": "",
+                        }
+                    ],
+                    "RoleMappings": [
+                        # Everyone who can complete Authentik login for this
+                        # app is already in media-users (the PolicyBinding
+                        # gate, blueprints-native-apps.yaml) - this grants
+                        # baseline playback access to that same group.
+                        {
+                            "RoleName": "media-users",
+                            "IsAdmin": False,
+                            "EnableAllLibraries": True,
+                            "LibraryIds": [],
+                            "LibraryNames": [],
+                            "EnableLiveTv": False,
+                            "EnableLiveTvManagement": False,
+                            "EnableMediaPlayback": True,
+                            "EnableRemoteAccess": True,
+                            "EnableTranscoding": True,
+                            "EnableContentDeletion": False,
+                            "EnableCollectionManagement": False,
+                            "EnableSubtitleManagement": False,
+                            "MaxParentalRating": None,
+                            "Priority": 0,
+                        },
+                        # jellyfin-admins is unique to this plugin among the
+                        # apps wired up so far - unlike Audiobookshelf's
+                        # hardcoded admin/user/guest groups, this plugin's
+                        # RoleMapping group names are fully ours to choose.
+                        # Merge semantics (plugin README): a user in both
+                        # groups gets the union, so admin membership doesn't
+                        # need to duplicate media-users' own grants.
+                        {
+                            "RoleName": "jellyfin-admins",
+                            "IsAdmin": True,
+                            "EnableAllLibraries": True,
+                            "LibraryIds": [],
+                            "LibraryNames": [],
+                            "EnableLiveTv": True,
+                            "EnableLiveTvManagement": True,
+                            "EnableMediaPlayback": True,
+                            "EnableRemoteAccess": True,
+                            "EnableTranscoding": True,
+                            "EnableContentDeletion": True,
+                            "EnableCollectionManagement": True,
+                            "EnableSubtitleManagement": True,
+                            "MaxParentalRating": None,
+                            "Priority": 10,
+                        },
+                    ],
+                    "DefaultProvider": "authentik",
+                    "AutoCreateUsers": True,
+                    "DefaultRoleName": "media-users",
+                }
+
+                req = urllib.request.Request(
+                    f"{JELLYFIN_URL}/Plugins/{PLUGIN_ID}/Configuration",
+                    data=json.dumps(payload).encode(),
+                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    print(f"OIDC RBAC configured, status {r.status}")
+            env:
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-admin-secret
+                    key: API_KEY
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
 
     defaultPodOptions:
       securityContext:
@@ -239,6 +445,8 @@ spec:
         advancedMounts:
           jellyfin:
             app:
+              - path: /config
+            install-oidc:
               - path: /config
       metadata:
         suffix: metadata

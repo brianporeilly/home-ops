@@ -18,6 +18,12 @@ spec:
       namespace: rook-ceph
     - name: kopiur-repository
       namespace: kopiur-system
+    # oidc-secret.yaml's Reflector mirror can otherwise lose a race
+    # against authentik/app's own ExternalSecret and get stuck permanently
+    # rejected - see kubernetes/apps/download/lidarr/ks.yaml for the
+    # incident this was first found from.
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/media/jellyfin/app
   postBuild:
