@@ -61,12 +61,21 @@ spec:
                     port: &port 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
+                  timeoutSeconds: 5
                   failureThreshold: 3
               readiness: *probes
+              # httpGet, not the app-template default tcp-socket - a bare TCP
+              # check passes as soon as the port is bound, before the WebUI
+              # can actually serve a request. Under a slow/busy session resume
+              # that let liveness (which does check the WebUI) kill the pod
+              # mid-resume and loop forever.
               startup:
                 enabled: true
+                custom: true
                 spec:
+                  httpGet:
+                    path: /
+                    port: *port
                   failureThreshold: 30
                   periodSeconds: 10
             securityContext:
