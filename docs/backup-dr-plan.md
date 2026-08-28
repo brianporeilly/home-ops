@@ -12,11 +12,9 @@ snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts in
 verified — see `migration-inventory.md`), and **off-site (B2) is now live** (§2 L3) — both the
 kopiur repo itself (`RepositoryReplication` → `kopiur-backups` bucket) and the RGW-sourced
 DB/etcd backups (`rgw-nas-sync`'s B2 leg → a separate `ceph-rgw-backups` bucket), each confirmed
-with a real end-to-end sync, not just applied-and-assumed-working. **Still open:** confirm the
-sops age-key backup ×2 (§6, owner task), restore runbook (§6 — the testing itself is done),
-grimmory-bookdrop's missing backup coverage (found during the restore migration, unrelated root
-cause not yet investigated — see `migration-inventory.md` backlog). See the checklist in §8 for
-per-item status.
+with a real end-to-end sync, not just applied-and-assumed-working, and the **sops age-key backup
+is confirmed** off-cluster (§6). **Still open:** restore runbook (§6 — the testing itself is
+done). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -259,9 +257,8 @@ signals cover that bootstrap window. (MariaDB base backups are covered via `kube
 
 ## 6. Secrets & rebuild runbook (highest-consequence, lowest-effort)
 - **SOPS age private key** — if lost, *every* secret is unrecoverable and the cluster can't be
-  bootstrapped from git. Confirm it's backed up in **≥2 places, off-cluster and off-site**
-  (password manager + printed/second location). Do **not** store it in this repo. This is the
-  single most important DR item and it's currently undocumented.
+  bootstrapped from git. **Confirmed backed up (2026-08-28)**, off-cluster/off-site. Do **not**
+  store it in this repo.
 - **Flux bootstrap runbook** — write the exact rebuild path: restore age key → `flux bootstrap`
   → reconcile order → restore etcd/PKI (if restoring vs rebuilding) → restore L1/L2 data.
   Capture **imperative, not-in-git** state here too (e.g. the Ceph CRUSH hdd-rule swap done
@@ -278,7 +275,7 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 
 ## 8. Implementation order (proposed)
 1. ✅ **Dead-man's switch** — closes the scariest blind spot. (§7)
-2. ⬜ **Confirm sops age-key backup** off-cluster ×2 — removes the worst "can't rebuild". **Owner task.** (§6)
+2. ✅ **Confirm sops age-key backup** off-cluster — removes the worst "can't rebuild". (§6)
 3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
 5. ✅ **MariaDB native backup** → PVC via kopiur (moved off RGW 2026-08-21 — Ceph 20.2.4 SigV4
@@ -303,9 +300,8 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
     this cluster. Still 🟡, not ✅, until at least one of those gets a real drill.
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up:** (2) age-key confirmation [owner] is the only fully-unstarted item and needs no NAS.
-(6), (7), (8), and (11) are all done; (12)'s runbook is now written (`restore-runbook.md`) but
-stays 🟡 until its self-flagged gaps (CNPG/MariaDB restore, a full etcd/PKI rebuild, B2-only
+**Next up:** (2) age-key backup is now confirmed. (12)'s runbook is written (`restore-runbook.md`)
+but stays 🟡 until its self-flagged gaps (CNPG/MariaDB restore, a full etcd/PKI rebuild, B2-only
 recovery) get an actual drill — that's the next real backup item. (13) is a low-priority
 nice-to-have.
 

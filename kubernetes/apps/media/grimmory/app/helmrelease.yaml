@@ -303,8 +303,7 @@ spec:
         # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
         # for the full explanation. Sparse content here is expected - the real
         # library catalog lives in storage-grimmory-mariadb-0, untouched by
-        # this. grimmory-bookdrop is NOT wired - see the comment on the
-        # Restore resource in kopiur-snapshot.yaml.
+        # this.
         dataSourceRef:
           apiGroup: kopiur.home-operations.com
           kind: Restore
@@ -337,11 +336,14 @@ spec:
           grimmory:
             app:
               - path: /books
+      # NAS static NFS mount - BookLore's own auto-detect/tag/organize ingest
+      # folder. NFS rather than a PVC so LazyLibrarian (or you, directly) can
+      # drop files in from outside grimmory's own pod - a ceph-block RWO PVC
+      # can only ever be attached to one pod at a time.
       bookdrop:
-        suffix: bookdrop
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "10Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/unsorted/bookdrop
         advancedMounts:
           grimmory:
             app:
