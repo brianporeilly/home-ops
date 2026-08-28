@@ -146,7 +146,7 @@ spec:
                 subPath: config.ini
                 readOnly: true
       # Where LazyLibrarian post-processes/renames completed indexer/download-client
-      # grabs to, before they're sorted into books/ (grimmory's bookdrop) below.
+      # grabs to, before they're sorted into bookdrop/ below.
       downloads:
         suffix: downloads
         storageClass: "ceph-block"
@@ -170,15 +170,15 @@ spec:
       # support worth using here, and its own direct-to-library writes proved
       # unreliable (see PR history) - handing off to BookLore's own
       # detect/tag/organize pipeline via bookdrop is the more trustworthy
-      # path. Mounted at /books to match LazyLibrarian's existing configured
-      # "eBook Library Folder" setting - only the underlying export target
-      # changed, not the path LazyLibrarian itself was already pointed at.
-      books:
+      # path. Mount path renamed to /bookdrop to match what it actually is -
+      # requires updating LazyLibrarian's own "eBook Library Folder" setting
+      # (Settings > Processing) to /bookdrop after this merges.
+      bookdrop:
         type: nfs
         server: 10.20.30.11
         path: /media/unsorted/bookdrop
         globalMounts:
-          - path: /books
+          - path: /bookdrop
       # s6-overlay (linuxserver base image) needs a writable /run to create its
       # socket/pid dirs; /var/run is a symlink to /run on the Debian base. With
       # readOnlyRootFilesystem + S6_READ_ONLY_ROOT=1, this emptyDir receives the
