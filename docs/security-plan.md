@@ -204,7 +204,7 @@ default-yes. Status as of 2026-08-20:
 | home-assistant | **external** | Authentik SSO, live-tested (§3.2) | still native-account-capable as fallback (`hass-oidc-auth` doesn't remove it); rate limit is the shared 100 req/s blanket only (§2.3), no dedicated policy yet |
 | grocy | **not deployed** (`ks.yaml` commented out in `apps/home/kustomization.yaml`) | native accounts — not yet verified | Its `helmrelease.yaml` had a leftover external route from before it was disabled - not a live exposure gap, just stale config. Switched to internal-only for whenever it's actually enabled; revisit auth model at that point. |
 | vaultwarden | internal only, **deliberately deferred** | native accounts, master password is the real boundary | agreed valuable (that's the point of a password manager) but not a default-yes — holding off for now, not forgotten |
-| jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
+| jellyfin | **external** | Authentik SSO (`jellyfin-plugin-oidc`, OIDC RBAC), native account fallback | dedicated login-path rate limit in place (§2.3 pattern) |
 | audiobookshelf | **external** (2026-08-25) | Authentik SSO, native account fallback | renamed `books.*` → `audiobooks.*` before exposing (naming clash with grimmory's book/comics library); dedicated login-path rate limit in place (§2.3 pattern) |
 | copy-party | internal only, candidate | volume ACLs (see "Done" above) | ACL redesign in progress; public read-only + root-only write is the right shape before this goes external |
 | grimmory | **external** (2026-08-28) | Authentik SSO (BookLore native OIDC, safe group-mapping - no login-denial-on-no-match unlike audiobookshelf), admin group mirrors jellyfin-admins | renamed `grimmory.*` → `books.*` before exposing; dedicated login-path rate limit in place (§2.3 pattern) |
@@ -326,8 +326,8 @@ Three things worth being deliberate about, given how much this app controls:
    confirming the native-login fallback's MFA/password strength.
 5. ~~**Audiobookshelf**~~ — SSO live (§3.2-style native OIDC), external route + dedicated
    rate-limit policy added 2026-08-25; hostname renamed to `audiobooks.*` first.
-6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
-   accounts only, as immich already does) and its own rate limit is in place.
+6. ~~**Jellyfin**~~ — SSO live (`jellyfin-plugin-oidc`), external route + dedicated rate-limit
+   policy in place.
 7. ~~**Grimmory**~~ — SSO live (BookLore native OIDC), external route + dedicated
    rate-limit policy added 2026-08-28; hostname renamed to `books.*` first.
 8. **Image scanning / admission control** (§2.4) — no urgency, pick up whenever.

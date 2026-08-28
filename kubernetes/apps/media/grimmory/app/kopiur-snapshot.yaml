@@ -1,11 +1,12 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/snapshotpolicy_v1alpha1.json
 # Written directly rather than via components/kopiur/backup - that component
-# only wires up a single ${PVC}, but grimmory has three PVCs worth backing up
-# (library data, the bookdrop ingest dir, and mariadb-operator's own backup
-# PVC - see backup.yaml for why that's a PVC and not RGW/S3). Same
-# repository/mover/retention shape as the shared component, just with all
-# sources in one policy.
+# only wires up a single ${PVC}, but grimmory has two PVCs worth backing up
+# (library data and mariadb-operator's own backup PVC - see backup.yaml for
+# why that's a PVC and not RGW/S3). Same repository/mover/retention shape as
+# the shared component, just with both sources in one policy. bookdrop is an
+# NFS mount, not a PVC - not kopiur's to back up, whatever the NAS's own
+# backup story covers it.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: SnapshotPolicy
 metadata:
@@ -21,8 +22,6 @@ spec:
   sources:
     - pvc:
         name: grimmory-data
-    - pvc:
-        name: grimmory-bookdrop
     - pvc:
         name: grimmory-mariadb-backup-pvc
   mover:
@@ -42,10 +41,8 @@ spec:
     keepWeekly: 4
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kopiur.home-operations.com/restore_v1alpha1.json
-# Only covers grimmory-data. grimmory-bookdrop is declared as a second
-# source above but has never actually been captured by any Snapshot this
-# SnapshotPolicy has produced - wiring a populator to a PVC with zero
-# backup history would be a no-op at best.
+# Only covers grimmory-data - bookdrop is an NFS mount now, not a PVC, so
+# there's nothing for a populator to restore there.
 apiVersion: kopiur.home-operations.com/v1alpha1
 kind: Restore
 metadata:

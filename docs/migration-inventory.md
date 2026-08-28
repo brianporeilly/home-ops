@@ -69,7 +69,7 @@ Legend:
 |-----|-----|-----|---------------|---------|-------|
 | audiobookshelf | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media/audiobooks`); app is functional, media files still being copied onto the new NAS |
 | jellyfin | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media`); same as above — waiting on media copy, not plumbing |
-| jellyseerr | ✅ | ❓ | None (just config) | No | Not started — not present in repo at all yet |
+| jellyseerr | ✅ | ✅ | None (just config) | No | Shipped (PR #596), internal-only |
 | navidrome | ✅ | 💀 | None (reads music from NAS) | Yes - music library | Not using |
 | ersatztv | ❌ | 🟡 | None (reads media from NAS) | Yes - media library | NFS mount wired (same export as jellyfin); waiting on media copy |
 | tdarr | ✅ | 🔲 | Config only | Yes - media library | On main but still not wired into `media/kustomization.yaml` |
@@ -171,7 +171,7 @@ Legend:
 | nvidia-gpu-operator | ✅ | GPU driver/operand management for `wk-drotte`/`wk-roche` |
 | **forgejo** | ✅ | Postgres-backed git forge in `misc` (moved from `home`). Repo/LFS on `csi-driver-nfs` (`nfs-slow`), app state on `ceph-block`. HTTPS + SSH clone, both via `envoy-internal` (HTTPRoute + TCPRoute — see `network/envoy-gateway/config/envoy.yaml`'s `ssh` listener), no dedicated kube-vip LB IP for SSH. Outbound mail via maddy. Survived 3 bootstrap-Job bugs (wrong exec args, missing `INSTALL_LOCK`, not idempotent against Flux's hourly reconcile) — all fixed, see git history on `kubernetes/apps/misc/forgejo/`. |
 | **soularr** | ✅ | New — bridges lidarr and slskd (watches lidarr's wanted list, searches/downloads via slskd). `SLSKD_API_KEY` was left as an empty placeholder since slskd runs with `SLSKD_NO_AUTH: true` — confirm that's still true, or fill in a real key. Also confirm the secret got `sops --encrypt`'d and the `[Search Settings]`/`[Release Settings]` defaults in `config.ini` match your preferences — none of that was verified after merge. |
-| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS, under `/backups/kopiur`) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. **Off-site to B2 also live** (own repo + the separate RGW-sourced DB/etcd backups, two buckets). See Backlog for what's left (grimmory-bookdrop gap). |
+| **kopiur** | ✅ | Kopia-native backup operator for non-DB PVC data (the `backup-dr-plan.md` L2 tier — settled in Kopia's favor over Volsync). Live: shared `ClusterRepository` (NFS to the NAS, under `/backups/kopiur`) + read-only web UI, 29 apps wired via a reusable `SnapshotPolicy`/`SnapshotSchedule` component, hourly schedule. **Restore-on-rebuild also live** — all 22 backed-up apps wired to the `Restore` CSI populator, individually migrated and verified. **Off-site to B2 also live** (own repo + the separate RGW-sourced DB/etcd backups, two buckets). |
 
 ---
 
@@ -208,7 +208,7 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - All networking (envoy-gateway, certificates, omada-controller)
 - All databases (CNPG ×5+, mariadb-operator, clickhouse) — DBs on the SSD tier
 - **esphome**, **home-assistant** (old recorder history dropped by decision)
-- **immich**, **grimmory**, **paperless-ngx**, **qbittorrent**
+- **immich**, **grimmory**, **paperless-ngx**, **qbittorrent**, **jellyseerr**
 - **arr stack**: sabnzbd, sonarr, radarr, prowlarr, recyclarr, configarr, arr-notifications, lidarr, bazarr, qui, slskd, lazylibrarian
 - **changedetection**, **searxng**
 - **NAS itself** — rebuilt to the final planned ZFS layout, live and serving NFS (`10.20.30.11`)
@@ -230,9 +230,6 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 - **tdarr** — on main but not wired into `media/kustomization.yaml`
 - **octoprint** — commented out, needs node + USB config
 - **minecraft** — commented out, uncomment when wanted
-
-### ❓ Needs decision
-- **jellyseerr** — media requests portal, not started, not in repo
 
 ### 💀 Skip
 - readarr → replaced by grimmory
@@ -321,14 +318,13 @@ old NAS box was wiped and rebuilt as the new cluster's `nas-ultan` before shutdo
   kopiur's blobs is expected (kopia only shards into subdirectories on filesystem backends, not
   object stores). See `backup-dr-plan.md` §2 L3 for the full writeup.
 
-**Not started:**
-- **grimmory-bookdrop has zero backup coverage** — found while migrating grimmory to the Restore
-  populator: its `SnapshotPolicy` declares two sources (`grimmory-data`, `grimmory-bookdrop`), but
-  every `Snapshot` it has ever produced only actually resolved `grimmory-data`. Confirmed via
-  `status.resolved.sources` on the full Snapshot history, not just the latest. Root cause not yet
-  investigated - worth checking whether explicit multi-entry `sources:` lists (vs. a `pvcSelector`)
-  actually expand to one Snapshot per PVC the way kopiur's docs describe, or if this is a genuine
-  gap in that path.
+**Resolved (moot, not fixed):**
+- **grimmory-bookdrop's missing backup coverage** — root cause never got investigated because the
+  premise changed: bookdrop moved from a `ceph-block` PVC to an NFS mount
+  (`10.20.30.11:/media/unsorted/bookdrop`), so it can't be given to LazyLibrarian to write into
+  from a different pod/namespace (RWO PVCs only attach to one pod). It's no longer a PVC at all,
+  so it's not kopiur's SnapshotPolicy to cover - whatever backup story the NAS has for its own
+  export tree applies here now, same as any other NFS-mounted media path.
 
 **Not started:**
 - **blackbox_exporter** — Prometheus-native ICMP/TCP probes (NAS ping + NFS port 2049, maybe Omada

@@ -146,7 +146,7 @@ spec:
                 subPath: config.ini
                 readOnly: true
       # Where LazyLibrarian post-processes/renames completed indexer/download-client
-      # grabs to, before they're sorted into comics/ or books/ below.
+      # grabs to, before they're sorted into books/ (grimmory's bookdrop) below.
       downloads:
         suffix: downloads
         storageClass: "ceph-block"
@@ -165,21 +165,18 @@ spec:
         path: /media/unsorted/lazylibrarian
         globalMounts:
           - path: /unsorted-test
-      # NAS static NFS mount - same comics export grimmory reads. Mounted
-      # writable so LazyLibrarian can write identified/organized output
-      # directly into grimmory's library (same shape as sonarr/radarr writing
-      # straight into jellyfin's library) rather than through bookdrop.
-      comics:
-        type: nfs
-        server: 10.20.30.11
-        path: /media/comics
-        globalMounts:
-          - path: /comics
-      # NAS static NFS mount - same ebooks export grimmory reads.
+      # NAS static NFS mount - grimmory's (BookLore) bookdrop ingest folder,
+      # not grimmory's actual library. LazyLibrarian doesn't have real comic
+      # support worth using here, and its own direct-to-library writes proved
+      # unreliable (see PR history) - handing off to BookLore's own
+      # detect/tag/organize pipeline via bookdrop is the more trustworthy
+      # path. Mounted at /books to match LazyLibrarian's existing configured
+      # "eBook Library Folder" setting - only the underlying export target
+      # changed, not the path LazyLibrarian itself was already pointed at.
       books:
         type: nfs
         server: 10.20.30.11
-        path: /media/books
+        path: /media/unsorted/bookdrop
         globalMounts:
           - path: /books
       # s6-overlay (linuxserver base image) needs a writable /run to create its
