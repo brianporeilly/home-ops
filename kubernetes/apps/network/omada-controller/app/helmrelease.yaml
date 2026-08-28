@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: mbentley/omada-controller
-              tag: 6.2.14.11@sha256:7566f88e063487ace00c70ba55122fe2fb116e677aaa628f0020e16cb66c358e
+              tag: 6.2.14.11@sha256:be2883f21d84227b0db7df98c2ebf35d77d4b68cbd732d19fad7a5bbb7c3e6c6
             env:
               MANAGE_HTTP_PORT: "8088"
               MANAGE_HTTPS_PORT: "8043"
