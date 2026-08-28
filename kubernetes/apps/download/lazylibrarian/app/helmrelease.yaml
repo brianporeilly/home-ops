@@ -137,10 +137,8 @@ spec:
               - path: /seed/config.ini
                 subPath: config.ini
                 readOnly: true
-      # Where LazyLibrarian post-processes/renames completed grabs to.
-      # Point Settings > Processing > Destination/eBook folder here.
-      # For now this is a standalone PVC - move/rsync into grimmory's
-      # bookdrop manually until shared (RWX/NFS) storage is available.
+      # Where LazyLibrarian post-processes/renames completed indexer/download-client
+      # grabs to, before they're sorted into comics/ or books/ below.
       downloads:
         suffix: downloads
         storageClass: "ceph-block"
@@ -148,6 +146,34 @@ spec:
         size: "20Gi"
         globalMounts:
           - path: /downloads
+      # NAS static NFS mount - small scoped trial batch, NOT the full
+      # /media/unsorted/{books,comics} backlog. Drop a handful of test files
+      # at 10.20.30.11:/media/unsorted/lazylibrarian and point LazyLibrarian's
+      # library-scan/import at /unsorted-test to validate identify/sort/tag
+      # end-to-end before pointing it at the real backlog.
+      unsorted-test:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/unsorted/lazylibrarian
+        globalMounts:
+          - path: /unsorted-test
+      # NAS static NFS mount - same comics export grimmory reads. Mounted
+      # writable so LazyLibrarian can write identified/organized output
+      # directly into grimmory's library (same shape as sonarr/radarr writing
+      # straight into jellyfin's library) rather than through bookdrop.
+      comics:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/comics
+        globalMounts:
+          - path: /comics
+      # NAS static NFS mount - same ebooks export grimmory reads.
+      books:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/books
+        globalMounts:
+          - path: /books
       # s6-overlay (linuxserver base image) needs a writable /run to create its
       # socket/pid dirs; /var/run is a symlink to /run on the Debian base. With
       # readOnlyRootFilesystem + S6_READ_ONLY_ROOT=1, this emptyDir receives the
