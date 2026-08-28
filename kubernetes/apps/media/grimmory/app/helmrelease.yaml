@@ -320,23 +320,23 @@ spec:
             app:
               - path: /app/data
       # NAS static NFS mount - dedicated comics export subdirectory.
-      books:
+      comics:
         type: nfs
         server: 10.20.30.11
         path: /media/comics
         advancedMounts:
           grimmory:
             app:
-              - path: /books
+              - path: /comics
       # NAS static NFS mount - dedicated ebooks export subdirectory.
-      ebooks:
+      books:
         type: nfs
         server: 10.20.30.11
         path: /media/books
         advancedMounts:
           grimmory:
             app:
-              - path: /ebooks
+              - path: /books
       bookdrop:
         suffix: bookdrop
         storageClass: "ceph-block"
