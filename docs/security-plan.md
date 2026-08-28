@@ -207,7 +207,7 @@ default-yes. Status as of 2026-08-20:
 | jellyfin | internal only, candidate | native accounts, no MFA/SSO (SSO plugin needs manual REST-API setup, backlog) | biggest risk is transcoding as a resource-exhaustion vector for anonymous abuse, plus credential stuffing on reused passwords; wire SSO or at least `protect-external` before exposing, and give it its own §2.3 rate limit |
 | audiobookshelf | **external** (2026-08-25) | Authentik SSO, native account fallback | renamed `books.*` → `audiobooks.*` before exposing (naming clash with grimmory's book/comics library); dedicated login-path rate limit in place (§2.3 pattern) |
 | copy-party | internal only, candidate | volume ACLs (see "Done" above) | ACL redesign in progress; public read-only + root-only write is the right shape before this goes external |
-| grimmory | internal only, candidate | **not yet checked** | confirm its auth model before considering external exposure |
+| grimmory | **external** (2026-08-28) | Authentik SSO (BookLore native OIDC, safe group-mapping - no login-denial-on-no-match unlike audiobookshelf), admin group mirrors jellyfin-admins | renamed `grimmory.*` → `books.*` before exposing; dedicated login-path rate limit in place (§2.3 pattern) |
 | tuwunel | not deployed for real use yet | n/a | holding off is the right call — if federation is ever wanted, that's a different exposure model entirely (server reachable on 8448 or `.well-known` delegation on 443, closed registration, its own hardening), not a routine HTTPRoute add. Revisit once you've actually used it and know if you want federation vs. just remote client access |
 | searxng | internal only, **should stay internal** | n/a | self-hosted search proxies are a magnet for bots hunting an open relay/scraper if exposed publicly |
 
@@ -328,7 +328,8 @@ Three things worth being deliberate about, given how much this app controls:
    rate-limit policy added 2026-08-25; hostname renamed to `audiobooks.*` first.
 6. **Jellyfin** — after SSO/`protect-external` is wired (or a deliberate decision to accept native
    accounts only, as immich already does) and its own rate limit is in place.
-7. **Grimmory** — after confirming its auth model.
+7. ~~**Grimmory**~~ — SSO live (BookLore native OIDC), external route + dedicated
+   rate-limit policy added 2026-08-28; hostname renamed to `books.*` first.
 8. **Image scanning / admission control** (§2.4) — no urgency, pick up whenever.
 9. **Grocy** — not deployed yet; revisit exposure/auth model whenever it's actually enabled.
 10. **Teleport for kubectl access** (§2.5) — super low urgency, watch-item only.

@@ -10,3 +10,4 @@ resources:
   - ./kopiur-snapshot.yaml
   - ./oidc-secret.yaml
   - ./admin-secret.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml

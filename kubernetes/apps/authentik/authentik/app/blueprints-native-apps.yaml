@@ -531,8 +531,13 @@ data:
               # Grimmory (BookLore) builds this client-side from
               # window.location.origin (confirmed in the shipped frontend
               # JS bundle) - not /oauth2/callback, this app isn't behind
-              # components/authentik/protect. Internal-only for now.
-              url: https://grimmory.internal.oreillys.io/oauth2-callback
+              # components/authentik/protect. Both hostnames listed, like
+              # audiobookshelf/home-assistant, since whichever one the
+              # browser used needs to be registered too.
+              url: https://books.internal.oreillys.io/oauth2-callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://books.oreillys.io/oauth2-callback
               redirect_uri_type: authorization
           grant_types:
             - authorization_code
