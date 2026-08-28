@@ -73,9 +73,17 @@ spec:
             # PUID/PGID and fix-attrs chmods the service scripts); the app itself
             # drops to abc (1000) via s6-setuidgid. The s6-overlay preinit/fix-attrs
             # steps need CHOWN/DAC_OVERRIDE/FOWNER/SETUID/SETGID to do that work.
+            # readOnlyRootFilesystem must stay false here: the PUID/PGID remap
+            # writes /etc/passwd and /etc/group, and under a read-only rootfs that
+            # write silently no-ops - LinuxServer's own docs confirm this (the
+            # container just runs as the image's baked-in abc, uid/gid 911:1001,
+            # not the configured PUID/PGID). That mismatch bit us for real: this
+            # app's own root-driven chown pass then re-owned the shared NFS
+            # comics/books exports (also used by grimmory) to 911:1001 on every
+            # restart, clobbering the 1000:1000 every other app expects there.
             securityContext:
               allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
+              readOnlyRootFilesystem: false
               capabilities:
                 drop: ["ALL"]
                 add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
@@ -94,7 +102,6 @@ spec:
         runAsGroup: 0
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-        supplementalGroups: [1000]
 
     service:
       app:
