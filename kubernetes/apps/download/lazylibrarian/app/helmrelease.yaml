@@ -154,17 +154,6 @@ spec:
         size: "20Gi"
         globalMounts:
           - path: /downloads
-      # NAS static NFS mount - small scoped trial batch, NOT the full
-      # /media/unsorted/{books,comics} backlog. Drop a handful of test files
-      # at 10.20.30.11:/media/unsorted/lazylibrarian and point LazyLibrarian's
-      # library-scan/import at /unsorted-test to validate identify/sort/tag
-      # end-to-end before pointing it at the real backlog.
-      unsorted-test:
-        type: nfs
-        server: 10.20.30.11
-        path: /media/unsorted/lazylibrarian
-        globalMounts:
-          - path: /unsorted-test
       # NAS static NFS mount - grimmory's (BookLore) bookdrop ingest folder,
       # not grimmory's actual library. LazyLibrarian doesn't have real comic
       # support worth using here, and its own direct-to-library writes proved
