@@ -255,11 +255,38 @@ spec:
     route:
       app:
         hostnames:
-          - grimmory.internal.oreillys.io
+          - books.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      external:
+        annotations:
+          # gatus-sidecar's PathPrefix auto-discovery gotcha - see the
+          # home-assistant/jellyfin/audiobookshelf route comments for the
+          # same issue.
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - books.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        # Explicit now that there's a named sub-rule - chart's implicit
+        # catch-all is gone once rules: is set at all.
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /api/v1/auth/login
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
 
     persistence:
       tmp:
