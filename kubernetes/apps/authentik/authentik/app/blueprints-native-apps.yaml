@@ -592,19 +592,16 @@ data:
           client_type: public
           client_id: podfetch
           redirect_uris:
-            # Best-guess, NOT confirmed live: PodFetch's OIDC_REDIRECT_URI is
-            # a single fixed value (unlike audiobookshelf/home-assistant/
-            # grimmory, which derive it from the live request and need every
-            # hostname registered) - couldn't find an explicit callback route
-            # in the Rust backend (no server-side authorization-code handling
-            # exists at all, per the comment above), so this assumes the
-            # frontend's OIDC library treats the app's own root as its
-            # callback route, a common pattern for browser-side PKCE. Verify
-            # against a real login attempt and fix if wrong - same as
-            # grimmory/jellyfin's redirect_uris needed a follow-up fix after
-            # first deploy.
+            # Correction, confirmed live (2026-08-29): the app root took the
+            # browser to the raw /.well-known/openid-configuration document
+            # instead of completing login. PodFetch's SPA is served under
+            # /ui/ (confirmed via its own request logs), and /ui/login is
+            # the real callback path - matches working configs in upstream
+            # issues #1479/#1167, not something PodFetch derives from the
+            # live request the way audiobookshelf/home-assistant/grimmory
+            # do, so only this one fixed value is needed.
             - matching_mode: strict
-              url: https://podfetch.internal.oreillys.io/
+              url: https://podfetch.internal.oreillys.io/ui/login
               redirect_uri_type: authorization
           grant_types:
             - authorization_code

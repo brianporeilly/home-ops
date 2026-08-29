@@ -45,11 +45,15 @@ spec:
               # (crates/common-infrastructure/src/config.rs) reads a raw
               # jwks_uri directly, no discovery-document fetch of its own.
               OIDC_JWKS: https://auth.internal.oreillys.io/application/o/podfetch/jwks/
-              # Best-guess, NOT confirmed live - see the matching comment on
-              # this app's redirect_uris entry in
-              # blueprints-native-apps.yaml for why. Required: PodFetch
+              # Correction, confirmed live (2026-08-29): the app root
+              # (bare "/") took the browser to the raw
+              # /.well-known/openid-configuration document instead of
+              # completing login - PodFetch's SPA is served under /ui/
+              # (confirmed via its own request logs: GET / -> 303 -> /ui/),
+              # and /ui/login is the real callback path, matching working
+              # configs in upstream issues #1479/#1167. Required: PodFetch
               # panics on startup with OIDC_AUTH=true and this unset.
-              OIDC_REDIRECT_URI: https://podfetch.internal.oreillys.io/
+              OIDC_REDIRECT_URI: https://podfetch.internal.oreillys.io/ui/login
             envFrom:
               - secretRef:
                   name: podfetch-secret
