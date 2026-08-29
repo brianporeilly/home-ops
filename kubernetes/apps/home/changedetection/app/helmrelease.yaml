@@ -43,7 +43,7 @@ spec:
               repository: ghcr.io/dgtlmoon/changedetection.io
               tag: 0.55.8@sha256:fab18103da4995c98df9529752848ccb061b4ecf8bd24c307936af0656f8ba16
             env:
-              PLAYWRIGHT_DRIVER_URL: ws://changedetection-sockpuppetbrowser:3000
+              PLAYWRIGHT_DRIVER_URL: "ws://changedetection-sockpuppetbrowser:3000/?--origin-to-force-quic-on=www.bestbuy.com:443"
               ALLOW_IANA_RESTRICTED_ADDRESSES: true
             probes:
               liveness: &probes
@@ -71,8 +71,8 @@ spec:
         containers:
           app:
             image:
-              repository: docker.io/dgtlmoon/sockpuppetbrowser
-              tag: 0.0.3@sha256:23a7be698216407648b6c78fc55de0411bde550635edc30347373c86a5176fad
+              repository: ghcr.io/brianporeilly/sockpuppetbrowser
+              tag: chrome-152.0.7977.64
             env:
               CHROME_HEADFUL: "true"
               SCREEN_WIDTH: "1920"
