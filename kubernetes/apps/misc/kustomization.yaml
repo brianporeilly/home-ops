@@ -20,6 +20,7 @@ patches:
           kopiur.home-operations.com/privileged-movers: "true"
 resources:
   - ./atuin/ks.yaml
+  - ./calibre-web-automated/ks.yaml
   - ./copyparty/ks.yaml
   - ./forgejo/ks.yaml
   - ./forgejo/bootstrap/ks.yaml
