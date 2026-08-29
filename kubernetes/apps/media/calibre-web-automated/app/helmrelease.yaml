@@ -1,0 +1,127 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: calibre-web-automated
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: calibre-web-automated
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      calibre-web-automated:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/crocodilestick/calibre-web-automated
+              tag: v4.0.6@sha256:fbf0c866e77b366f07050a6a12fee4e840b60d364485576a810109851a488eec
+            env:
+              PUID: 1000
+              PGID: 1000
+              TZ: UTC
+              NETWORK_SHARE_MODE: true
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 8083
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  failureThreshold: 30
+                  periodSeconds: 10
+            # s6-overlay init (cwa-init) needs to start as root to chown its
+            # own baked-in app files - readOnlyRootFilesystem must stay false
+            # since some of what it chowns lives on the container's own
+            # rootfs, not just mounted volumes (same class of issue hit and
+            # fixed for lazylibrarian - see that helmrelease.yaml's comment).
+            # NETWORK_SHARE_MODE=true (above) makes cwa-init skip chown on
+            # /config, /calibre-library, /cwa-book-ingest specifically, so it
+            # won't re-own their NFS-backed content the way LazyLibrarian did
+            # to grimmory's bookdrop before that was understood.
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                memory: 2Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: calibre-web-automated
+        ports:
+          http:
+            port: 8083
+
+    route:
+      app:
+        hostnames:
+          - calibre.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        globalMounts:
+          - path: /config
+      # csi-driver-nfs (nfs-slow), not ceph-block - deliberately isolated
+      # trial storage, dynamically provisioned on the NAS, fully separate
+      # from grimmory's/audiobookshelf's real libraries. Trivial to delete
+      # and recreate if the trial doesn't work out.
+      ingest:
+        suffix: ingest
+        storageClass: "nfs-slow"
+        accessMode: ReadWriteOnce
+        size: "10Gi"
+        globalMounts:
+          - path: /cwa-book-ingest
+      library:
+        suffix: library
+        storageClass: "nfs-slow"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /calibre-library

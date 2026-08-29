@@ -20,6 +20,7 @@ patches:
           kopiur.home-operations.com/privileged-movers: "true"
 resources:
   - ./audiobookshelf/ks.yaml
+  - ./calibre-web-automated/ks.yaml
   - ./jellyfin/ks.yaml
   - ./jellyseerr/ks.yaml
   - ./podfetch/ks.yaml
