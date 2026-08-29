@@ -30,10 +30,13 @@ spec:
               PORT: &port 8000
               POLLING_INTERVAL: 300
               DATABASE_URL: sqlite:///app/db/podcast.db
-              # Basic auth stays enabled alongside OIDC as a break-glass
-              # fallback - PodFetch supports both simultaneously
-              # (EnvironmentService.any_auth_enabled ORs all three modes).
-              BASIC_AUTH: "true"
+              # Correction, confirmed live (2026-08-29): BASIC_AUTH and
+              # OIDC_AUTH cannot both be true - PodFetch panics on startup
+              # ("You cannot have oidc and basic auth enabled at the same
+              # time"). any_auth_enabled ORing all three modes in the source
+              # is just an "is anything enabled" check elsewhere, not
+              # permission for these two specifically to coexist.
+              BASIC_AUTH: "false"
               OIDC_AUTH: "true"
               OIDC_AUTHORITY: https://auth.internal.oreillys.io/application/o/podfetch/
               OIDC_CLIENT_ID: podfetch
