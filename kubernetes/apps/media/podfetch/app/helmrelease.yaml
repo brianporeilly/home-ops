@@ -113,6 +113,36 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # Basic auth only for now - PodFetch's OIDC login is a confirmed
+      # upstream bug (see the comment on BASIC_AUTH/OIDC_AUTH above),
+      # exposing externally regardless per explicit decision.
+      external:
+        annotations:
+          # gatus-sidecar's PathPrefix auto-discovery gotcha - see the
+          # home-assistant/jellyfin/audiobookshelf/grimmory route comments
+          # for the same issue.
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - podfetch.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        # Explicit now that there's a named sub-rule - chart's implicit
+        # catch-all is gone once rules: is set at all.
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /api/v1/login
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
 
     persistence:
       db:
