@@ -30,30 +30,35 @@ spec:
               PORT: &port 8000
               POLLING_INTERVAL: 300
               DATABASE_URL: sqlite:///app/db/podcast.db
-              # Correction, confirmed live (2026-08-29): BASIC_AUTH and
-              # OIDC_AUTH cannot both be true - PodFetch panics on startup
-              # ("You cannot have oidc and basic auth enabled at the same
-              # time"). any_auth_enabled ORing all three modes in the source
-              # is just an "is anything enabled" check elsewhere, not
-              # permission for these two specifically to coexist.
-              BASIC_AUTH: "false"
-              OIDC_AUTH: "true"
-              OIDC_AUTHORITY: https://auth.internal.oreillys.io/application/o/podfetch/
-              OIDC_CLIENT_ID: podfetch
-              # Real IdP metadata URL, not this repo's usual "*/well-known/
-              # openid-configuration" pattern - PodFetch's own config
-              # (crates/common-infrastructure/src/config.rs) reads a raw
-              # jwks_uri directly, no discovery-document fetch of its own.
-              OIDC_JWKS: https://auth.internal.oreillys.io/application/o/podfetch/jwks/
-              # Correction, confirmed live (2026-08-29): the app root
-              # (bare "/") took the browser to the raw
-              # /.well-known/openid-configuration document instead of
-              # completing login - PodFetch's SPA is served under /ui/
-              # (confirmed via its own request logs: GET / -> 303 -> /ui/),
-              # and /ui/login is the real callback path, matching working
-              # configs in upstream issues #1479/#1167. Required: PodFetch
-              # panics on startup with OIDC_AUTH=true and this unset.
-              OIDC_REDIRECT_URI: https://podfetch.internal.oreillys.io/ui/login
+              # Reverted, confirmed live (2026-08-29): PodFetch's OIDC login
+              # is fundamentally broken, not a config problem - its frontend
+              # (ui/src/main.tsx, confirmed present even in the unreleased
+              # main branch, not just our pinned v5.2.3) builds the
+              # authorize redirect as `${authority}?client_id=...` instead
+              # of discovering the real authorization_endpoint via
+              # /.well-known/openid-configuration first. It literally
+              # treats the issuer URL as the authorize endpoint, so it
+              # sends the browser to Authentik's bare issuer path -
+              # Authentik serves its discovery document there instead of an
+              # actual login page. No env var or Authentik-side config can
+              # work around this. Also found the hard way: while
+              # OIDC_AUTH=true, PodFetch's login bootstrap never falls
+              # through to the basic-auth path at all (if/else if on
+              # oidcConfigured first) - so leaving OIDC "on" while it's
+              # broken means total lockout, not just missing SSO.
+              # BASIC_AUTH and OIDC_AUTH also can't both be true regardless
+              # (confirmed live: PodFetch panics on startup with both set).
+              #
+              # Left the OIDC_* values here, commented, so re-enabling once
+              # upstream fixes this is a one-line flip - Authentik's own
+              # provider/blueprint (blueprints-native-apps.yaml) is
+              # untouched and still correct.
+              BASIC_AUTH: "true"
+              # OIDC_AUTH: "true"
+              # OIDC_AUTHORITY: https://auth.internal.oreillys.io/application/o/podfetch/
+              # OIDC_CLIENT_ID: podfetch
+              # OIDC_JWKS: https://auth.internal.oreillys.io/application/o/podfetch/jwks/
+              # OIDC_REDIRECT_URI: https://podfetch.internal.oreillys.io/ui/login
             envFrom:
               - secretRef:
                   name: podfetch-secret
