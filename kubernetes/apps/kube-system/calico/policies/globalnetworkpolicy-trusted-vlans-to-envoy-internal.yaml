@@ -18,6 +18,13 @@
 # (OPNsense) haven't been built yet, not because it's actually meant to -
 # not included here either.
 #
+# `10.100.0.0/16` added 2026-08-29 - WireGuard client subnet. Traffic to
+# envoy-internal isn't NATed by OPNsense (unlike envoy-external's
+# internet-sourced traffic), so it arrives here with the client's real
+# WireGuard-assigned source IP, not OPNsense's own transit address -
+# needs its own explicit entry rather than relying on
+# allow-opnsense-to-envoy-external's pattern.
+#
 # Destination scoped to envoy-internal's pods specifically (by
 # owning-gateway-name), not "all of network" or "all envoy proxy pods" -
 # envoy-external shouldn't accept this traffic under this rule, it gets
@@ -48,5 +55,6 @@ spec:
           - 10.20.0.0/16
           - 10.30.0.0/16
           - 10.40.0.0/16
+          - 10.100.0.0/16
       destination:
         ports: [10080, 10443, 10022]
