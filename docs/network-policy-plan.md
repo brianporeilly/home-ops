@@ -142,10 +142,14 @@ from the table below (see notes).
      resolve internally to envoy-external's own VIP for trusted-VLAN clients, so that traffic
      never actually leaves for the internet/OPNsense's NAT hop - same trusted-VLAN source list,
      destination scoped to envoy-external, no SSH port (external doesn't expose it).
-   - `allow-opnsense-to-envoy-external` — source `10.2.0.1/32` only, not "the whole internet": for
-     traffic that *does* come from the actual internet, OPNsense NATs it before it reaches the
-     cluster (already established in envoy.yaml's own ClientTrafficPolicy comment), so that's the
-     only L3 source Calico will ever actually see for that path.
+   - `allow-opnsense-to-envoy-external` — originally scoped to source `10.2.0.1/32` only, on the
+     theory that OPNsense NATs (masquerades) all internet-bound traffic before it reaches the
+     cluster. **Corrected (2026-08-22, confirmed live via a real ~1hr Jellyfin streaming session
+     from cellular data outside the network)**: wrong — OPNsense's port-forward for this path does
+     **destination NAT only**, not source NAT, so genuine internet clients arrive with their real
+     public IP. Source is now `0.0.0.0/0`, deliberately — envoy-external's whole job is public
+     exposure, narrowed by destination (its specific pods/ports) and protected by TLS/HSTS/rate-
+     limiting, not by a source-IP allowlist. See the policy file's own comment for the full story.
    - `allow-apiserver-webhooks` — kube-apiserver runs as a static pod (host network) on each
      control-plane node, so its calls to admission/conversion webhooks across many namespaces
      (cert-manager, mariadb-operator, postgres-operator, external-secrets, kopiur-system,
@@ -228,8 +232,15 @@ Re-queried Goldmane, filtered strictly to flows recorded after each relevant pol
 `creationTimestamp` (not just "recent" - an earlier pass in this round briefly mis-flagged
 `PUBLIC NETWORK -> envoy-external` as still broken using data from 10 seconds *before* the fixing
 policy existed). After the correct filter, no fresh `PUBLIC NETWORK` flow of any kind exists yet
-in Goldmane's retained window - **still unconfirmed either way**, not resolved. Needs a genuine
-post-fix external request and a re-check before trusting `allow-opnsense-to-envoy-external`.
+in Goldmane's retained window - **still unconfirmed either way**, not resolved at the time this
+section was written.
+
+**Resolved (2026-08-22, later same day)**: a real ~1hr Jellyfin streaming session from cellular
+data outside the network gave the genuine post-fix external request this needed. Whisker
+classified the source as "PUBLIC NETWORK" (a real non-RFC1918 address) - confirming `10.2.0.1/32`
+was actually the wrong source to scope this to. OPNsense's port-forward does destination NAT
+only, not source NAT, for this path. Fixed to `0.0.0.0/0`, deliberately - see
+`allow-opnsense-to-envoy-external`'s own file comment for the full story.
 
 Real, consistent findings (not stale-data artifacts):
 - **CloudNativePG's operator couldn't reach the instances it manages** - `postgres-operator`
