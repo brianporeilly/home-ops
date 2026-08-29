@@ -30,7 +30,23 @@ spec:
               PORT: &port 8000
               POLLING_INTERVAL: 300
               DATABASE_URL: sqlite:///app/db/podcast.db
+              # Basic auth stays enabled alongside OIDC as a break-glass
+              # fallback - PodFetch supports both simultaneously
+              # (EnvironmentService.any_auth_enabled ORs all three modes).
               BASIC_AUTH: "true"
+              OIDC_AUTH: "true"
+              OIDC_AUTHORITY: https://auth.internal.oreillys.io/application/o/podfetch/
+              OIDC_CLIENT_ID: podfetch
+              # Real IdP metadata URL, not this repo's usual "*/well-known/
+              # openid-configuration" pattern - PodFetch's own config
+              # (crates/common-infrastructure/src/config.rs) reads a raw
+              # jwks_uri directly, no discovery-document fetch of its own.
+              OIDC_JWKS: https://auth.internal.oreillys.io/application/o/podfetch/jwks/
+              # Best-guess, NOT confirmed live - see the matching comment on
+              # this app's redirect_uris entry in
+              # blueprints-native-apps.yaml for why. Required: PodFetch
+              # panics on startup with OIDC_AUTH=true and this unset.
+              OIDC_REDIRECT_URI: https://podfetch.internal.oreillys.io/
             envFrom:
               - secretRef:
                   name: podfetch-secret
