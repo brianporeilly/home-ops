@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: intel-gpu-plugin
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: intel-gpu-plugin
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  # Defaults left as-is deliberately: nodeFeatureRule (true) makes the chart
+  # ship its own NodeFeatureRule CR, which the standalone node-feature-discovery
+  # app (kube-system) picks up and uses to label GPU-bearing nodes
+  # intel.feature.node.kubernetes.io/gpu=true - the chart's own default
+  # nodeSelector already targets exactly that label, so the plugin's
+  # DaemonSet self-schedules only onto wk-jonas/wk-severian without any
+  # override here. This replaces Jellyfin's old /dev/dri hostPath mount
+  # (device-cgroup permission denied, EPERM on renderD128) with a real
+  # gpu.intel.com/i915 resource request instead.
+  values: {}
