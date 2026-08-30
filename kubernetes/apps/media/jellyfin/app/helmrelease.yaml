@@ -32,12 +32,17 @@ spec:
           # that hardware layout changes later. Required (not preferred):
           # landing anywhere else means a silent fallback to slow CPU
           # transcoding, worse than just not enabling Quick Sync at all.
+          # intel.feature.node.kubernetes.io/gpu is applied by the intel-gpu-plugin's
+          # own NodeFeatureRule (more precise than the raw PCI-class label -
+          # it only fires once the device plugin's DaemonSet is actually
+          # schedulable there) but scheduling is really gated by the
+          # gpu.intel.com/i915 resource request below, so this is belt-and-suspenders.
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
                 nodeSelectorTerms:
                   - matchExpressions:
-                      - key: feature.node.kubernetes.io/pci-0300_8086.present
+                      - key: intel.feature.node.kubernetes.io/gpu
                         operator: In
                         values: ["true"]
         initContainers:
@@ -158,8 +163,10 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                gpu.intel.com/i915: 1
               limits:
                 memory: 4Gi
+                gpu.intel.com/i915: 1
 
       exporter:
         annotations:
@@ -541,18 +548,6 @@ spec:
           jellyfin:
             app:
               - path: /config/metadata
-      # Quick Sync (VAAPI) - only renderD128 is needed for headless
-      # transcode, not card0 (that's for display/KMS output). Confirmed
-      # live it's world read-write (crw-rw-rw-) on wk-jonas/wk-severian,
-      # unlike card0 which is group-restricted - no securityContext
-      # capability/group changes needed here, just the device itself.
-      dri:
-        type: hostPath
-        hostPath: /dev/dri
-        advancedMounts:
-          jellyfin:
-            app:
-              - path: /dev/dri
       # NAS static NFS mount - whole export, matches library layout
       # (tv/movies/music) directly.
       media:

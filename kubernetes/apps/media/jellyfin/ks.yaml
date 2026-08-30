@@ -24,6 +24,11 @@ spec:
     # incident this was first found from.
     - name: authentik
       namespace: authentik
+    # gpu.intel.com/i915 resource request below needs the device plugin's
+    # DaemonSet already advertising the resource, or the pod just sits
+    # Pending with an unschedulable-resource event instead of scheduling.
+    - name: intel-gpu-plugin
+      namespace: intel-device-plugins
   interval: 1h
   path: ./kubernetes/apps/media/jellyfin/app
   postBuild:
