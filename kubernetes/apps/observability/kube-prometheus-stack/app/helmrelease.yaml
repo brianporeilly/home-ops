@@ -223,7 +223,18 @@ spec:
             rules:
               - alert: OomKilled
                 annotations:
-                  summary: Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has been OOMKilled {{ $value }} times in the last 10 minutes.
-                expr: (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) == 1
+                  summary: Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} on node {{ $labels.node }} has been OOMKilled {{ $value }} times in the last 10 minutes.
+                # None of the source metrics carry a `node` label - they're
+                # kube-state-metrics series (namespace/pod/container/uid
+                # only), so the notification's only node-shaped label was
+                # Prometheus's own `instance` (wherever KSM itself happens to
+                # be scraped from, NOT the OOMKilled pod's node - confirmed
+                # live this pointed at wk-severian purely because
+                # kube-state-metrics runs there, while the actual pod was on
+                # wk-roche). Joining kube_pod_info (which does carry a real
+                # per-pod `node` label) fixes that; `group_left(node)` keeps
+                # the original boolean-ish `== 1` result, it just attaches
+                # the correct node label from the right-hand side.
+                expr: ((kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) == 1) * on (namespace, pod) group_left(node) kube_pod_info
                 labels:
                   severity: critical
