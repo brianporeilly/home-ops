@@ -126,9 +126,14 @@ spec:
               requests:
                 cpu: 250m
                 memory: 1Gi
+              # OOMKilled at 6Gi (confirmed live: 4867Mi resident against a
+              # 6144Mi limit, so barely 1.3Gi of headroom) - --ctx-size 32000
+              # scales KV-cache/scratch-buffer host RAM with request length,
+              # not just VRAM, even with every layer offloaded to the GPU
+              # (--n-gpu-layers -1). wk-roche has room (~8.5Gi free).
               limits:
                 cpu: "4"
-                memory: 6Gi
+                memory: 8Gi
                 nvidia.com/gpu: 1
 
     defaultPodOptions:
