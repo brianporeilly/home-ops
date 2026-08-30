@@ -7,12 +7,19 @@ metadata:
     loki_rule: "1"
 data:
   nas-journal-rules.yaml: |
+    # job=journal/node=nas-ultan match Alloy's config.alloy on the NAS
+    # itself (flatcar-ignition repo, 03-nas-node.yaml) - job used to be the
+    # NAS-specific "nas-ultan-journal" until that config stopped hardcoding
+    # its own identity (so the same ignition can be reused on another box
+    # without silently mislabeling its logs as nas-ultan). node is now
+    # derived live from journald's own _HOSTNAME field, not static config -
+    # if these two ever drift, check that file first.
     groups:
       - name: nas-journal.rules
         rules:
           - alert: NASJournalSilent
             expr: |
-              absent_over_time({job="nas-ultan-journal"}[30m])
+              absent_over_time({job="journal", node="nas-ultan"}[30m])
             for: 5m
             labels:
               severity: warning
@@ -23,7 +30,7 @@ data:
 
           - alert: NASJournalErrorRateHigh
             expr: |
-              count_over_time({job="nas-ultan-journal"} |~ `(?i)error|critical|failed|panic` [15m]) > 20
+              count_over_time({job="journal", node="nas-ultan"} |~ `(?i)error|critical|failed|panic` [15m]) > 20
             for: 5m
             labels:
               severity: warning
