@@ -21,6 +21,25 @@ spec:
       jellyfin:
         annotations:
           reloader.stakater.com/auto: "true"
+        pod:
+          # Quick Sync needs a node with a live, driver-bound Intel iGPU -
+          # confirmed live only wk-jonas/wk-severian actually expose
+          # /dev/dri (wk-eata/wk-drotte/wk-roche all have a discrete Nvidia
+          # GPU occupying the display-class PCI slot instead, which
+          # disables the platform's iGPU - see node-feature-discovery's
+          # own ks.yaml for the full story). Tracks the NFD-applied label
+          # rather than hardcoding node names, so this keeps working if
+          # that hardware layout changes later. Required (not preferred):
+          # landing anywhere else means a silent fallback to slow CPU
+          # transcoding, worse than just not enabling Quick Sync at all.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: feature.node.kubernetes.io/pci-0300_8086.present
+                        operator: In
+                        values: ["true"]
         initContainers:
           # Installs the OIDC RBAC plugin (jellyfin-plugin-oidc, see
           # docs/security-plan.md) straight from its pinned GitHub release
@@ -522,6 +541,18 @@ spec:
           jellyfin:
             app:
               - path: /config/metadata
+      # Quick Sync (VAAPI) - only renderD128 is needed for headless
+      # transcode, not card0 (that's for display/KMS output). Confirmed
+      # live it's world read-write (crw-rw-rw-) on wk-jonas/wk-severian,
+      # unlike card0 which is group-restricted - no securityContext
+      # capability/group changes needed here, just the device itself.
+      dri:
+        type: hostPath
+        hostPath: /dev/dri
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /dev/dri
       # NAS static NFS mount - whole export, matches library layout
       # (tv/movies/music) directly.
       media:
