@@ -91,8 +91,12 @@ spec:
               requests:
                 cpu: 250m
                 memory: 512Mi
+              # OOMKilled at 2Gi (confirmed live) - MAX_CONCURRENT_CHROME_PROCESSES=10
+              # left barely ~200Mi/process on average, too tight for real
+              # headless Chrome against JS-heavy sites (bestbuy.com's QUIC
+              # workaround above is exactly this kind of site).
               limits:
-                memory: 2Gi
+                memory: 4Gi
 
     defaultPodOptions:
       securityContext:
