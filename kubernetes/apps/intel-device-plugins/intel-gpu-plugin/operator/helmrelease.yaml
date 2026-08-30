@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: intel-device-plugins-operator
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: intel-device-plugins-operator
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # This is what actually registers the GpuDevicePlugin CRD - the sibling
+    # ../app HelmRelease just creates a CR instance of it, and fails to
+    # install with "no matches for kind GpuDevicePlugin" without this
+    # running first (confirmed live).
+    manager:
+      devices:
+        gpu: true

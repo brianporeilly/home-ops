@@ -3,7 +3,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app intel-gpu-plugin
+  name: &app intel-device-plugins-operator
   namespace: &namespace intel-device-plugins
 spec:
   commonMetadata:
@@ -12,6 +12,34 @@ spec:
   dependsOn:
     - name: node-feature-discovery
       namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/intel-device-plugins/intel-gpu-plugin/operator
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: true
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app intel-gpu-plugin
+  namespace: &namespace intel-device-plugins
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    # Registers the GpuDevicePlugin CRD this app's own HelmRelease
+    # instantiates a CR of - install fails with "no matches for kind
+    # GpuDevicePlugin" without it (confirmed live).
+    - name: intel-device-plugins-operator
+      namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/intel-device-plugins/intel-gpu-plugin/app
   prune: true
