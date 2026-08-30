@@ -67,6 +67,23 @@ spec:
           tag syslog.mikrotik
           storage.type filesystem
 
+        # Scoped to _TRANSPORT=kernel only - this is what SELinux AVC
+        # denials come through as (kernel printk, not a container's own
+        # stdout), needed to assess whether it's safe to flip Flatcar's
+        # currently-Permissive SELinux to Enforcing (see intel-gpu-plugin's
+        # seLinuxOptions fix, PR #776/778, for the incident this came from).
+        # Ships unfiltered rather than grepping for "avc" here - general
+        # kernel-level visibility (NIC drops, disk/mount errors) is useful
+        # beyond just this one soak, and it's cheap: read_from_tail avoids
+        # replaying the full multi-GB persistent journal on every restart.
+        [INPUT]
+          name systemd
+          alias kernel
+          tag journal.kernel
+          systemd_filter _TRANSPORT=kernel
+          read_from_tail on
+          storage.type filesystem
+
       filters: |-
         [FILTER]
           name kubernetes
@@ -161,6 +178,22 @@ spec:
           compress gzip
           storage.total_limit_size 512M
           retry_limit 6
+
+        [OUTPUT]
+          name loki
+          match journal.kernel
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          # ${NODE_NAME} - see env below. Each fluent-bit pod only ever
+          # sees its own node's journal, so without this every node's
+          # kernel log would collapse into one indistinguishable job=kernel
+          # stream in Loki.
+          labels job=kernel, node=${NODE_NAME}
+          compress gzip
+          storage.total_limit_size 512M
+          retry_limit 6
     dashboards:
       enabled: true
     serviceMonitor:
@@ -171,14 +204,30 @@ spec:
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
     extraVolumes:
       - name: flb-storage
         hostPath:
           path: /var/log/flb-storage
           type: DirectoryOrCreate
+      # Flatcar persists the journal here (confirmed live via `journalctl
+      # --disk-usage` reporting real on-disk archives, not just the
+      # volatile /run tmpfs default) - needed for the systemd/kernel INPUT
+      # above.
+      - name: host-journal
+        hostPath:
+          path: /var/log/journal
+          type: Directory
     extraVolumeMounts:
       - name: flb-storage
         mountPath: /var/log/flb-storage
+      - name: host-journal
+        mountPath: /var/log/journal
+        readOnly: true
     service:
       type: LoadBalancer
       annotations:
