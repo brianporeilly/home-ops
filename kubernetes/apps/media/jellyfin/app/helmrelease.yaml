@@ -37,17 +37,22 @@ spec:
           # it only fires once the device plugin's DaemonSet is actually
           # schedulable there) but scheduling is really gated by the
           # gpu.intel.com/i915 resource request below, so this is belt-and-suspenders.
-          # cpu-model.id=94 (Skylake) additionally excludes wk-severian
-          # (Haswell, cpu-model.id=60) - confirmed live, Jellyfin's QSV
-          # pipeline hardcodes the iHD VAAPI driver, which only supports
+          # NotIn Haswell (cpu-model.id=60, wk-severian) rather than In
+          # Skylake-only - confirmed live, Jellyfin's QSV pipeline
+          # hardcodes the iHD VAAPI driver, which only supports
           # Broadwell/Gen8 and later. Haswell's iGPU passes the GPU-present
-          # checks above just fine but fails at VAAPI device init ("libva:
+          # check above just fine but fails at VAAPI device init ("libva:
           # iHD_drv_video.so init failed", ffmpeg exit 251) since iHD never
           # supported Gen7.5 hardware at all - there's no config fix, only
           # the legacy i965 driver works there, which Jellyfin's QSV path
-          # doesn't use. cpu-model.id is a proxy (NFD has no direct iGPU
-          # generation feature), but with only two iGPU-bearing nodes today
-          # it's precise enough - revisit if a third one joins.
+          # doesn't use. A blocklist (not allowlist) so a future node with
+          # a newer, iHD-compatible iGPU schedules here automatically
+          # without editing this file - cpu-model.id isn't monotonic with
+          # generation (Intel reuses IDs across generations), so this can
+          # only ever be "known-bad exclusions", not a real minimum-
+          # generation gate. If another too-old node ever lands here, it'll
+          # fail the same loud, obvious way (ffmpeg exit 251) - add its
+          # cpu-model.id below when that happens.
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -57,8 +62,8 @@ spec:
                         operator: In
                         values: ["true"]
                       - key: feature.node.kubernetes.io/cpu-model.id
-                        operator: In
-                        values: ["94"]
+                        operator: NotIn
+                        values: ["60"]
         initContainers:
           # Installs the OIDC RBAC plugin (jellyfin-plugin-oidc, see
           # docs/security-plan.md) straight from its pinned GitHub release
