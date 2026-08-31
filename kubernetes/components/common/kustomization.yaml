@@ -6,3 +6,4 @@ resources:
   - ./namespace.yaml
   - ./sops
   - ./networkpolicy-same-namespace.yaml
+  - ./stagednetworkpolicy-same-namespace-egress.yaml # docs/egress-policy-plan.md - staged only

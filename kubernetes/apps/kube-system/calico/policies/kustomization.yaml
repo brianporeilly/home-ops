@@ -20,3 +20,11 @@ resources:
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
+  # docs/egress-policy-plan.md - staged only, none of these enforce yet
+  - ./stagedglobalnetworkpolicy-dns-egress.yaml
+  - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
+  - ./stagedglobalnetworkpolicy-network-egress.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-cluster.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-private-network.yaml
+  - ./stagedglobalnetworkpolicy-download-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-flux-egress-git.yaml

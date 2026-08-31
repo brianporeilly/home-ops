@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline - egress mirror of
+# allow-network-ingress. Staged (log-only, never enforces) on purpose, same
+# as every policy in this rollout.
+#
+# `network` (Envoy Gateway) is one of the two wide egress fan-outs the flow
+# data review found, for the same underlying reason it was a wide ingress
+# fan-out: it routes HTTPRoute traffic to backend Services across nearly
+# every namespace (media, home, download, misc, observability, authentik,
+# immich, ai).
+#
+# Deliberately broad for this first pass, same reasoning as
+# allow-network-ingress: selector all(), no per-namespace/port list - an
+# overly-broad staged ALLOW costs nothing to observe, and narrowing to
+# per-destination ports is a refinement for once real pending_actions data
+# shows what's actually used, not something to guess up front.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-network-egress
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: all()
