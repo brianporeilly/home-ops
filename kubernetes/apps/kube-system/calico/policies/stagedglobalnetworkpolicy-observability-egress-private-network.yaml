@@ -17,6 +17,13 @@
 # live there), 10.10.0.0/16 covers the switch management IP SNMP polls
 # (10.10.0.1, see docs/network-observability-plan.md) - no other VLAN has
 # anything observability actually reaches here.
+#
+# 10.2.0.1/32 (OPNsense's own transit address, same address the ingress
+# plan's allow-trusted-vlans-to-akvorado/-fluent-bit already carve out)
+# added 2026-08-31 after reviewing real pending-diff data: OPNsense is
+# SNMP-polled too (docs/network-observability-plan.md), and crowdsec
+# reaches OPNsense's bouncer API directly on tcp/8080 - confirmed live,
+# not guessed. Not in either /16 above, needs its own entry.
 apiVersion: projectcalico.org/v3
 kind: StagedGlobalNetworkPolicy
 metadata:
@@ -34,10 +41,12 @@ spec:
         nets:
           - 10.10.0.0/16
           - 10.20.0.0/16
+          - 10.2.0.1/32
     - action: Allow
       protocol: UDP
       destination:
         nets:
           - 10.10.0.0/16
           - 10.20.0.0/16
+          - 10.2.0.1/32
         ports: [161]

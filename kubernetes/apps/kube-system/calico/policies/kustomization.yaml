@@ -28,3 +28,13 @@ resources:
   - ./stagedglobalnetworkpolicy-observability-egress-private-network.yaml
   - ./stagedglobalnetworkpolicy-download-egress-internet.yaml
   - ./stagedglobalnetworkpolicy-flux-egress-git.yaml
+  # docs/egress-policy-plan.md round 2 - drafted from real pending-diff data
+  - ./stagedglobalnetworkpolicy-cnpg-egress-rgw.yaml
+  - ./stagedglobalnetworkpolicy-rook-ceph-egress-daemons.yaml
+  - ./stagedglobalnetworkpolicy-sockpuppetbrowser-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-media-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-immich-server-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-authentik-worker-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-database-to-media-egress.yaml
+  - ./stagedglobalnetworkpolicy-database-to-observability-egress.yaml

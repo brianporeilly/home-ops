@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31).
+#
+# authentik-worker makes outbound tcp/443 calls - almost certainly
+# authentik's own periodic GeoIP database update job, a known background
+# task. Scoped to the worker component specifically, not all of
+# `authentik`: authentik-server showed no such need in the data.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-authentik-worker-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/component == 'worker' && app.kubernetes.io/instance == 'authentik'
+  namespaceSelector: kubernetes.io/metadata.name == 'authentik'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

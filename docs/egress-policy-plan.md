@@ -84,18 +84,44 @@ none enforcing, none blocking anything. Files in
 7. `stagedglobalnetworkpolicy-download-egress-internet.yaml` - `download → nets: 0.0.0.0/0`, TCP + UDP. Broad by design (see table above).
 8. `stagedglobalnetworkpolicy-flux-egress-git.yaml` - `flux-system → nets: 0.0.0.0/0`, `tcp/22` + `tcp/443`. Staged now rather than deferred, per the table above.
 
+## Round 2: reviewing real pending-diff data (2026-08-31)
+
+Once the staged policies above had been live for a few hours, checked whether the Grafana "Network" dashboard's pending-diff table actually showed the divergence they should have caused. It didn't - `job=calico-pending-diff-log` had been silent since 2026-08-23. Root cause turned out to be a real bug in `calico-deny-log-shipper`'s `resolve()` function: it only checked each policy-list entry's own `kind` for whether a staged policy was involved, but an `EndOfTier` decision carries that information in a nested `trigger.kind` field instead - so exactly the case this table exists to catch (a broad staged policy claiming the tier and newly denying a flow) was silently dropped every time. Fixed separately (see git history for `calico-deny-log-shipper`'s `helmrelease.yaml`), and validated directly against live flow data before merging: the old logic shipped 0 diffs, the fixed logic shipped 76 real ones from a single sample.
+
+With the fix live, reviewed ~254 accumulated pending-diff hits (34 distinct flow patterns) and categorized them:
+
+**Wide fixes covering several distinct flow patterns at once** (found via real data, not the original flow review):
+- **Every CNPG postgres cluster → `rook-ceph-rgw`, `tcp/80`** - 7 different clusters (authentik, immich, home-assistant, paperless, linkwarden, forgejo, nebraska) hitting the identical gap: `rook-ceph-rgw` runs `hostNetwork: true`, so WAL-archive/backup traffic to it shows as an external destination. One rule, scoped by the `cnpg.io/cluster` label (present on every CNPG instance) rather than a per-namespace list. Destination scoped to `10.20.0.0/16` (the servers VLAN), not RGW's current node IP - RGW is a plain Deployment, not pinned to a node, so an IP-scoped rule would silently break on reschedule.
+- **`rook-ceph`'s own operator/CSI pods → Ceph's mon/OSD ports directly** - a real gap the original flow review missed entirely (it assumed rook-ceph's only non-hostNetwork-pod need was apiserver access). `rook-ceph-operator`, both CSI `ctrlplugin` variants, and `osd-prepare` all need `tcp/3300` (mon) and the `6800:6810` OSD port range.
+- **`10.2.0.1/32` (OPNsense) added to `allow-observability-egress-private-network`** - fixes `crowdsec → tcp/8080` (confirmed live: crowdsec talks to OPNsense's bouncer API directly) and SNMP polling of OPNsense (`docs/network-observability-plan.md` confirms OPNsense is SNMP-polled, not just the switches) in one edit, since the existing TCP block already has no port restriction.
+
+**Per-app internet access, confirmed real via live data** (supersedes this doc's earlier "small/unconfirmed PUBLIC:443" deferral for these four - now confirmed, not guessed):
+- `changedetection`'s `sockpuppetbrowser` sidecar → `0.0.0.0/0`, broad (its whole job is rendering arbitrary watched URLs, same shape as `download`).
+- `jellyfin`/`jellyseerr` (`media`) → `0.0.0.0/0` on `tcp/443`.
+- `immich-server` → `0.0.0.0/0` on `tcp/443`.
+- `authentik-worker` → `0.0.0.0/0` on `tcp/443` (almost certainly authentik's own GeoIP database update job).
+- `alertmanager`/`grafana` (`observability`) → `0.0.0.0/0` on `tcp/443`. Alertmanager's case is confirmed important, not just plausible: it's the Slack webhook receiver every alert in this cluster routes through.
+
+**Egress mirrors of existing ingress-only operator pairs** - `allow-database-to-media` and `allow-database-to-observability` have been enforcing (ingress) since the original network-policy-plan.md rollout, but nothing ever granted the matching egress:
+- `mariadb-operator` (`database`) → `grimmory-mariadb` (`media`), `tcp/3306`.
+- `altinity-clickhouse-operator` (`database`) → `chi-akvorado-clickhouse` (`observability`), `tcp/8123`.
+
+**Still unresolved, deliberately not staged** - lower confidence or needs input this review couldn't supply:
+- `network/envoy-internal → PRIVATE NETWORK:7000` - checked every port omada-controller's HelmRelease/Service actually expose (8043/8088/8843/29810-29817/27001-27002) - none are 7000, and nothing else in the repo listens there either. Unidentified.
+- `observability/akvorado-orchestrator → PRIVATE NETWORK:8443` - only 2 hits, unconfirmed whether this is OPNsense-related (would already be fixed by the `10.2.0.1/32` addition above if so) or something else.
+- `kube-system/spegel → external-secrets-webhook:5000` - only 1 hit, an odd pairing (spegel's job is node-to-node image mirroring) - possibly a one-off artifact rather than a real recurring pattern.
+
 ## What's deliberately NOT staged yet
 
-- `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first.
-- The small/unconfirmed `PUBLIC NETWORK tcp/443` calls from `authentik`/`misc`/`media`/`immich`.
+- `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first (same open item as the original review - now confirmed as real, recurring traffic via round 2's data, but the VLAN-scope question is unchanged).
+- The three round-2 "still unresolved" items above.
 - Any narrowing of the two broad `network`/`observability` cluster-wide egress allows down to specific ports per destination - same "open question" the ingress plan left for its own `network`/`observability` ingress rules; revisit together once there's real usage data either way.
 - The actual default-deny-egress effect itself - **not a separate policy to write**. Exactly like ingress step 7: once every `selector: all()` Egress-type policy above is promoted from staged to enforcing, the permissive per-namespace `kns.<ns>` Profile fallback ends for egress on every pod simultaneously, and that *is* default-deny. No explicit "deny all" object needed or wanted. When that promotion happens, it must land as one atomic change for the same reason ingress step 7 had to - see `docs/incidents/2026-08-23-dns-outage.md` before attempting it, and re-read network-policy-plan.md's step 7 correction about the two Kustomizations not being atomic *by construction*.
 
 ## Next steps
 
-1. Land the 8 staged files above, let `calico-policies` reconcile.
-2. Watch `whisker.internal.oreillys.io` / the `calico-deny-log-shipper` → Grafana "Network" dashboard's pending-diff table for a representative window (the ingress plan used about 2-3 days of real usage, including deliberately exercising apps, before promoting).
-3. Review real `pending_actions` data the same way the ingress plan's Verification sections did - confirm the broad `network`/`observability` allows aren't hiding a real gap, and look for anything unexpected trying to reach the internet that isn't in the flow-data review above.
-4. Resolve the deferred items (`home` VLAN scope, the small PUBLIC:443 calls) with the same rigor the ingress plan used - real data, not guesses.
-5. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape - see the table above. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
-6. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
+1. Land the round-2 staged files, let `calico-policies` reconcile.
+2. Keep watching `whisker.internal.oreillys.io` / the Grafana "Network" dashboard's pending-diff table now that it actually works - confirm the round-2 fixes each clear their corresponding diff, and watch for anything new.
+3. Resolve the three "still unresolved" items above and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
+4. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
+5. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.

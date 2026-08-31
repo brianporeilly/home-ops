@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31).
+#
+# jellyfin and jellyseerr both make outbound tcp/443 calls (plugin
+# repo/telemetry checks, jellyseerr <-> TMDB/metadata APIs) - grouped in
+# one rule since they're the same shape and share a namespace, not because
+# they're otherwise related. Scoped to just these two apps, not all of
+# `media` - sonarr/radarr/prowlarr/etc. live elsewhere (`download`) and
+# aren't covered by this.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-media-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name in {'jellyfin', 'jellyseerr'}
+  namespaceSelector: kubernetes.io/metadata.name == 'media'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]
