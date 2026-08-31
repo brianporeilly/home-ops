@@ -1,0 +1,37 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31).
+#
+# changedetection's sockpuppetbrowser sidecar is a headless browser that
+# renders arbitrary watched URLs - its whole job is fetching whatever's on
+# the internet, the same shape as allow-download-egress-internet, just one
+# pod instead of a namespace. Real data showed tcp/udp 443, tcp 80, tcp/udp
+# 5228 (Chrome's own background-sync port) - broad by design rather than
+# enumerating ports, same reasoning as the download rule.
+#
+# Scoped to the sockpuppetbrowser pod specifically (controller label), not
+# all of `home` or even all of changedetection's own pods - the main
+# changedetection container doesn't need this, only its browser sidecar
+# does.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-sockpuppetbrowser-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/controller == 'sockpuppetbrowser' && app.kubernetes.io/instance == 'changedetection'
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+    - action: Allow
+      protocol: UDP
+      destination:
+        nets:
+          - 0.0.0.0/0
