@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline. Staged (log-only,
+# never enforces) on purpose, same as every policy in this rollout.
+#
+# Prometheus scrapes several host-network daemons that never get a real
+# Calico pod IP - kube-scheduler (:10259), kube-controller-manager (:10257),
+# etcd (:2381), kubelet (:10250, :10249), node-exporter (:9100), plus SNMP
+# polling of network gear (udp/161, see docs/network-observability-plan.md).
+# These show up in flow data as "PRIVATE NETWORK" destinations, the same
+# host-network shape docs/egress-policy-plan.md's structural note describes
+# for rook-ceph - a pod selector can't match them, this needs nets:.
+#
+# Narrower than the full trusted-VLAN list on purpose (matches only what's
+# actually observed, same reasoning as allow-trusted-vlans-to-loki):
+# 10.20.0.0/16 covers every node/control-plane target (all cluster nodes
+# live there), 10.10.0.0/16 covers the switch management IP SNMP polls
+# (10.10.0.1, see docs/network-observability-plan.md) - no other VLAN has
+# anything observability actually reaches here.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-observability-egress-private-network
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+    - action: Allow
+      protocol: UDP
+      destination:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+        ports: [161]

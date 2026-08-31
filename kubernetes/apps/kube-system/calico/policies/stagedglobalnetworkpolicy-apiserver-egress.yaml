@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Universal piece of docs/egress-policy-plan.md's proposed baseline. Staged
+# (log-only, never enforces) on purpose, same as every policy in this
+# rollout.
+#
+# kube-apiserver runs as a static pod on each control-plane node (host
+# network), so it shows up in flow data as an external "PRIVATE NETWORK"
+# destination on tcp/6443, not a normal Service ClusterIP - the same
+# host-network shape allow-apiserver-webhooks already handles for the
+# opposite (ingress) direction. Every namespace sampled made this call
+# (controllers/operators watching resources, leader election, health
+# checks, in-cluster kubernetes.default.svc clients) - as universal a need
+# as DNS.
+#
+# nets:-scoped to the exact 3 control-plane addresses, same pattern as
+# allow-apiserver-webhooks - nothing else can legitimately be the
+# apiserver at that address.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-apiserver-egress
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.10.11/32
+          - 10.20.10.12/32
+          - 10.20.10.13/32
+        ports: [6443]
