@@ -70,7 +70,7 @@ Legend:
 | audiobookshelf | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media/audiobooks`); app is functional, media files still being copied onto the new NAS |
 | jellyfin | ✅ | 🟡 | Config migrated | Yes - media library | NFS mount wired (static, `10.20.30.11:/media`); same as above — waiting on media copy, not plumbing |
 | jellyseerr | ✅ | ✅ | None (just config) | No | Shipped (PR #596), internal-only |
-| navidrome | ✅ | 💀 | None (reads music from NAS) | Yes - music library | Not using |
+| navidrome | ✅ | ✅ | None (reads music from NAS) | Yes - music library | NFS mount wired (`/media/music`, read-only); shipped on `feat/egress-policy-round3` |
 | ersatztv | ❌ | 🟡 | None (reads media from NAS) | Yes - media library | NFS mount wired (same export as jellyfin); waiting on media copy |
 | tdarr | ✅ | 🔲 | Config only | Yes - media library | On main but still not wired into `media/kustomization.yaml` |
 | bazarr | ✅ | ✅ | Config only (small) | Yes - media library | NFS mount wired; subtitle management, not blocked on media presence |
@@ -233,7 +233,6 @@ where Kubernetes should own the PVC lifecycle rather than pointing at a hand-man
 
 ### 💀 Skip
 - readarr → replaced by grimmory
-- navidrome → not using
 - oauth2-proxy → not needed
 - pihole → not needed
 - influxdb → not needed
