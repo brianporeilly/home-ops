@@ -17,6 +17,15 @@
 # does elsewhere: it's the credential-bearing path that needs blunting
 # against brute force now that it's genuinely internet-facing, not just
 # LAN-reachable.
+#
+# 20/min (this file's original value) was wrong - confirmed live
+# 2026-09-01: a normal Symfonium library scan tripped it almost
+# immediately and got 429'd for several minutes (EnvoyExternalRateLimitTriggered
+# fired), because unlike a real login form, every single Subsonic call -
+# browsing, cover art, streaming - carries credentials, so the entire API
+# surface was being throttled like a login attempt. 600/min (10/s) still
+# meaningfully blunts a pure credential-stuffing script while comfortably
+# covering a real scan's burst of rapid calls.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
@@ -38,7 +47,7 @@ spec:
     local:
       rules:
         - limit:
-            requests: 20
+            requests: 600
             unit: Minute
   responseOverride:
     - match:
