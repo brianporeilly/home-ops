@@ -20,6 +20,7 @@ resources:
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
+  - ./globalnetworkpolicy-internet-to-slskd.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
