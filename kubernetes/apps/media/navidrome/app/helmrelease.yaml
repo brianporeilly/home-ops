@@ -29,6 +29,27 @@ spec:
             env:
               ND_MUSICFOLDER: /music
               ND_DATAFOLDER: /data
+              # Trusts the Remote-User header the shared authentik/protect
+              # component injects (components/authentik/protect/securitypolicy.yaml)
+              # after verifying the caller's Authentik-issued JWT - lets
+              # anyone who passes the Authentik gate auto-provision/log
+              # into a matching navidrome account by email, no separate
+              # navidrome-side account creation needed. Only ever applies
+              # to the navidrome-app route (the /rest Subsonic API route
+              # in this same file is deliberately NOT behind this gate -
+              # Symfonium etc. keep using navidrome's own local-account
+              # Subsonic auth there instead).
+              ND_EXTAUTH_USERHEADER: Remote-User
+              # Whole cluster pod CIDR, not a tight scope - Calico doesn't
+              # give a narrower stable CIDR to pin to (single flat pool,
+              # confirmed via `kubectl get ippool`). The real restriction
+              # on who can reach this container at all is the cluster-wide
+              # Calico GlobalNetworkPolicy (allow-network-ingress +
+              # allow-same-namespace) - namespace-scoped to `media` and
+              # `network` today, not narrowed to Envoy specifically yet.
+              # This CIDR is defense-in-depth on top of that, not the
+              # primary control - don't rely on it alone.
+              ND_EXTAUTH_TRUSTEDSOURCES: 10.246.0.0/16
             probes:
               liveness: &probes
                 enabled: true

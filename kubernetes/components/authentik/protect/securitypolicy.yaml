@@ -86,3 +86,46 @@ spec:
     # entry in this app's Authentik blueprint.
     redirectURL: "https://${HOSTNAME}/oauth2/callback"
     logoutPath: "/logout"
+    # Named so the jwt block below can read it back out on every
+    # subsequent request (the browser echoes this cookie itself - Envoy
+    # doesn't need to re-inject anything mid-chain). Fixed name is fine to
+    # share across apps: cookies are scoped per-hostname by the browser
+    # anyway, and every app here has its own hostname.
+    cookieNames:
+      idToken: authentik-id-token
+  # Forwards the caller's Authentik identity to the backend as a header,
+  # for apps that can make use of it (e.g. navidrome's ND_EXTAUTH_USERHEADER
+  # trusted-proxy-auth) - a plain access gate otherwise, this makes the
+  # gate also assert *who*. Additive and harmless for every app that
+  # doesn't look at the header (the rest of the apps using this
+  # component today just ignore it) - not gated behind a variable, so no
+  # per-app opt-in needed.
+  #
+  # This only verifies the JWT Envoy itself already saw and stored in the
+  # cookie above - it isn't a second independent check that could reject a
+  # legitimate session. optional: true means a request without the cookie
+  # yet (e.g. mid-login-redirect) falls through unauthenticated rather
+  # than getting a hard 401 from this filter - the oidc block above is
+  # still the actual access gate.
+  #
+  # IMPORTANT: the injected header is only as trustworthy as who can reach
+  # the backend directly, bypassing this Gateway entirely - Envoy is the
+  # only thing that verifies the JWT signature before setting the header.
+  # Any app that trusts this header MUST also restrict, at the network
+  # layer, who can reach it (see navidrome's helmrelease.yaml
+  # ND_EXTAUTH_TRUSTEDSOURCES comment for the current state of that on this
+  # cluster - namespace-scoped via Calico today, not pinpointed to Envoy
+  # specifically).
+  jwt:
+    providers:
+      - name: authentik
+        issuer: "https://${AUTH_HOSTNAME}/application/o/${APP}/"
+        remoteJWKS:
+          uri: "https://${AUTH_HOSTNAME}/application/o/${APP}/jwks/"
+        extractFrom:
+          cookies:
+            - authentik-id-token
+        claimToHeaders:
+          - claim: email
+            header: Remote-User
+    optional: true
