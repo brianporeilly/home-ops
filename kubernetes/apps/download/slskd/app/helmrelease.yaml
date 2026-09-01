@@ -123,6 +123,7 @@ spec:
             shares:
               directories:
                 - /media/downloads/soulseek/shared
+                - /music
               filters:
                 - \.ini$
                 - Thumbs.db$
@@ -134,24 +135,41 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
-#      config-file:
-#        type: configMap
-#        identifier: config
-#        globalMounts:
-#          - path: /config/slskd.yml
-#            subPath: slskd.yml
+      # Was disabled - checked the live /config/slskd.yml first (fully
+      # commented-out default template, confirmed nothing was ever
+      # actually customized there; real settings like Soulseek
+      # credentials come from env vars via slskd-secret) so there was
+      # nothing to clobber by enabling this. Without it, slskd fell back
+      # to its own built-in directory defaults (relative to
+      # SLSKD_APP_DIR=/config), silently downloading onto this 1Gi PVC
+      # instead of the NAS mount below - that's what was filling it up.
+      config-file:
+        type: configMap
+        identifier: config
+        globalMounts:
+          - path: /config/slskd.yml
+            subPath: slskd.yml
       # NAS static NFS mount - soulseek downloads only (incomplete/complete/
       # shared share this mount so a finished download is an atomic rename).
-      # NOTE: config-file below is still disabled, so slskd.yml's directory
-      # paths aren't actually applied yet - set them to match this mount
-      # (/media/downloads/soulseek/{complete,incomplete,shared}) via the
-      # slskd UI, or enable config-file once you've confirmed it won't
-      # clobber any settings you've configured live.
       media:
         type: nfs
         server: 10.20.30.11
         path: /media/downloads/soulseek
         globalMounts:
           - path: /media/downloads/soulseek
+      # NAS static NFS mount, dedicated music subdirectory, read-only -
+      # deliberately scoped to just this (not the whole /media export) so
+      # what's shareable over Soulseek is bounded by what's mounted, not
+      # just by shares.directories in the config above. Same mount navidrome
+      # uses (kubernetes/apps/media/navidrome/app/helmrelease.yaml). Movies/
+      # TV/etc. are intentionally never reachable from this container at
+      # all - narrower than gating access via config alone.
+      music:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/music
+        globalMounts:
+          - path: /music
+            readOnly: true
       tmp:
         type: emptyDir
