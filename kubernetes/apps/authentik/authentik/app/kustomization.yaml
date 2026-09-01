@@ -28,6 +28,7 @@ resources:
   - ./grafana-oidc-credentials.yaml
   - ./paperless-ngx-oidc-credentials.yaml
   - ./linkwarden-oidc-credentials.yaml
+  - ./navidrome-oidc-credentials.yaml
   - ./forgejo-oidc-credentials.yaml
   - ./immich-oidc-credentials.yaml
   - ./whisker-oidc-credentials.yaml

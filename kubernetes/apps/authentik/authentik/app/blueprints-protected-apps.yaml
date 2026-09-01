@@ -326,6 +326,49 @@ data:
           order: 0
           target: !KeyOf lidarr-application
           group: !Find [authentik_core.group, [name, arr-users]]
+  provider-navidrome.yaml: |
+    metadata:
+      name: OIDC Provider - navidrome
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: navidrome
+        id: navidrome-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env NAVIDROME_OAUTH_CLIENT_ID
+          client_secret: !Env NAVIDROME_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://music.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: navidrome
+        id: navidrome-application
+        attrs:
+          name: Navidrome
+          provider: !KeyOf navidrome-provider
+      # This gates the Envoy-level SecurityPolicy login only - navidrome
+      # has no native OIDC support (ExtAuth header-trust only, not used
+      # here), so it still shows its own local-account login behind this
+      # gate. media-users is the shared tier group, reused from
+      # blueprints-groups.yaml rather than a dedicated one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf navidrome-application
+          group: !Find [authentik_core.group, [name, media-users]]
   provider-whisker.yaml: |
     metadata:
       name: OIDC Provider - whisker

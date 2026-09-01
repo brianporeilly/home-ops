@@ -23,6 +23,7 @@ resources:
   - ./calibre-web-automated/ks.yaml
   - ./jellyfin/ks.yaml
   - ./jellyseerr/ks.yaml
+  - ./navidrome/ks.yaml
   - ./podfetch/ks.yaml
   - ./ersatztv/ks.yaml
   - ./grimmory/ks.yaml
