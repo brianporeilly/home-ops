@@ -23,12 +23,17 @@
 #         EXTERNAL_HTTPROUTE_NAME: grocy-app
 #         EXTERNAL_HOSTNAME: grocy.oreillys.io
 #
-# UNVERIFIED against a live app as of writing - nothing consumes this yet.
-# Specifically unverified: whether the router supports NAT hairpin/
-# reflection for auth.oreillys.io traffic originating from inside the LAN/
-# cluster (Envoy's own token-exchange call, not just the user's browser
-# redirect) - test this end-to-end the first time this component is
-# actually wired up, don't assume it works because the browser leg does.
+# Consumed live by echo and navidrome. The NAT hairpin concern this
+# comment used to flag doesn't apply - confirmed via `getent hosts
+# auth.oreillys.io` from an in-cluster pod, which resolves straight to
+# envoy-external's own VIP (10.21.0.1), same as any other in-cluster
+# client - so Envoy's own token-exchange call never leaves the cluster or
+# touches the router at all, same as the browser leg. Matches the same
+# assurance already relied on by audiobookshelf's own server-to-Authentik
+# OIDC calls (see that app's oidc-bootstrap script comment). Full
+# end-to-end login (not just the redirect mechanics) still worth a human
+# check the first time a new app's external route goes live, same as any
+# other OIDC wiring.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:

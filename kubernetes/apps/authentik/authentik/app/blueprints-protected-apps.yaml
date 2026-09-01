@@ -344,6 +344,9 @@ data:
             - matching_mode: strict
               url: https://music.internal.oreillys.io/oauth2/callback
               redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://music.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
           grant_types:
             - authorization_code
             - refresh_token

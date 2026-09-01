@@ -12,6 +12,7 @@ spec:
   components:
     - ../../../../components/kopiur/backup
     - ../../../../components/authentik/protect
+    - ../../../../components/authentik/protect-external
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -33,6 +34,8 @@ spec:
       HTTPROUTE_NAME: navidrome-app
       HOSTNAME: music.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
+      EXTERNAL_HTTPROUTE_NAME: navidrome-external
+      EXTERNAL_HOSTNAME: music.oreillys.io
   prune: true
   retryInterval: 2m
   sourceRef:
