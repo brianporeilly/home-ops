@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Egress mirror of globalnetworkpolicy-changedetection-to-llama-cpp.yaml,
+# added after reviewing round-2's pending-diff data (2026-09-01): the
+# single largest gap in the whole dataset (133 hits in ~4.5 hours) -
+# changedetection (`home`) sending prompts to llama-cpp's API (`ai`) has
+# had an enforcing ingress rule since the original network-policy-plan.md
+# rollout, but never a matching egress grant, same oversight as the
+# database-to-media/-observability pairs fixed in round 2.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-changedetection-to-llama-cpp-egress
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'changedetection'
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'llama-cpp'
+        namespaceSelector: kubernetes.io/metadata.name == 'ai'
+        ports: [8080]

@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing round-2's pending-diff data (2026-09-01). metrics-server's
+# whole job is scraping every node's kubelet /metrics/resource endpoint
+# (tcp/10250) - kubelet runs on the host, not as a normal pod, so this
+# shows as an external "PRIVATE NETWORK" destination, the same
+# host-network shape as allow-apiserver-egress. Real, continuous traffic
+# (181 hits in the ~4.5h sample), not deferred.
+#
+# Destination is 10.20.0.0/16 (the servers VLAN, every node lives there),
+# not a specific node IP - metrics-server has to reach every node, not one.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-metrics-server-egress-kubelet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'metrics-server'
+  namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.0.0/16
+        ports: [10250]

@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Egress mirror of globalnetworkpolicy-postgres-operator-webhook.yaml,
+# added after reviewing round-2's pending-diff data (2026-09-01):
+# CloudNativePG's operator (`database`) reaches every instance it manages
+# on tcp/8000 (the instance manager's own API) across authentik, home
+# (home-assistant, paperless-ngx), immich, and misc (forgejo, linkwarden,
+# nebraska) - the ingress side has been enforcing since the original
+# rollout, but nothing ever granted the matching egress. Same
+# source-scoped-only shape as the ingress rule (CNPG spans nearly every
+# namespace with a database, not a small fixed set of pairs).
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-postgres-operator-webhook-egress
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'cloudnative-pg'
+  namespaceSelector: kubernetes.io/metadata.name == 'database'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: all()
+        ports: [8000]
