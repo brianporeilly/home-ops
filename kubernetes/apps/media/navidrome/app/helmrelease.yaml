@@ -66,6 +66,19 @@ spec:
               # This CIDR is defense-in-depth on top of that, not the
               # primary control - don't rely on it alone.
               ND_EXTAUTH_TRUSTEDSOURCES: 10.20.0.0/16,10.246.0.0/16
+              # lastfm is already in navidrome's default ND_AGENTS list
+              # (deezer,lastfm,listenbrainz) - just providing the key/secret
+              # is enough, no need to also set ND_AGENTS. Fixes two things:
+              # artists with no local folder image (nothing to show at all
+              # before this) get one fetched, and the Subsonic API's
+              # getArtistInfo2 - what Symfonium and other real clients call,
+              # confirmed via navidrome's own docs to require an external
+              # agent - actually returns image/bio data instead of coming
+              # back empty even for artists that DO have a local image the
+              # native web UI can already show another way.
+            envFrom:
+              - secretRef:
+                  name: navidrome-secret
             probes:
               liveness: &probes
                 enabled: true
