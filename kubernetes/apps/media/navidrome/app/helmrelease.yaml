@@ -144,6 +144,46 @@ spec:
             backendRefs:
               - identifier: app
                 port: *port
+      # External twin of app - gated by components/authentik/protect-external
+      # (ks.yaml). Pinning the gatus check path explicitly, matching every
+      # other external route in this repo - see jellyfin/audiobookshelf
+      # route comments for the PathPrefix auto-discovery gotcha this
+      # avoids.
+      external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - music.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+      # External twin of api - same /rest carve-out, now genuinely
+      # internet-facing (not just LAN), so rate-limited via
+      # backendtrafficpolicy-login-ratelimit.yaml the same way the
+      # existing external-only apps protect their auth-adjacent paths.
+      # Still gated only by navidrome's own Subsonic auth, same as the
+      # internal api route - no Authentik brute-force protection sits in
+      # front of this path by design (Symfonium can't do OIDC).
+      external-api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - music.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /rest
+            backendRefs:
+              - identifier: app
+                port: *port
 
     persistence:
       data:
