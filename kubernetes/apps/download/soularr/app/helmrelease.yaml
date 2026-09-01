@@ -43,7 +43,7 @@ spec:
                     name: soularr-secret
                     key: SLSKD_API_KEY
             probes:
-              liveness: &probes
+              readiness:
                 enabled: true
                 custom: true
                 spec:
@@ -54,7 +54,36 @@ spec:
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 5
-              readiness: *probes
+              # Deliberately separate from readiness, and checks more than
+              # the webUI - confirmed live (2026-09-01) that soularr.py can
+              # hang indefinitely mid-cycle (stuck after a slskd restart
+              # produced a burst of connection-refused errors) while the
+              # webUI thread stays perfectly healthy throughout, so a
+              # webUI-only check (readiness above) never notices: the pod
+              # just silently stops downloading/importing anything while
+              # reporting Ready/Running forever. soularr.py writes
+              # substantial log output on every real cycle regardless of
+              # whether new albums are found (SCRIPT_INTERVAL=300s), so a
+              # stale log file is a reliable "the sync loop is stuck, not
+              # just between runs" signal - 20min is ~4x the expected
+              # cycle interval, generous enough to avoid false positives
+              # from one slow cycle. Kept off readiness on purpose: a stuck
+              # sync loop should restart the container, but shouldn't also
+              # pull the webUI out of Service endpoints - you want to
+              # still be able to reach it to see what's going on.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - sh
+                      - -c
+                      - curl -sf http://localhost:8265/ >/dev/null && find /data/soularr.log -mmin -20 | grep -q .
+                  initialDelaySeconds: 120
+                  periodSeconds: 60
+                  timeoutSeconds: 10
+                  failureThreshold: 3
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
