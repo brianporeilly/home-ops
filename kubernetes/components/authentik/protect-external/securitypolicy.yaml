@@ -55,3 +55,29 @@ spec:
       name: ${APP}-oidc-client-secret
     redirectURL: "https://${EXTERNAL_HOSTNAME}/oauth2/callback"
     logoutPath: "/logout"
+    # email scope + jwt block below: same Remote-User forwarding as
+    # protect's own SecurityPolicy - see that file for the full
+    # rationale (both the scope requirement and the claimToHeaders
+    # mechanics). Kept in sync deliberately: this file was originally
+    # missing both, which meant the external route authenticated fine but
+    # never actually forwarded identity to the backend - silently, same
+    # failure shape as protect's own missing-scope bug, just in the twin
+    # file. If protect's jwt/scopes config changes, mirror it here too.
+    scopes:
+      - openid
+      - email
+    cookieNames:
+      idToken: authentik-id-token
+  jwt:
+    providers:
+      - name: authentik
+        issuer: "https://auth.oreillys.io/application/o/${APP}/"
+        remoteJWKS:
+          uri: "https://auth.oreillys.io/application/o/${APP}/jwks/"
+        extractFrom:
+          cookies:
+            - authentik-id-token
+        claimToHeaders:
+          - claim: email
+            header: Remote-User
+    optional: true
