@@ -161,6 +161,17 @@ spec:
       # Still gated by navidrome's own per-request Subsonic auth (username
       # + salted token) - not a net new exposure versus the pre-SSO
       # baseline, and this route is internal-only today anyway.
+      #
+      # /share is also carved out here, not just /rest - confirmed live
+      # (2026-09-01) that navidrome serves artist images (getArtistInfo2's
+      # image URLs, unlike album art which stays on /rest/getCoverArt) via
+      # a separate /share/img/<signed-jwt> path. That JWT is
+      # self-authenticating (same idea as Subsonic's own signed auth
+      # params), so exempting it from the SSO gate doesn't open anything
+      # up - but without this, Symfonium (or any non-browser client) got a
+      # silent 302 to Authentik's login page instead of the image, with no
+      # visible error anywhere - it just showed the default placeholder
+      # forever.
       api:
         annotations:
           # No 401-expecting UI check for this one - not meaningful to
@@ -177,6 +188,9 @@ spec:
               - path:
                   type: PathPrefix
                   value: /rest
+              - path:
+                  type: PathPrefix
+                  value: /share
             backendRefs:
               - identifier: app
                 port: *port
@@ -212,11 +226,17 @@ spec:
             namespace: network
             sectionName: https
         rules:
+          # /share carved out alongside /rest - see the internal api
+          # route's comment above for why (artist images route through
+          # /share/img/<signed-jwt>, not /rest/getCoverArt).
           - name: login-rate-limited
             matches:
               - path:
                   type: PathPrefix
                   value: /rest
+              - path:
+                  type: PathPrefix
+                  value: /share
             backendRefs:
               - identifier: app
                 port: *port
