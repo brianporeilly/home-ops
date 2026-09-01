@@ -30,7 +30,7 @@ spec:
     substitute:
       APP: navidrome
       PVC: navidrome-data
-      HTTPROUTE_NAME: navidrome
+      HTTPROUTE_NAME: navidrome-app
       HOSTNAME: music.internal.oreillys.io
       AUTH_HOSTNAME: auth.internal.oreillys.io
   prune: true

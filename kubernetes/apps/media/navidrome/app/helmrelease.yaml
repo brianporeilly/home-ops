@@ -77,6 +77,36 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # Unauthenticated (at the Gateway level) path for direct Subsonic API
+      # clients (Symfonium etc.) that can't complete an OIDC redirect -
+      # Gateway API's cross-route precedence (longest path match wins)
+      # sends /rest traffic here instead of through the
+      # SecurityPolicy-protected app route above. Adding this second route
+      # key renames that one from `navidrome` to `navidrome-app` (see
+      # ks.yaml's HTTPROUTE_NAME) - same pattern as sonarr, see
+      # download/sonarr/app/helmrelease.yaml for the fuller rationale.
+      # Still gated by navidrome's own per-request Subsonic auth (username
+      # + salted token) - not a net new exposure versus the pre-SSO
+      # baseline, and this route is internal-only today anyway.
+      api:
+        annotations:
+          # No 401-expecting UI check for this one - not meaningful to
+          # monitor and Gatus would otherwise flag it as always-down.
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - music.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /rest
+            backendRefs:
+              - identifier: app
+                port: *port
 
     persistence:
       data:
