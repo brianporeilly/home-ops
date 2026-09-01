@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline. Staged (log-only,
+# never enforces) on purpose, same as every policy in this rollout.
+#
+# source-controller fetching the GitRepository (ssh + https) and any
+# OCIRepository (https). Staged now rather than deferred to a follow-up
+# like the other narrow/low-confidence flows in the plan doc - breaking
+# this would break the GitOps pipeline itself, which is also the only tool
+# available to fix a bad egress promotion. Same class of self-inflicted-
+# deadlock risk the calico Kustomization's own dependency comment warns
+# about (docs/network-policy-plan.md's step-7 DNS outage correction), not
+# worth risking just because the flow count is small.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-flux-egress-git
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'flux-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [22, 443]

@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline - egress mirror of
+# allow-observability-ingress, cluster-pod half only (see
+# stagedglobalnetworkpolicy-observability-egress-private-network.yaml for
+# the host-network half - kubelet/node-exporter/control-plane/SNMP - which
+# needs nets:, not a pod selector). Staged (log-only, never enforces) on
+# purpose, same as every policy in this rollout.
+#
+# `observability` is the other wide egress fan-out: Prometheus scraping
+# ServiceMonitor/PodMonitor targets across nearly every namespace.
+#
+# Deliberately broad for this first pass, same reasoning as
+# allow-observability-ingress: selector all(), no per-namespace/port list -
+# narrowing to per-app scrape ports is a refinement for once real
+# pending_actions data shows what's actually used.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-observability-egress-cluster
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: all()

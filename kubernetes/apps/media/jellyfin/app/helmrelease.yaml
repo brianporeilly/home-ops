@@ -80,7 +80,7 @@ spec:
           install-oidc:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:5e0ede45886712ce95b0e66232f743cc3d69ff6c2f62cc0d63778e1e894f8bd4
             command: ["python3", "-c"]
             args:
               - |
@@ -241,7 +241,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:5e0ede45886712ce95b0e66232f743cc3d69ff6c2f62cc0d63778e1e894f8bd4
             command:
               - python3
               - -c

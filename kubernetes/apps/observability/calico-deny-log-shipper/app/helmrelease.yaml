@@ -63,7 +63,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:5e0ede45886712ce95b0e66232f743cc3d69ff6c2f62cc0d63778e1e894f8bd4
             command:
               - python3
               - -c
@@ -88,17 +88,35 @@ spec:
                     # Last entry is the resolved decision - either a policy's own
                     # explicit Allow/Deny, or EndOfTier (action always Deny). For
                     # EndOfTier, the specific staged/real policy that was being
-                    # evaluated when the tier ran out lives in trigger.name.
+                    # evaluated when the tier ran out lives in trigger.name/kind,
+                    # not the EndOfTier entry's own "kind" (which is always the
+                    # literal string "EndOfTier").
+                    #
+                    # Bug found 2026-08-31 while verifying this table against
+                    # docs/egress-policy-plan.md's staged rollout: the
+                    # involves_staged check only ever looked at each entry's own
+                    # top-level "kind", so an EndOfTier caused by a staged
+                    # policy claiming the tier - confirmed live via direct
+                    # whisker-backend queries showing real
+                    # enforced=Allow/pending=Deny divergence for uncovered
+                    # egress (home-assistant, changedetection, paperless) right
+                    # after the egress staged policies landed - was never
+                    # recognized as "involves staged" and got silently
+                    # dropped. That's exactly the case this table exists to
+                    # catch (a broad staged policy would newly deny a flow),
+                    # so it also has to check trigger.kind.
                     if not policy_list:
                         return None, None, False
                     last = policy_list[-1]
                     action = last.get("action")
+                    trigger = last.get("trigger") or {}
                     if last.get("kind") == "EndOfTier":
-                        trigger = last.get("trigger") or {}
                         name = trigger.get("name") or "(no staged policy - end of tier)"
                     else:
                         name = last.get("name")
-                    involves_staged = any((p.get("kind") or "").startswith("Staged") for p in policy_list)
+                    involves_staged = any(
+                        (p.get("kind") or "").startswith("Staged") for p in policy_list
+                    ) or (trigger.get("kind") or "").startswith("Staged")
                     return action, name, involves_staged
 
                 with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:

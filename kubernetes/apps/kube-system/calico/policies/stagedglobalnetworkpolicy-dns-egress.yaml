@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Universal piece of docs/egress-policy-plan.md's proposed baseline, egress
+# mirror of allow-dns-ingress. Staged (log-only, never enforces) on purpose,
+# same as every policy in this rollout - confirmed via real flow data that
+# every namespace's pods query coredns on udp+tcp/53, so this has to exist
+# before egress default-deny can be staged usefully anywhere.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]

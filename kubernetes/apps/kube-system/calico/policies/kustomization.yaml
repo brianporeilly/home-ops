@@ -20,3 +20,25 @@ resources:
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
+  # docs/egress-policy-plan.md - staged only, none of these enforce yet
+  - ./stagedglobalnetworkpolicy-dns-egress.yaml
+  - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
+  - ./stagedglobalnetworkpolicy-network-egress.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-cluster.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-private-network.yaml
+  - ./stagedglobalnetworkpolicy-download-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-flux-egress-git.yaml
+  # docs/egress-policy-plan.md round 2 - drafted from real pending-diff data
+  - ./stagedglobalnetworkpolicy-cnpg-egress-rgw.yaml
+  - ./stagedglobalnetworkpolicy-rook-ceph-egress-daemons.yaml
+  - ./stagedglobalnetworkpolicy-sockpuppetbrowser-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-media-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-immich-server-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-authentik-worker-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-database-to-media-egress.yaml
+  - ./stagedglobalnetworkpolicy-database-to-observability-egress.yaml
+  # docs/egress-policy-plan.md round 3 - from post-merge pending-diff data
+  - ./stagedglobalnetworkpolicy-changedetection-to-llama-cpp-egress.yaml
+  - ./stagedglobalnetworkpolicy-postgres-operator-webhook-egress.yaml
+  - ./stagedglobalnetworkpolicy-metrics-server-egress-kubelet.yaml
