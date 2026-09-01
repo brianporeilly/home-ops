@@ -111,17 +111,32 @@ With the fix live, reviewed ~254 accumulated pending-diff hits (34 distinct flow
 - `observability/akvorado-orchestrator → PRIVATE NETWORK:8443` - only 2 hits, unconfirmed whether this is OPNsense-related (would already be fixed by the `10.2.0.1/32` addition above if so) or something else.
 - `kube-system/spegel → external-secrets-webhook:5000` - only 1 hit, an odd pairing (spegel's job is node-to-node image mirroring) - possibly a one-off artifact rather than a real recurring pattern.
 
+## Round 3: verifying round 2 and reviewing what's left (2026-09-01)
+
+Confirmed round 2's fixes actually worked - compared pending-diff data from before/after the merge (23:27:41 UTC) rather than assuming: all 24 targeted patterns disappeared. One (`ceph.rbd.csi.ceph.com-ctrlplugin`'s traffic) took until 23:38:15 to fully stop showing up - about 11 minutes of per-node Felix/Goldmane propagation lag, the same already-documented category, not a new problem.
+
+Two more clean fixes found in the post-merge data, same "egress mirror of an enforcing ingress-only rule" shape as round 2's database pairs - missed by the earlier reviews, not deferred on purpose:
+- **`changedetection → llama-cpp:8080`** - the single largest gap in the whole dataset (133 hits in ~4.5h). Mirrors `allow-changedetection-to-llama-cpp`, which has been enforcing (ingress) since the original network-policy-plan.md rollout.
+- **`postgres-operator → every CNPG instance's :8000 API`** (authentik/home-assistant/paperless/immich/linkwarden/nebraska/forgejo, ~62 hits combined) - mirrors `allow-postgres-operator-webhook`, same source-scoped-only shape as `allow-apiserver-webhooks`/`allow-spegel-mirror`.
+
+One more real, continuous need, not previously staged:
+- **`metrics-server → kubelet, tcp/10250`** - kubelet runs host-network like the apiserver, so this shows as `PRIVATE NETWORK`. 181 hits, clearly ongoing (metrics-server's whole job), not deferred.
+
+**Investigated and deliberately NOT staged**: `media/jellyfin-exporter → PRIVATE NETWORK:8096`. Checked the actual config (`--jellyfin.address=http://jellyfin.media.svc.cluster.local:8096`, a plain ClusterIP DNS call, same namespace, neither pod `hostNetwork`, jellyfin's Service is plain `ClusterIP` not LoadBalancer) - this should resolve as a normal pod-to-pod flow. Only 3 hits, real gap already covered by `allow-same-namespace-egress` regardless of the odd classification. Concluded this is a one-off Calico/Goldmane endpoint-attribution artifact (the same "freshly-spawned pod" classification noise already documented elsewhere in this project), not a real policy gap - staging a `nets:`-based rule for it would mask the real (already-covered) need rather than fix anything.
+
 ## What's deliberately NOT staged yet
 
-- `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first (same open item as the original review - now confirmed as real, recurring traffic via round 2's data, but the VLAN-scope question is unchanged).
-- The three round-2 "still unresolved" items above.
+- `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first (same open item as the original review - confirmed as real, recurring traffic via round 2/3's data, but the VLAN-scope question is unchanged).
+- The three round-2 "still unresolved" items (`envoy-internal:7000`, `akvorado-orchestrator:8443`, the single `spegel` hit).
+- `misc/forgejo-oidc-source-sync → network/envoy-internal:10443` - recurs every CronJob run. Matches the same "misc → network" shape the *ingress* plan generalized into `allow-cluster-to-network-https` rather than a narrow pair - worth the same treatment for egress, not staged yet.
+- Small/low-volume items seen in round 3's data needing more samples before a call: `home-assistant → PUBLIC:443`/`udp:80` (new ports on the already-deferred LAN item), `authentik-server → PUBLIC:443` (2 hits), `home/microbin`, `media/podfetch` (1 hit each).
 - Any narrowing of the two broad `network`/`observability` cluster-wide egress allows down to specific ports per destination - same "open question" the ingress plan left for its own `network`/`observability` ingress rules; revisit together once there's real usage data either way.
 - The actual default-deny-egress effect itself - **not a separate policy to write**. Exactly like ingress step 7: once every `selector: all()` Egress-type policy above is promoted from staged to enforcing, the permissive per-namespace `kns.<ns>` Profile fallback ends for egress on every pod simultaneously, and that *is* default-deny. No explicit "deny all" object needed or wanted. When that promotion happens, it must land as one atomic change for the same reason ingress step 7 had to - see `docs/incidents/2026-08-23-dns-outage.md` before attempting it, and re-read network-policy-plan.md's step 7 correction about the two Kustomizations not being atomic *by construction*.
 
 ## Next steps
 
-1. Land the round-2 staged files, let `calico-policies` reconcile.
-2. Keep watching `whisker.internal.oreillys.io` / the Grafana "Network" dashboard's pending-diff table now that it actually works - confirm the round-2 fixes each clear their corresponding diff, and watch for anything new.
-3. Resolve the three "still unresolved" items above and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
+1. Land the round-3 staged files, let `calico-policies` reconcile.
+2. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 3's fixes clear, watch for anything new.
+3. Resolve the remaining unresolved items and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
 4. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
 5. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.

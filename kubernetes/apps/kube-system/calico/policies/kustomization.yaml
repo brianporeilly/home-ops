@@ -38,3 +38,7 @@ resources:
   - ./stagedglobalnetworkpolicy-observability-egress-internet.yaml
   - ./stagedglobalnetworkpolicy-database-to-media-egress.yaml
   - ./stagedglobalnetworkpolicy-database-to-observability-egress.yaml
+  # docs/egress-policy-plan.md round 3 - from post-merge pending-diff data
+  - ./stagedglobalnetworkpolicy-changedetection-to-llama-cpp-egress.yaml
+  - ./stagedglobalnetworkpolicy-postgres-operator-webhook-egress.yaml
+  - ./stagedglobalnetworkpolicy-metrics-server-egress-kubelet.yaml
