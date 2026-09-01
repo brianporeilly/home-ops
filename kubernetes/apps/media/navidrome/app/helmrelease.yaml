@@ -66,6 +66,29 @@ spec:
               # This CIDR is defense-in-depth on top of that, not the
               # primary control - don't rely on it alone.
               ND_EXTAUTH_TRUSTEDSOURCES: 10.20.0.0/16,10.246.0.0/16
+              # Without this, navidrome hides its own Logout button
+              # entirely while ExtAuth is active (by design - logging out
+              # of navidrome alone would do nothing useful, since the very
+              # next request would just get silently re-authenticated via
+              # the still-valid Remote-User header). Pointed at navidrome's
+              # own /logout path, not Authentik's raw end-session endpoint
+              # directly - that path is what the protect-external
+              # SecurityPolicy's own logoutPath is wired to
+              # (components/authentik/protect-external/securitypolicy.yaml),
+              # so Envoy intercepts it, clears its own OIDC session
+              # cookies, and redirects on to Authentik's end-session
+              # endpoint in one shot. Pinned to the EXTERNAL hostname, not
+              # internal - external is this user's actual primary route
+              # (confirmed live), and by definition it's reachable from
+              # wherever they're currently connecting since that's what
+              # they used to get here in the first place, unlike internal
+              # which is guaranteed unreachable off-LAN. Not verified
+              # whether internal-route users get a working redirect back
+              # from this external URL (depends on LAN client DNS/router
+              # behavior we haven't checked, unlike in-cluster resolution
+              # which we did confirm elsewhere) - revisit if that's
+              # actually hit and broken.
+              ND_EXTAUTH_LOGOUTURL: https://music.oreillys.io/logout
               # lastfm is already in navidrome's default ND_AGENTS list
               # (deezer,lastfm,listenbrainz) - just providing the key/secret
               # is enough, no need to also set ND_AGENTS. Fixes two things:
