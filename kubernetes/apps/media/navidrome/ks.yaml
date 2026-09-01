@@ -11,6 +11,7 @@ spec:
       app.kubernetes.io/name: *app
   components:
     - ../../../../components/kopiur/backup
+    - ../../../../components/authentik/protect
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -18,12 +19,20 @@ spec:
       namespace: rook-ceph
     - name: kopiur-repository
       namespace: kopiur-system
+    # protect's Reflector-mirrored oidc-client-secret can lose a race
+    # against authentik's own ExternalSecret if applied first - see
+    # download/lidarr/ks.yaml for the incident this was first found from.
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/media/navidrome/app
   postBuild:
     substitute:
       APP: navidrome
       PVC: navidrome-data
+      HTTPROUTE_NAME: navidrome
+      HOSTNAME: music.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
   prune: true
   retryInterval: 2m
   sourceRef:
