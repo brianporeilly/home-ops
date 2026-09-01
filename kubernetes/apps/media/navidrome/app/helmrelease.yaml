@@ -40,16 +40,32 @@ spec:
               # Symfonium etc. keep using navidrome's own local-account
               # Subsonic auth there instead).
               ND_EXTAUTH_USERHEADER: Remote-User
-              # Whole cluster pod CIDR, not a tight scope - Calico doesn't
-              # give a narrower stable CIDR to pin to (single flat pool,
-              # confirmed via `kubectl get ippool`). The real restriction
-              # on who can reach this container at all is the cluster-wide
-              # Calico GlobalNetworkPolicy (allow-network-ingress +
+              # Not the pod CIDR (10.246.0.0/16) alone - confirmed live
+              # (debug logs + Envoy access logs cross-referenced by
+              # timestamp/request path) that traffic reaching this
+              # container, including Envoy-proxied browser requests, shows
+              # up with a *node* address, not a pod address - specifically
+              # one node's second NIC (`eno1`, distinct from the
+              # Kubernetes-registered `enp1s0f0`/InternalIP), not the
+              # node's InternalIP either. Since navidrome's pod can be
+              # scheduled onto any node, and other nodes may have their own
+              # secondary-NIC addresses on this or other 10.20.x.x
+              # subnets, trusting the whole 10.20.0.0/16 physical/VLAN
+              # range is the only reliable option here - the pod CIDR is
+              # kept too in case routing ever does show a real pod IP.
+              # Comma-separated list, confirmed via navidrome's own docs.
+              #
+              # This CIDR is broad and not a tight scope on its own -
+              # Calico doesn't give a narrower stable CIDR to pin to either
+              # (single flat pod-IP pool, confirmed via `kubectl get
+              # ippool`). The real restriction on who can reach this
+              # container at all is the cluster-wide Calico
+              # GlobalNetworkPolicy (allow-network-ingress +
               # allow-same-namespace) - namespace-scoped to `media` and
               # `network` today, not narrowed to Envoy specifically yet.
               # This CIDR is defense-in-depth on top of that, not the
               # primary control - don't rely on it alone.
-              ND_EXTAUTH_TRUSTEDSOURCES: 10.246.0.0/16
+              ND_EXTAUTH_TRUSTEDSOURCES: 10.20.0.0/16,10.246.0.0/16
             probes:
               liveness: &probes
                 enabled: true

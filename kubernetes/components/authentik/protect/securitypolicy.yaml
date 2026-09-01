@@ -86,6 +86,19 @@ spec:
     # entry in this app's Authentik blueprint.
     redirectURL: "https://${HOSTNAME}/oauth2/callback"
     logoutPath: "/logout"
+    # email is required for the jwt block's claimToHeaders below - a scope
+    # not requested here never lands in the token, even though every
+    # app's Authentik provider already has the scope-email property
+    # mapping (blueprints-protected-apps.yaml). Learned the hard way:
+    # every other part of the Remote-User pipeline (issuer, JWKS, cookie
+    # name, claim_to_headers) can be perfectly wired and it'll still
+    # silently produce no header at all, because the claim genuinely isn't
+    # in the token - there's no error to see anywhere for this, checked
+    # live via Envoy's own compiled /config_dump. Default without this
+    # field is just ["openid"].
+    scopes:
+      - openid
+      - email
     # Named so the jwt block below can read it back out on every
     # subsequent request (the browser echoes this cookie itself - Envoy
     # doesn't need to re-inject anything mid-chain). Fixed name is fine to
