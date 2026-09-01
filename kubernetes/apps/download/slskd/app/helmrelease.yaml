@@ -123,6 +123,7 @@ spec:
             shares:
               directories:
                 - /media/downloads/soulseek/shared
+                - /music
               filters:
                 - \.ini$
                 - Thumbs.db$
@@ -156,5 +157,19 @@ spec:
         path: /media/downloads/soulseek
         globalMounts:
           - path: /media/downloads/soulseek
+      # NAS static NFS mount, dedicated music subdirectory, read-only -
+      # deliberately scoped to just this (not the whole /media export) so
+      # what's shareable over Soulseek is bounded by what's mounted, not
+      # just by shares.directories in the config above. Same mount navidrome
+      # uses (kubernetes/apps/media/navidrome/app/helmrelease.yaml). Movies/
+      # TV/etc. are intentionally never reachable from this container at
+      # all - narrower than gating access via config alone.
+      music:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/music
+        globalMounts:
+          - path: /music
+            readOnly: true
       tmp:
         type: emptyDir
