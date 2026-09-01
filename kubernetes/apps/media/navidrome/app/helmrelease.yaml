@@ -66,6 +66,24 @@ spec:
               # This CIDR is defense-in-depth on top of that, not the
               # primary control - don't rely on it alone.
               ND_EXTAUTH_TRUSTEDSOURCES: 10.20.0.0/16,10.246.0.0/16
+              # Without this, navidrome hides its own Logout button
+              # entirely while ExtAuth is active (by design - logging out
+              # of navidrome alone would do nothing useful, since the very
+              # next request would just get silently re-authenticated via
+              # the still-valid Remote-User header). Pointed at navidrome's
+              # own /logout path, not Authentik's raw end-session endpoint
+              # directly - that path is what the protect SecurityPolicy's
+              # own logoutPath is wired to (securitypolicy.yaml), so Envoy
+              # intercepts it, clears its own OIDC session cookies, and
+              # redirects on to Authentik's end-session endpoint in one
+              # shot. Pinned to the internal hostname - this is the
+              # browser-facing web UI's logout button, not something
+              # Symfonium/the Subsonic API touches, and internal is the
+              # primary route for browser use. Caveat: clicking Logout
+              # while on the external hostname still bounces you through
+              # music.internal.oreillys.io, which won't resolve off-LAN -
+              # acceptable for now, revisit if that's actually hit often.
+              ND_EXTAUTH_LOGOUTURL: https://music.internal.oreillys.io/logout
               # lastfm is already in navidrome's default ND_AGENTS list
               # (deezer,lastfm,listenbrainz) - just providing the key/secret
               # is enough, no need to also set ND_AGENTS. Fixes two things:
