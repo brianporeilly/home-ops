@@ -21,6 +21,7 @@ resources:
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
   - ./globalnetworkpolicy-internet-to-slskd.yaml
+  - ./globalnetworkpolicy-kured-to-observability.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
