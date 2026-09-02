@@ -49,11 +49,6 @@
       "description": "Paused 2026-08-22 - 26.7.0 crash-loops on this cluster's host-managed-driver setup (see the comment next to the version pin in nvidia-gpu-operator/app/ocirepository.yaml for the full writeup). Re-enable once root-caused, don't just remove this rule without re-testing.",
       "matchPackageNames": ["ghcr.io/home-operations/charts-mirror/nvidia-gpu-operator"],
       "enabled": false
-    },
-    {
-      "description": "Paused 2026-09-02 - v0.5.12's frontend can't render on a cold/logged-out session, blocking login entirely (see the comment next to the version pin in tube-archivist/app/helmrelease.yaml for the full writeup). Re-enable once fixed upstream.",
-      "matchPackageNames": ["docker.io/bbilly1/tubearchivist"],
-      "enabled": false
     }
   ]
 }
