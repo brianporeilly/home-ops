@@ -80,6 +80,19 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # External twin - no Authentik SecurityPolicy in front, by design:
+      # access is gated by copyparty's own [accounts]/[groups] ACLs
+      # (resources/config.conf), same as any other copyparty client.
+      external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - files.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
     persistence:
       data:
         suffix: data
