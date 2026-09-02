@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing round-4's pending-diff data (2026-09-01): nebraska mirrors
+# Flatcar OS update payloads from the upstream release feed (see
+# app/helmrelease.yaml's syncer config) - real, expected tcp/443 egress,
+# not previously staged.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-nebraska-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'nebraska'
+  namespaceSelector: kubernetes.io/metadata.name == 'misc'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

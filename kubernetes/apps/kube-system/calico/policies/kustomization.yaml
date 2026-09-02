@@ -43,3 +43,9 @@ resources:
   - ./stagedglobalnetworkpolicy-changedetection-to-llama-cpp-egress.yaml
   - ./stagedglobalnetworkpolicy-postgres-operator-webhook-egress.yaml
   - ./stagedglobalnetworkpolicy-metrics-server-egress-kubelet.yaml
+  # docs/egress-policy-plan.md round 4 - live pending-diff review 2026-09-01
+  - ./stagedglobalnetworkpolicy-navidrome-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-nebraska-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-kured-egress-prometheus.yaml
+  - ./stagedglobalnetworkpolicy-gatus-egress-dns-check.yaml
+  - ./stagedglobalnetworkpolicy-omada-controller-egress-internet.yaml

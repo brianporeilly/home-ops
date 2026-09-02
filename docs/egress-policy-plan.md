@@ -124,6 +124,42 @@ One more real, continuous need, not previously staged:
 
 **Investigated and deliberately NOT staged**: `media/jellyfin-exporter → PRIVATE NETWORK:8096`. Checked the actual config (`--jellyfin.address=http://jellyfin.media.svc.cluster.local:8096`, a plain ClusterIP DNS call, same namespace, neither pod `hostNetwork`, jellyfin's Service is plain `ClusterIP` not LoadBalancer) - this should resolve as a normal pod-to-pod flow. Only 3 hits, real gap already covered by `allow-same-namespace-egress` regardless of the odd classification. Concluded this is a one-off Calico/Goldmane endpoint-attribution artifact (the same "freshly-spawned pod" classification noise already documented elsewhere in this project), not a real policy gap - staging a `nets:`-based rule for it would mask the real (already-covered) need rather than fix anything.
 
+## Round 4: live pending-diff review (2026-09-01)
+
+Reviewed `job="calico-pending-diff-log"` in Loki directly (6h window, ~1700
+lines) rather than waiting for the next doc pass - found several
+high-volume patterns none of the earlier flow reviews had caught:
+
+**Staged this round, confirmed real:**
+- **`media/navidrome → PUBLIC:443`** (45 hits/6h) - the Last.fm agent
+  configured in #832 (artist images/bio) plus other metadata providers.
+  Landed after the original flow review, so never staged.
+- **`misc/nebraska → PUBLIC:443`** (12 hits/6h) - nebraska's `syncer`
+  mirrors Flatcar OS update payloads from the upstream release feed
+  (`app/helmrelease.yaml`). Confirmed via source, not just volume.
+- **`kube-system/kured → observability/prometheus:9090`** (98 hits/6h) -
+  kured checking for active alerts before draining/rebooting a node.
+- **`observability/gatus-sidecar → PUBLIC:53 tcp`** (286 hits/6h) - gatus's
+  own `connectivity.checker` in `app/resources/config.yaml` hardcodes
+  `1.1.1.1:53` as its internet-reachability probe. Scoped to that single
+  IP rather than `0.0.0.0/0` - confirmed as one fixed target, not
+  arbitrary-host traffic like the other internet-egress rules.
+
+**`network/omada-controller → PUBLIC:443`** (290 hits/6h, the single
+largest new pattern found). Traced to a real destination via `kubectl
+exec` + `ss -tnp` inside the pod: `34.239.223.202` (AWS us-east-1,
+`ec2-34-239-223-202.compute-1.amazonaws.com`) - a TP-Link/Omada-cloud-
+hosted endpoint. Server logs confirm it's `LocalFirmwareUpgradeMonitor`'s
+periodic "Target firmware check" plus a CA-certificate update check, both
+on a 5-minute interval - legitimate TP-Link functionality (checking for
+controlled/staged firmware updates for managed devices), but genuine
+phone-home to TP-Link's cloud, not something the controller's own local
+config requested. **Decided (2026-09-01): allow it** - the dest IP is
+AWS-hosted infrastructure, not a stable TP-Link-owned range, so
+`allow-omada-controller-egress-internet` is staged broad
+(`nets: 0.0.0.0/0`, `tcp/443`), same shape as the other
+unknown-destination internet-egress rules, rather than IP-pinned.
+
 ## What's deliberately NOT staged yet
 
 - `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first (same open item as the original review - confirmed as real, recurring traffic via round 2/3's data, but the VLAN-scope question is unchanged).
@@ -135,8 +171,9 @@ One more real, continuous need, not previously staged:
 
 ## Next steps
 
-1. Land the round-3 staged files, let `calico-policies` reconcile.
-2. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 3's fixes clear, watch for anything new.
-3. Resolve the remaining unresolved items and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
-4. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
-5. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
+1. ~~Land the round-3 staged files, let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-01T04:11.
+2. Land the round-4 staged files (navidrome/nebraska/kured/gatus/omada-controller), let `calico-policies` reconcile.
+3. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 4's fixes clear, watch for anything new.
+4. Resolve the remaining unresolved items and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
+5. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
+6. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
