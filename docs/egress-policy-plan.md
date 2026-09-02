@@ -1,6 +1,6 @@
 # Egress Segmentation Plan (Calico NetworkPolicy)
 
-Status: **Roadmap - staging phase started 2026-08-31, round 5 as of
+Status: **Roadmap - staging phase started 2026-08-31, round 6 as of
 2026-09-02.** Follow-on to
 `docs/network-policy-plan.md`, whose step 8 deferred egress as "a deliberate
 separate decision per namespace... low priority, track as a roadmap item."
@@ -220,11 +220,61 @@ round-2 RGW fix).
   mis-attributes to whatever pod last held it. Still deferring - low and
   inconsistent volume, not a real gap.
 
+## Round 6: live pending-diff review (2026-09-02)
+
+Checked round 5's fixes about 2h45m after merge. Real progress -
+`network/envoy-internal → PRIVATE:7000`, `misc/forgejo-oidc-source-sync →
+network:10443`, and home-assistant's ESPHome (`tcp/6053`) and
+`tcp/443` traffic were all gone or down to a single stray hit - but two
+things needed a closer look before trusting the raw numbers.
+
+**New pending-diff artifact identified - "stale long-lived connection",
+not a regression:** `network/omada-controller → PUBLIC:443` showed 152
+hits in this window, which looked like round 4's fix regressing. It
+hadn't. Pulled the raw flow record from `whisker-backend` directly and
+found two aggregation buckets for the identical (src, dst, port): the
+older one (07:03-07:49) still carried a stale `EndOfTier → Deny` trace
+citing `allow-apiserver-egress`; the very next bucket for the same pair
+(07:49-08:01) correctly resolved `Allow`. Goldmane appears to snapshot a
+flow's policy trace once per long-lived-connection tracking entry rather
+than re-evaluating per packet, so a persistent connection alive when a
+staged-policy fix lands keeps reporting its pre-fix trace until it
+naturally cycles. The same explanation cleared a spurious
+`home/vaultwarden → PUBLIC:80/443/587` cluster in the same window -
+vaultwarden's only actual live flow is `PRIVATE:6443` (apiserver, already
+covered), those hits were stale too. Distinct from the already-documented
+"freshly-spawned pod" artifact (that one's about a pod IP being reused
+too soon; this one's about a connection outliving a policy change) - worth
+remembering as its own caveat so a future round doesn't misread stale
+entries as a real regression.
+
+**Genuine gap in round 5's own fix:** `home-assistant`'s SSDP traffic
+(`udp/1900`, still actively occurring - 6 packets/708 bytes, not a stale
+artifact) stayed denied. `allow-home-egress-iot-vlan`'s udp/1900 rule only
+covered `10.60.0.0/16`, but SSDP discovery targets the well-known
+multicast group `239.255.255.250`, not a unicast device IP on the IoT
+VLAN. Fixed by adding that address as a second `nets:` entry on the same
+rule.
+
+**New confirmed pattern:** `kopiur-system/nas-backups-offsite-repl →
+PUBLIC:443` (21 hits over its run) - the off-site Backblaze B2 replication
+job (`RepositoryReplication`). First time `kopiur-system` has shown up in
+the egress review. Staged broad (`nets: 0.0.0.0/0, tcp/443`), same
+first-pass reasoning as `download`/`flux-system` - every workload in the
+namespace is backup/replication I/O, not a mix of internet-facing and
+internal-only apps.
+
+**Still low-volume, deferring:** `media/tube-archivist → PUBLIC:443` (1
+hit, real but too little data yet - plausibly its own metadata-provider
+API calls), `media/jellyfin → PUBLIC:65001/udp` (2 hits, already aged out
+of the live flow window by the time this was checked).
+
 ## What's deliberately NOT staged yet
 
 - Small/low-volume items still short on samples: `authentik-server →
   PUBLIC:443` (2 hits), `home/microbin`, `media/podfetch`,
-  `media/searxng → PUBLIC:443` (1-2 hits each).
+  `media/searxng → PUBLIC:443` (1-2 hits each), `media/tube-archivist →
+  PUBLIC:443` (1 hit), `media/jellyfin → PUBLIC:65001/udp` (2 hits).
 - The single `network/envoy-internal → download/qui:7476` pending-diff hit
   (round 5) - a normal pod-to-pod destination that should already match
   `allow-network-egress`'s broad rule; one hit, most likely the same
@@ -237,8 +287,9 @@ round-2 RGW fix).
 
 1. ~~Land the round-3 staged files, let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-01T04:11.
 2. ~~Land the round-4 staged files (navidrome/nebraska/kured/gatus/omada-controller), let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-02 (round 5's review found zero of round 4's patterns recurring).
-3. Land the round-5 staged files (network-egress-private-network, home-assistant-egress-internet, home-egress-iot-vlan, cluster-egress-network-https), let `calico-policies` reconcile.
-4. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 5's fixes clear, watch for anything new.
-5. Resolve the remaining low-volume/unconfirmed items (`authentik-server`, `microbin`, `podfetch`, `searxng`, the single `qui:7476` hit) with the same rigor as everything else here - real data, not guesses.
-6. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
-7. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
+3. ~~Land the round-5 staged files (network-egress-private-network, home-assistant-egress-internet, home-egress-iot-vlan, cluster-egress-network-https), let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-02 - all four fixed their target patterns; round 6 also caught one gap in the IoT-VLAN rule itself (SSDP multicast) and one Goldmane pending-diff artifact worth documenting (stale long-lived-connection traces), see above.
+4. Land the round-6 staged files (home-egress-iot-vlan's SSDP fix, kopiur-egress-offsite), let `calico-policies` reconcile.
+5. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 6's fixes clear, watch for anything new. When reading it, remember the two known false-positive shapes: freshly-spawned-pod misattribution and stale long-lived-connection traces - both self-correct and aren't real gaps.
+6. Resolve the remaining low-volume/unconfirmed items (`authentik-server`, `microbin`, `podfetch`, `searxng`, `tube-archivist`, `jellyfin:65001/udp`, the single `qui:7476` hit) with the same rigor as everything else here - real data, not guesses.
+7. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
+8. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
