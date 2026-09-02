@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing round-4's pending-diff data (2026-09-01): navidrome making
+# outbound tcp/443 calls, confirmed to be the Last.fm agent (artist
+# images/bio, configured in #832) plus other metadata providers - not
+# staged in earlier rounds because the agent config landed after the
+# original flow review.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-navidrome-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'navidrome'
+  namespaceSelector: kubernetes.io/metadata.name == 'media'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing round-4's pending-diff data (2026-09-01): gatus-sidecar's
+# `connectivity.checker` (app/resources/config.yaml) queries 1.1.1.1:53
+# every minute as its own internet-reachability probe. Destination scoped
+# to that one fixed target, not 0.0.0.0/0 - unlike the other internet-egress
+# rules, this one isn't "talks to arbitrary hosts", it's a single
+# hardcoded IP.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-gatus-egress-dns-check
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'gatus-sidecar'
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 1.1.1.1/32
+        ports: [53]

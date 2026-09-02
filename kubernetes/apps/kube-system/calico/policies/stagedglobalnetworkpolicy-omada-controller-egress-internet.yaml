@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# round-4's pending-diff data (2026-09-01) flagged this as the largest new
+# gap. Traced via `kubectl exec` + `ss -tnp` to 34.239.223.202 (AWS
+# us-east-1) and confirmed via the pod's own server.log:
+# LocalFirmwareUpgradeMonitor's periodic "Target firmware check" plus a
+# CA-certificate update check - TP-Link's own cloud phone-home. The dest
+# IP is AWS-hosted infra, not a stable TP-Link-owned range, so this is
+# nets: 0.0.0.0/0 rather than IP-pinned, same shape as the other
+# unknown-destination internet-egress rules (media/immich/etc).
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-omada-controller-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'omada-controller'
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]
