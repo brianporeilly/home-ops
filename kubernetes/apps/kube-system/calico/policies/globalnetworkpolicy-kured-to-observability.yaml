@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Found via real calico-deny-log data (2026-09-02): kured (kube-system)
+# gates every node reboot on a live Prometheus alert-state check
+# (extraArgs.prometheus-url in kured's helmrelease, kured's own
+# pkg/blockers/prometheus.go) - allow-observability-ingress only permits
+# ingress into `observability` sourced from `observability` itself, so
+# this was never covered. kured's own logs confirmed the practical impact:
+# "Reboot blocked: prometheus query error: ... i/o timeout" on every check
+# since at least 2026-08-26 (likely since the original ingress rollout).
+# kured fails safe on a query error (blocks the reboot, doesn't proceed
+# blind), so the effect wasn't unsafe reboots - it was kured silently
+# never being able to reboot any node at all, indefinitely.
+#
+# Same shape as allow-postgres-operator-webhook: source-scoped-only
+# (selector: all() on the policy itself, not narrowed to one destination
+# pod set) since kured runs as a DaemonSet reaching Prometheus's
+# StatefulSet pods, not a fixed 1:1 pair.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-kured-to-observability
+spec:
+  selector: app.kubernetes.io/name == 'prometheus'
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'kured'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+      destination:
+        ports: [9090]
