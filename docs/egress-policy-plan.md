@@ -1,6 +1,7 @@
 # Egress Segmentation Plan (Calico NetworkPolicy)
 
-Status: **Roadmap - staging phase started 2026-08-31.** Follow-on to
+Status: **Roadmap - staging phase started 2026-08-31, round 5 as of
+2026-09-02.** Follow-on to
 `docs/network-policy-plan.md`, whose step 8 deferred egress as "a deliberate
 separate decision per namespace... low priority, track as a roadmap item."
 The ingress baseline (default-deny ingress everywhere) has been enforcing
@@ -160,20 +161,84 @@ AWS-hosted infrastructure, not a stable TP-Link-owned range, so
 (`nets: 0.0.0.0/0`, `tcp/443`), same shape as the other
 unknown-destination internet-egress rules, rather than IP-pinned.
 
+## Round 5: live pending-diff review (2026-09-02)
+
+Reviewed `job="calico-pending-diff-log"` in Loki for the 2h window since
+round 4 landed (596 lines, ~20 distinct patterns). Round 4's five targeted
+patterns (navidrome/nebraska/kured/gatus/omada-controller) were all absent -
+confirmed cleared, no regressions.
+
+**`network/envoy-internal → PRIVATE NETWORK:7000` identified** - the single
+largest pattern in the window (129 hits/2h), open since round 2 as
+"unidentified" despite checking every port omada-controller exposes. Traced
+via envoy admin `/clusters` stats on the live pod (3014 total requests,
+cluster `httproute/rook-ceph/rook-ceph-dashboard/rule/0`, target
+`10.20.20.15:7000`) and confirmed against `kubectl get pods -n rook-ceph -l
+app=rook-ceph-mgr -o wide` - that's `rook-ceph-mgr-a` on `wk-jonas`.
+`rook-ceph-dashboard`'s HTTPRoute hits ceph-mgr's dashboard directly, and
+`mgr` runs `hostNetwork: true` like the rest of Ceph's daemons (this doc's
+structural note), so it shows as an external destination.
+
+The deeper reason it stayed unidentified for three rounds: no port lookup
+was ever going to fix it. `allow-network-egress`'s `destination: selector:
+all()` only matches Calico WorkloadEndpoints - it structurally cannot cover
+a host-network destination, regardless of what's listening there.
+`allow-observability-egress-cluster` already got split into a cluster-pod
+half plus a `nets:`-scoped `-private-network` half for exactly this reason;
+`network` never got the same treatment. Fixed with
+`stagedglobalnetworkpolicy-network-egress-private-network.yaml` (`nets:
+10.20.0.0/16`, `tcp/7000` - the servers VLAN, not mgr's current node IP,
+since mgr fails over between `rook-ceph-mgr-a`/`-b`, same reasoning as the
+round-2 RGW fix).
+
+**Other findings from the same review:**
+- `home-assistant → PUBLIC:443` is now high-volume (129 hits/2h, was
+  bundled as "low-volume, needs more samples" in round 3) - confirmed as
+  the same "per-app internet access" shape as navidrome/authentik-worker.
+  Staged as `allow-home-assistant-egress-internet`.
+- `home`'s LAN-device egress (ESPHome `tcp/6053`, frigate→cameras `tcp/80`,
+  SSDP `udp/1900`, ICMP) - VLAN confirmed as `10.60.0.0/16` (the
+  IoT/devices VLAN the ingress plan carved out but left unused). Staged as
+  `allow-home-egress-iot-vlan`, namespace-wide same as the observability
+  private-network split.
+- `misc/forgejo-oidc-source-sync → network/envoy-internal:10443` - still
+  recurring every CronJob run. Generalized straight to a cluster-wide
+  egress mirror of `allow-cluster-to-network-https`
+  (`allow-cluster-egress-network-https`) rather than staging a narrow
+  `misc`-only pair first - the ingress side already proved this exact
+  shape recurs across independent namespaces (forgejo/paperless-ngx/immich-
+  server), no reason to wait for egress to repeat that history.
+- `observability/akvorado-orchestrator → PRIVATE:8443` - zero hits in this
+  window (was 2 hits back in round 2). Closing this out as stale rather
+  than carrying it forward; nothing to stage.
+- `kube-system/spegel → :5000` (3-4 hits, dest attribution flips between
+  "PRIVATE NETWORK" and `external-secrets-webhook`) - still fits the
+  known "freshly-spawned-pod" Calico/Goldmane misattribution pattern
+  already documented for `media/jellyfin-exporter`: spegel's own
+  registry-mirror port is 5000 (containerPort, not its 30020 hostPort),
+  and P2P traffic to a peer node can land on a pod IP Goldmane briefly
+  mis-attributes to whatever pod last held it. Still deferring - low and
+  inconsistent volume, not a real gap.
+
 ## What's deliberately NOT staged yet
 
-- `home`'s LAN-device egress (ESPHome/frigate/SSDP) - needs VLAN confirmation first (same open item as the original review - confirmed as real, recurring traffic via round 2/3's data, but the VLAN-scope question is unchanged).
-- The three round-2 "still unresolved" items (`envoy-internal:7000`, `akvorado-orchestrator:8443`, the single `spegel` hit).
-- `misc/forgejo-oidc-source-sync → network/envoy-internal:10443` - recurs every CronJob run. Matches the same "misc → network" shape the *ingress* plan generalized into `allow-cluster-to-network-https` rather than a narrow pair - worth the same treatment for egress, not staged yet.
-- Small/low-volume items seen in round 3's data needing more samples before a call: `home-assistant → PUBLIC:443`/`udp:80` (new ports on the already-deferred LAN item), `authentik-server → PUBLIC:443` (2 hits), `home/microbin`, `media/podfetch` (1 hit each).
+- Small/low-volume items still short on samples: `authentik-server →
+  PUBLIC:443` (2 hits), `home/microbin`, `media/podfetch`,
+  `media/searxng → PUBLIC:443` (1-2 hits each).
+- The single `network/envoy-internal → download/qui:7476` pending-diff hit
+  (round 5) - a normal pod-to-pod destination that should already match
+  `allow-network-egress`'s broad rule; one hit, most likely the same
+  freshly-spawned-pod artifact as the spegel case above, not a real gap.
+  Not staging anything for it without more data.
 - Any narrowing of the two broad `network`/`observability` cluster-wide egress allows down to specific ports per destination - same "open question" the ingress plan left for its own `network`/`observability` ingress rules; revisit together once there's real usage data either way.
 - The actual default-deny-egress effect itself - **not a separate policy to write**. Exactly like ingress step 7: once every `selector: all()` Egress-type policy above is promoted from staged to enforcing, the permissive per-namespace `kns.<ns>` Profile fallback ends for egress on every pod simultaneously, and that *is* default-deny. No explicit "deny all" object needed or wanted. When that promotion happens, it must land as one atomic change for the same reason ingress step 7 had to - see `docs/incidents/2026-08-23-dns-outage.md` before attempting it, and re-read network-policy-plan.md's step 7 correction about the two Kustomizations not being atomic *by construction*.
 
 ## Next steps
 
 1. ~~Land the round-3 staged files, let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-01T04:11.
-2. Land the round-4 staged files (navidrome/nebraska/kured/gatus/omada-controller), let `calico-policies` reconcile.
-3. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 4's fixes clear, watch for anything new.
-4. Resolve the remaining unresolved items and `home`'s VLAN scope with the same rigor as everything else here - real data, not guesses.
-5. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
-6. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.
+2. ~~Land the round-4 staged files (navidrome/nebraska/kured/gatus/omada-controller), let `calico-policies` reconcile.~~ Done, confirmed live 2026-09-02 (round 5's review found zero of round 4's patterns recurring).
+3. Land the round-5 staged files (network-egress-private-network, home-assistant-egress-internet, home-egress-iot-vlan, cluster-egress-network-https), let `calico-policies` reconcile.
+4. Keep watching the Grafana "Network" dashboard's pending-diff table - confirm round 5's fixes clear, watch for anything new.
+5. Resolve the remaining low-volume/unconfirmed items (`authentik-server`, `microbin`, `podfetch`, `searxng`, the single `qui:7476` hit) with the same rigor as everything else here - real data, not guesses.
+6. Split `allow-download-egress-internet` into per-app rules (per-pod-selector, same namespace) once staged data shows each app's real destination/port shape. Namespace-wide egress for `download` is a first-pass placeholder, not the intended end state.
+7. Only then: promote everything to enforcing in one atomic change, learning from the ingress rollout's one real incident.

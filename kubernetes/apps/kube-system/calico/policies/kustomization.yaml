@@ -49,3 +49,8 @@ resources:
   - ./stagedglobalnetworkpolicy-kured-egress-prometheus.yaml
   - ./stagedglobalnetworkpolicy-gatus-egress-dns-check.yaml
   - ./stagedglobalnetworkpolicy-omada-controller-egress-internet.yaml
+  # docs/egress-policy-plan.md round 5 - live pending-diff review 2026-09-02
+  - ./stagedglobalnetworkpolicy-network-egress-private-network.yaml
+  - ./stagedglobalnetworkpolicy-home-assistant-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-home-egress-iot-vlan.yaml
+  - ./stagedglobalnetworkpolicy-cluster-egress-network-https.yaml

@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Host-network half of allow-network-egress, split out the same way
+# stagedglobalnetworkpolicy-observability-egress-private-network.yaml was:
+# a destination `selector: all()` only ever matches Calico WorkloadEndpoints,
+# so it can never cover a host-network destination no matter how broad it
+# is - allow-network-egress alone was never going to be enough here.
+#
+# Round-5 fix (2026-09-02) for the "network/envoy-internal -> PRIVATE
+# NETWORK:7000" pattern that sat unidentified through rounds 2-3: traced via
+# envoy admin `/clusters` stats on the envoy-internal pod (3014 requests,
+# cluster name `httproute/rook-ceph/rook-ceph-dashboard/rule/0`, target
+# 10.20.20.15:7000) and confirmed against `kubectl get pods -n rook-ceph -l
+# app=rook-ceph-mgr -o wide` - that's rook-ceph-mgr-a on wk-jonas. `mgr`
+# runs hostNetwork: true like the rest of Ceph's daemons (see this doc's
+# structural note), so its dashboard shows as an external destination.
+#
+# Scoped to 10.20.0.0/16 (the servers VLAN, same range
+# allow-observability-egress-private-network already uses for node/
+# control-plane targets), not the single node IP - mgr is active/standby
+# across rook-ceph-mgr-a/-b and fails over between nodes, the same reasoning
+# stagedglobalnetworkpolicy-cnpg-egress-rgw.yaml used for RGW.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-network-egress-private-network
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.0.0/16
+        ports: [7000]

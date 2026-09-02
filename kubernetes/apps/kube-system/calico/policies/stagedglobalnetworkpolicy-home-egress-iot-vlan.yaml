@@ -1,0 +1,48 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added round 5
+# (2026-09-02) - the LAN-device half of `home`'s egress, deferred through
+# rounds 1-4 pending a VLAN answer for the ESP32 sensors/IP cameras this
+# namespace's apps talk to directly. Confirmed: 10.60.0.0/16 (the
+# IoT/devices VLAN the ingress plan carved out but deliberately left
+# unused - see docs/network-policy-plan.md).
+#
+# Covers home-assistant's ESPHome native-API connections (tcp/6053, one per
+# device) and frigate's camera connections (tcp/80 for the camera's own
+# HTTP/ONVIF interface, icmp for reachability checks) - both go straight to
+# device IPs, not through any cluster service. udp/1900 is SSDP/UPnP
+# discovery, LAN-multicast traffic that Whisker still buckets under
+# "PUBLIC NETWORK" despite never leaving the LAN.
+#
+# Namespace-wide (selector: all()) rather than split per-app - both
+# home-assistant and frigate need it, same reasoning
+# allow-observability-egress-private-network used to stay namespace-wide
+# rather than per-controller.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-home-egress-iot-vlan
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.60.0.0/16
+        ports: [6053, 80]
+    - action: Allow
+      protocol: UDP
+      destination:
+        nets:
+          - 10.60.0.0/16
+        ports: [1900]
+    - action: Allow
+      protocol: ICMP
+      destination:
+        nets:
+          - 10.60.0.0/16
