@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added round 6
+# (2026-09-02), confirmed via live traffic during an actual chat session.
+# Two distinct needs, both denied and both real:
+#   - tcp/6697 (IRCS) - the actual IRC-over-TLS server connection,
+#     continuous for the session's duration. The one that actually matters;
+#     staging tcp/443 alone would still leave IRC broken once enforced.
+#   - tcp/443 - a separate, smaller 15s burst, most likely TheLounge's
+#     link-preview/favicon fetching for URLs posted in chat.
+# Broad nets: 0.0.0.0/0 for both - same reasoning as changedetection's
+# sockpuppetbrowser rule: an IRC client's whole job is reaching
+# user-configured, arbitrary remote servers, not a fixed destination.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-thelounge-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'thelounge'
+  namespaceSelector: kubernetes.io/metadata.name == 'misc'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443, 6697]

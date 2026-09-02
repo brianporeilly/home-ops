@@ -269,12 +269,51 @@ hit, real but too little data yet - plausibly its own metadata-provider
 API calls), `media/jellyfin → PUBLIC:65001/udp` (2 hits, already aged out
 of the live flow window by the time this was checked).
 
+**Follow-up pass, later the same day** - checked the pending-diff data
+again once round 6 was drafted but not yet merged, comparing against the
+window above. Total volume dropped sharply (117 hits/7.5h vs. 596/2h and
+221/2.75h in the prior two checks) - `omada-controller` and `vaultwarden`
+both went to zero, confirming those actually were the stale
+long-lived-connection artifact described above and not real gaps.
+`tube-archivist`/`jellyfin:65001` also cleared (one-offs, as expected).
+Two new confirmed patterns and one investigated-but-unconfirmed:
+
+- **`immich/immich-ml → PUBLIC:443`** - two tight bursts (~7 hits each,
+  minutes apart) roughly 3.5h apart, the shape of a model
+  download/reload rather than steady traffic. `allow-immich-server-
+  egress-internet` (round 2) was deliberately scoped to the `server`
+  controller only because `immich-ml` showed no need at the time - it
+  does now. Staged as `allow-immich-ml-egress-internet`, same
+  controller-scoped pattern.
+- **`misc/thelounge → PUBLIC:443` and `:6697`** - confirmed via live
+  traffic during an actual chat session, and turned out to be two
+  separate needs, not one: `tcp/6697` (IRCS, the real IRC-over-TLS server
+  connection, continuous for the session) and `tcp/443` (a much smaller,
+  separate 15s burst - likely link-preview/favicon fetching for URLs
+  posted in chat). Staging only 443 would have left IRC itself broken
+  once this goes enforcing. Staged both ports broad (`nets: 0.0.0.0/0`),
+  same reasoning as `sockpuppetbrowser` - an IRC client's whole job is
+  reaching arbitrary user-configured servers.
+- **`data/redpanda-operator → PUBLIC:443`** - investigated, not staged.
+  Live traffic shows its only real, continuous need is the in-cluster
+  `redpanda` admin API (`tcp/9644`) and DNS; the pending-diff hit was a
+  single 1-minute burst that doesn't correlate with its ~3-minute
+  reconcile loop, has no pod restart nearby, and the container is
+  distroless (no shell to inspect a live connection when it recurs).
+  Plausibly a telemetry/version check (Redpanda's operator/console
+  tooling has known behavior like this) but unconfirmed - too little
+  data to stage a guess. Revisit once it recurs with enough volume to
+  investigate properly.
+
 ## What's deliberately NOT staged yet
 
 - Small/low-volume items still short on samples: `authentik-server →
   PUBLIC:443` (2 hits), `home/microbin`, `media/podfetch`,
   `media/searxng → PUBLIC:443` (1-2 hits each), `media/tube-archivist →
   PUBLIC:443` (1 hit), `media/jellyfin → PUBLIC:65001/udp` (2 hits).
+- `data/redpanda-operator → PUBLIC:443` - real but unconfirmed (see round
+  6's follow-up pass above); one 1-minute burst in 7.5h, no live traffic
+  or log correlation to identify the destination yet.
 - The single `network/envoy-internal → download/qui:7476` pending-diff hit
   (round 5) - a normal pod-to-pod destination that should already match
   `allow-network-egress`'s broad rule; one hit, most likely the same
