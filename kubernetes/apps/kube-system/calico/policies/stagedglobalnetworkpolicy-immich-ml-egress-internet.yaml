@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added round 6
+# (2026-09-02). Separate from allow-immich-server-egress-internet, which
+# was scoped to the `server` controller specifically because immich-ml
+# showed no such need at the time (2026-08-31). It does now: two tight
+# bursts (~7 hits each, minutes apart) roughly 3.5h apart in live
+# pending-diff data - the shape of a model download/fetch (CLIP/facial-
+# recognition model pulled from HuggingFace or immich's own model CDN on
+# first use or reload), not steady request traffic.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-immich-ml-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/controller == 'ml' && app.kubernetes.io/instance == 'immich'
+  namespaceSelector: kubernetes.io/metadata.name == 'immich'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

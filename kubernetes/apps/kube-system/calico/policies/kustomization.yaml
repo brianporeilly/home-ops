@@ -54,3 +54,7 @@ resources:
   - ./stagedglobalnetworkpolicy-home-assistant-egress-internet.yaml
   - ./stagedglobalnetworkpolicy-home-egress-iot-vlan.yaml
   - ./stagedglobalnetworkpolicy-cluster-egress-network-https.yaml
+  # docs/egress-policy-plan.md round 6 - live pending-diff review 2026-09-02
+  - ./stagedglobalnetworkpolicy-kopiur-egress-offsite.yaml
+  - ./stagedglobalnetworkpolicy-immich-ml-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-thelounge-egress-internet.yaml

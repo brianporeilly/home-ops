@@ -18,6 +18,13 @@
 # home-assistant and frigate need it, same reasoning
 # allow-observability-egress-private-network used to stay namespace-wide
 # rather than per-controller.
+#
+# Round-6 fix (2026-09-02): the udp/1900 rule above only ever covered
+# 10.60.0.0/16, but SSDP discovery is a multicast query to the well-known
+# group address 239.255.255.250, not a unicast call to a device IP on the
+# IoT VLAN - confirmed still denied in live pending-diff data after round 5
+# landed (6 packets/708 bytes, actively occurring, not a stale-connection
+# artifact). Needs its own nets: entry alongside the VLAN.
 apiVersion: projectcalico.org/v3
 kind: StagedGlobalNetworkPolicy
 metadata:
@@ -40,6 +47,7 @@ spec:
       destination:
         nets:
           - 10.60.0.0/16
+          - 239.255.255.250/32
         ports: [1900]
     - action: Allow
       protocol: ICMP
