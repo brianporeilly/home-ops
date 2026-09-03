@@ -78,6 +78,11 @@ spec:
               - "-1"
               - --ctx-size
               - "32000"
+              # Required for OpenAI-style tool/function calling (paperless-ngx's
+              # AI suggestions use it) - without --jinja llama.cpp falls back to
+              # a simplified template that can't emit tool_calls, so the model
+              # just replies with plain text and the client sees "0 tool calls".
+              - --jinja
               # Prometheus-format /metrics - token throughput, KV/context
               # usage, requests processing/deferred. Off by default. Scraped
               # by the ServiceMonitor alongside this HelmRelease.
