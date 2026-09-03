@@ -21,6 +21,22 @@ spec:
       mylar3:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          init-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /config/config.ini ]; then
+                  echo "Seeding config.ini (ComicVine, SABnzbd + qBittorrent downloaders, Slack, library path, first run)"
+                  cp /seed/config.ini /config/config.ini
+                else
+                  echo "config.ini already exists, leaving it alone"
+                fi
         containers:
           app:
             image:
@@ -112,16 +128,26 @@ spec:
         # there's real snapshot history to restore from.
         globalMounts:
           - path: /config
+      # Seeded on first run only (mirrors sabnzbd-config-seed/
+      # lazylibrarian-config-seed) - see secret.yaml for what's in it and
+      # why (ComicVine key, downloaders, Slack, library path).
+      config-seed:
+        type: secret
+        name: mylar3-config-seed
+        advancedMounts:
+          mylar3:
+            init-config:
+              - path: /seed/config.ini
+                subPath: config.ini
+                readOnly: true
       # NAS static NFS mount - whole export, matching sonarr/radarr/
       # lazylibrarian's own pattern. Needed (not just /media/comics) so
       # hardlink-import from downloads/complete/ into comics/ works:
       # hardlinks only work within a single mount, so both sides must be
       # visible here. Same comics subdirectory Kavita and grimmory mount -
-      # in Mylar3's own Config > Web Interface > Post-Processing settings,
-      # set Comic Location = /media/comics, and point the usenet/torrent
-      # download-client folders at /media/downloads/usenet and
-      # /media/downloads/torrents to match qbittorrent/sabnzbd's own
-      # mounts.
+      # library path and downloader completed-download folders are seeded
+      # into config.ini above (Comic Location = /media/comics, usenet/
+      # torrent folders matching qbittorrent/sabnzbd's own mounts).
       media:
         type: nfs
         server: 10.20.30.11

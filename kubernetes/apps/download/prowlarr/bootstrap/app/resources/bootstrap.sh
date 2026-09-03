@@ -62,6 +62,12 @@ register_app "Lidarr" "http://lidarr.download.svc.cluster.local:8686" "${LIDARR_
 register_app "LazyLibrarian" "http://lazylibrarian.download.svc.cluster.local:5299" "${LAZYLIBRARIAN_API_KEY}" \
   "[7000,7020]"
 
+# implementation/configContract name is "Mylar" (Prowlarr's own class name,
+# see Applications/Mylar/MylarSettings.cs upstream) even though our own
+# app/service is called mylar3 - category 7030 = Books/Comics.
+register_app "Mylar" "http://mylar3.download.svc.cluster.local:8090" "${MYLAR3_API_KEY}" \
+  "[7030]"
+
 # Note: redirect must be true for Usenet indexers (Prowlarr rejects the
 # request otherwise) - this function is currently Usenet-only. Revisit if a
 # torrent indexer is ever added here.
