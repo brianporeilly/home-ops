@@ -31,9 +31,17 @@ spec:
               - -c
               - |
                 set -eu
-                if [ ! -f /config/config.ini ]; then
+                # LinuxServer's mylar3 image runs Mylar.py with
+                # --datadir /config/mylar (see svc-mylar3/run upstream),
+                # so this - not /config/config.ini - is the file Mylar3
+                # actually reads. Confirmed live: seeding the wrong path
+                # left every setting at its blank/None default and Mylar3
+                # silently fell back to its own DOCKER-AWARE defaults
+                # (destination_dir forced to /comics, no ComicVine key).
+                mkdir -p /config/mylar
+                if [ ! -f /config/mylar/config.ini ]; then
                   echo "Seeding config.ini (ComicVine, SABnzbd + qBittorrent downloaders, Slack, library path, first run)"
-                  cp /seed/config.ini /config/config.ini
+                  cp /seed/config.ini /config/mylar/config.ini
                 else
                   echo "config.ini already exists, leaving it alone"
                 fi
