@@ -132,7 +132,7 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: 5.0.1                # app-template chart version
+    tag: 5.1.0                # app-template chart version
   url: oci://ghcr.io/bjw-s-labs/helm/app-template
 ```
 
@@ -364,7 +364,7 @@ persistence:
 - **YAML anchors**: `&app`/`&namespace` for DRY name/namespace references
 - **Images**: `tag@sha256:` digest pinning
   - Find digests with `skopeo inspect --raw docker://ghcr.io/org/repo:tag | python3 -c "import sys,json; i=json.load(sys.stdin); [print(m['digest']) for m in i['manifests'] if m.get('platform',{}).get('architecture')=='amd64']"`
-- **Chart version**: `5.0.1` for app-template
+- **Chart version**: `5.1.0` for app-template
 - **User/Group**: `1000:1000` throughout
 - **Reloader**: `reloader.stakater.com/auto: "true"` annotation on controllers for auto-restart on secret/config changes
 - **Probes**: YAML anchors (`&probes`) shared between liveness and readiness

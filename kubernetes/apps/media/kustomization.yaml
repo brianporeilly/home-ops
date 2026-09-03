@@ -27,4 +27,5 @@ resources:
   - ./podfetch/ks.yaml
   - ./ersatztv/ks.yaml
   - ./grimmory/ks.yaml
+  - ./kavita/ks.yaml
   - ./tube-archivist/ks.yaml
