@@ -47,6 +47,22 @@ spec:
               PAPERLESS_REDIS: "redis://{{ .Release.Name }}-valkey:6379"
               PAPERLESS_URL: https://paperless.internal.oreillys.io
               PAPERLESS_TIME_ZONE: UTC
+              # NFS doesn't reliably deliver inotify events for the consume
+              # folder - fall back to polling.
+              PAPERLESS_CONSUMER_POLLING: "60"
+              # Suggestions (tags/correspondent/type/title) via the in-cluster
+              # llama-cpp server (ai namespace), using its OpenAI-compatible
+              # API. ALLOW_INTERNAL_ENDPOINTS is required because the target
+              # is a cluster-internal address, which paperless's SSRF guard
+              # blocks by default. No embedding vars set - llama-cpp isn't
+              # running with --embedding, so AI-powered semantic search isn't
+              # available yet, only per-document suggestions.
+              PAPERLESS_AI_ENABLED: "true"
+              PAPERLESS_AI_LLM_BACKEND: openai-like
+              PAPERLESS_AI_LLM_MODEL: phi-4-mini-instruct
+              PAPERLESS_AI_LLM_ENDPOINT: http://llama-cpp.ai.svc.cluster.local:8080/v1
+              PAPERLESS_AI_LLM_API_KEY: not-required
+              PAPERLESS_AI_LLM_ALLOW_INTERNAL_ENDPOINTS: "true"
               # s6-overlay init refuses to boot otherwise: k8s emptyDir mounts for
               # /run are always root-owned + world-writable, which fails s6's
               # ownership check under readOnlyRootFilesystem + non-root uid.
@@ -177,6 +193,16 @@ spec:
           paperless-ngx:
             app:
               - path: /usr/src/paperless/media
+      # Drop-folder ingestion. NAS-side prerequisite: /paperless/consume
+      # must exist on the export before this mounts cleanly.
+      consume:
+        type: nfs
+        server: 10.20.30.11
+        path: /paperless/consume
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /usr/src/paperless/consume
       valkey-data:
         type: emptyDir
         advancedMounts:
