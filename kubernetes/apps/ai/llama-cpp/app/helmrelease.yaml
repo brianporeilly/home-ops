@@ -47,13 +47,18 @@ spec:
                 mv "${dest}.tmp" "$dest"
                 echo "[fetch-model] done"
             env: &model_env
-              # Phi-4-mini (3.8B): best balance of general-purpose + coding
-              # for this hardware - 74.4% HumanEval, 61.8% MMLU, beats
-              # Llama-3.2-3B (the previous default) on both fronts. 2.49GB at
-              # Q4_K_M, comfortably inside the 4GB card's budget with room
-              # left for KV cache/context.
-              MODEL_URL: "https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/resolve/main/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf"
-              MODEL_FILE: "microsoft_Phi-4-mini-instruct-Q4_K_M.gguf"
+              # Qwen2.5-3B-Instruct: swapped from Phi-4-mini (2026-09-03) -
+              # Phi-4-mini's chat template uses Microsoft's own nonstandard
+              # per-message `tools` convention, which llama.cpp's server
+              # doesn't recognize as one of its supported tool-call template
+              # families, so --jinja alone can't make it emit tool_calls
+              # (confirmed live: model just replies in plain text, ignoring
+              # the tools schema entirely - see /props' chat_template).
+              # Qwen2.5's template is one of llama.cpp's natively-supported
+              # tool-call families, needed for paperless-ngx's AI suggestions.
+              # 1.9GB at Q4_K_M, comfortably inside the 4GB card's budget.
+              MODEL_URL: "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+              MODEL_FILE: "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
