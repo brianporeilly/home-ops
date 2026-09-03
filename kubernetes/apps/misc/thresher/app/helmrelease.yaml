@@ -3,12 +3,12 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: searxng
+  name: thresher
 spec:
   interval: 1h
   chartRef:
     kind: OCIRepository
-    name: searxng
+    name: thresher
   install:
     remediation:
       retries: -1
@@ -18,24 +18,22 @@ spec:
       retries: 3
   values:
     controllers:
-      searxng:
+      thresher:
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
-              repository: ghcr.io/searxng/searxng
-              tag: 2026.9.3-745d5b6fc@sha256:5ee35879d0d992c1c2a72375b2d24cd825aa5212f0ad5593af95ccbfd2666675
-            env:
-              SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
-              SEARXNG_SERVER__LIMITER: "false"
+              repository: ghcr.io/brianporeilly/thresher
+              tag: v0.1.0@sha256:f8ba54097f6708711e44c77a642e0719def68f18ed8a3f93f744ec88ea751924
             probes:
               liveness: &probes
                 enabled: true
-                type: TCP
+                custom: true
                 spec:
-                  tcpSocket:
-                    port: 8080
+                  httpGet:
+                    path: /healthz
+                    port: &port 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
                   timeoutSeconds: 1
@@ -50,20 +48,20 @@ spec:
                 cpu: 100m
                 memory: 100Mi
               limits:
-                memory: 512Mi
+                memory: 1Gi
 
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 977
-        runAsGroup: 977
-        fsGroup: 977
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
 
     service:
       app:
         primary: true
-        controller: searxng
+        controller: thresher
         ports:
           http:
             port: 8080
@@ -71,29 +69,23 @@ spec:
     route:
       app:
         hostnames:
-          - searxng.internal.oreillys.io
+          - thresher.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
 
     persistence:
-      config:
-        suffix: config
+      data:
+        suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
-        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        # for the full explanation.
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: searxng
         globalMounts:
-          - path: /etc/searxng
+          - path: /data
       tmpfs:
         type: emptyDir
         advancedMounts:
-          searxng:
+          thresher:
             app:
               - path: /tmp

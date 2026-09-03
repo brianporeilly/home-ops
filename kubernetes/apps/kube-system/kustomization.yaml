@@ -19,3 +19,4 @@ resources:
   - ./calico/ks.yaml
   - ./spegel/ks.yaml
   - ./etcd-backup/ks.yaml
+  - ./etcd-defrag/ks.yaml
