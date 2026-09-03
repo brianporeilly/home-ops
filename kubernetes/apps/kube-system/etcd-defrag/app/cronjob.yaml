@@ -51,8 +51,8 @@ spec:
                 - --cacert=/pki/etcd/ca.crt
                 - --cert=/pki/etcd/server.crt
                 - --key=/pki/etcd/server.key
-                - --cluster
                 - defrag
+                - --cluster
               volumeMounts:
                 - { name: pki, mountPath: /pki, readOnly: true }
               resources:
