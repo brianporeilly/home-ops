@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# paperless-ngx polls an external IMAP mailbox to import scanned/emailed
+# documents. Added anticipatorily ahead of the mail account being
+# configured, not from observed pending-diff data - destination is
+# `nets: 0.0.0.0/0` (like allow-authentik-worker-egress-internet) since the
+# mailbox provider/IP isn't fixed and may change.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-paperless-egress-imap
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'paperless-ngx'
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [993]

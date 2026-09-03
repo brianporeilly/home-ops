@@ -19,6 +19,7 @@ resources:
   - ./globalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
+  - ./globalnetworkpolicy-paperless-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
   - ./globalnetworkpolicy-internet-to-slskd.yaml
   - ./globalnetworkpolicy-kured-to-observability.yaml
@@ -59,3 +60,7 @@ resources:
   - ./stagedglobalnetworkpolicy-kopiur-egress-offsite.yaml
   - ./stagedglobalnetworkpolicy-immich-ml-egress-internet.yaml
   - ./stagedglobalnetworkpolicy-thelounge-egress-internet.yaml
+  # ai-suggestions/mail turn-up for paperless-ngx - anticipatory, not
+  # pending-diff-driven like the rounds above
+  - ./stagedglobalnetworkpolicy-paperless-to-llama-cpp-egress.yaml
+  - ./stagedglobalnetworkpolicy-paperless-egress-imap.yaml

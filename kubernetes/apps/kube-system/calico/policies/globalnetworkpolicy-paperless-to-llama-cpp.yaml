@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# paperless-ngx (`home`) calls llama-cpp's API (`ai`) for AI-based
+# tag/correspondent/type/title suggestions. Same shape as
+# allow-changedetection-to-llama-cpp.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-paperless-to-llama-cpp
+spec:
+  selector: app.kubernetes.io/name == 'llama-cpp'
+  namespaceSelector: kubernetes.io/metadata.name == 'ai'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'paperless-ngx'
+        namespaceSelector: kubernetes.io/metadata.name == 'home'
+      destination:
+        ports: [8080]
