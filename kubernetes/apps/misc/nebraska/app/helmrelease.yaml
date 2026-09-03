@@ -24,6 +24,12 @@ spec:
   values:
     replicaCount: 1
 
+    # Chart's own image.tag default just floats to .Chart.AppVersion (4.0.0
+    # for this chart version) with no digest - pin explicitly so a future
+    # chart bump can't silently drag along an unreviewed app image change.
+    image:
+      tag: 4.0.0@sha256:3dba7d3dae51baf8d5e0ded418683bc234ff98ec25e74ea10c04350f376324f8
+
     podSecurityContext:
       runAsUser: 65534
       runAsGroup: 65534
@@ -81,6 +87,16 @@ spec:
           # minimal bearer-token fields.
           rolesPath: groups
           scopes: openid,profile,email
+          # New in app v4.0.0 (GHSA-8535-v9q5-f7qp) - required in OIDC mode,
+          # backend now refuses to start without it. Our nebraska-provider
+          # Authentik blueprint has no custom scope mapping that overrides
+          # "aud", and Authentik has no separate resource-server/audience
+          # concept for a plain public client, so the access token's aud
+          # claim defaults to the client_id (same pattern the chart's own
+          # migration guide describes for Dex) - verify against a real
+          # token after upgrading (decode the JWT, check .aud) before
+          # trusting this.
+          audience: "05e3a848335180ba305a18a3fa75a926395937e1"
       database:
         host: nebraska-postgres-rw
         port: 5432
