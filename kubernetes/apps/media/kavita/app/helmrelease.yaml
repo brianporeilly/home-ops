@@ -21,6 +21,36 @@ spec:
       kavita:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # Kavita's own entrypoint.sh seeds /kavita/config/appsettings.json
+          # by copying it from /tmp/config/appsettings.json (baked into the
+          # image, see its Dockerfile) on first run - but mounting an
+          # emptyDir at /tmp (below, for the main container's own writable
+          # temp) shadows that directory before entrypoint.sh ever runs,
+          # so the copy fails and the app never starts (confirmed live:
+          # "cp: cannot stat '/tmp/config/appsettings.json'"). Seeding here
+          # instead, in a container whose /tmp is untouched by that mount,
+          # sidesteps entrypoint.sh's own copy entirely - same
+          # config.yaml/config.ini pattern used by lazylibrarian.
+          init-config:
+            image:
+              repository: ghcr.io/kareadita/kavita
+              tag: 0.9.1@sha256:c3ccdc5b4d935cd3a50cfc3776a0cfa3d55e04abbf77015e0c31156f72347123
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /kavita/config/appsettings.json ]; then
+                  echo "Seeding appsettings.json"
+                  cp /tmp/config/appsettings.json /kavita/config/appsettings.json
+                else
+                  echo "appsettings.json already exists, leaving it alone"
+                fi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
         containers:
           app:
             image:
