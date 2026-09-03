@@ -27,4 +27,5 @@ resources:
   - ./maddy/ks.yaml
   - ./nebraska/ks.yaml
   - ./thelounge/ks.yaml
+  - ./thresher/ks.yaml
   - ./tuwunel/ks.yaml
