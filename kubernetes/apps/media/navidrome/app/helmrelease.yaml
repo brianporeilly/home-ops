@@ -29,6 +29,9 @@ spec:
             env:
               ND_MUSICFOLDER: /music
               ND_DATAFOLDER: /data
+              # lastfm before deezer, reversing navidrome's default order -
+              # see the comment further down by ND_LASTFM_APIKEY for why.
+              ND_AGENTS: lastfm,deezer,listenbrainz
               # Trusts the Remote-User header the shared authentik/protect
               # component injects (components/authentik/protect/securitypolicy.yaml)
               # after verifying the caller's Authentik-issued JWT - lets
@@ -90,15 +93,38 @@ spec:
               # actually hit and broken.
               ND_EXTAUTH_LOGOUTURL: https://music.oreillys.io/logout
               # lastfm is already in navidrome's default ND_AGENTS list
-              # (deezer,lastfm,listenbrainz) - just providing the key/secret
-              # is enough, no need to also set ND_AGENTS. Fixes two things:
-              # artists with no local folder image (nothing to show at all
-              # before this) get one fetched, and the Subsonic API's
-              # getArtistInfo2 - what Symfonium and other real clients call,
-              # confirmed via navidrome's own docs to require an external
-              # agent - actually returns image/bio data instead of coming
-              # back empty even for artists that DO have a local image the
+              # (deezer,lastfm,listenbrainz). Fixes two things: artists with
+              # no local folder image (nothing to show at all before this)
+              # get one fetched, and the Subsonic API's getArtistInfo2 -
+              # what Symfonium and other real clients call, confirmed via
+              # navidrome's own docs to require an external agent -
+              # actually returns image/bio data instead of coming back
+              # empty even for artists that DO have a local image the
               # native web UI can already show another way.
+              #
+              # ND_AGENTS now set explicitly (2026-09-03) to put lastfm
+              # before deezer, reversing the default order - found live
+              # that David Bowie/Nine Inch Nails had no real image despite
+              # this config: Deezer's API returns a picture URL with an
+              # empty image id even when it has no real photo for an
+              # artist (.../images/artist/d41d8cd98f00b204e9800998ecf8427e/...
+              # - that hash is literally md5("")), which serves a generic
+              # gray silhouette, and navidrome accepts any URL Deezer
+              # returns as a successful result without checking whether
+              # it's a real photo or Deezer's placeholder - confirmed
+              # directly in navidrome.db, both artists had exactly that
+              # degenerate URL stored. Since deezer is tried first by
+              # default, its blank placeholder wins and lastfm's (real)
+              # image is never tried. This is a known upstream bug -
+              # navidrome's own creator (deluan) wrote the real fix
+              # (detect and reject provider placeholder images before
+              # accepting them), but it was closed without merging
+              # (navidrome/navidrome#5837), absorbed into a larger
+              # artwork-pipeline redesign that itself got closed without
+              # landing. No released fix exists, so trying lastfm first is
+              # the practical workaround: it already filters its own
+              # placeholder (the gray star) on fresh lookups, so it either
+              # returns a real image or nothing - never Deezer's silhouette.
             envFrom:
               - secretRef:
                   name: navidrome-secret
