@@ -14,9 +14,9 @@ patches:
       metadata:
         name: not-used
         annotations:
-          # kopiur mover pods for qbittorrent/lazylibrarian/qui run their app
-          # containers as root - the mover has to match to read the PVC data,
-          # and kopiur gates any UID-0 mover behind this explicit opt-in.
+          # kopiur mover pods for qbittorrent/lazylibrarian/qui/mylar3 run their
+          # app containers as root - the mover has to match to read the PVC
+          # data, and kopiur gates any UID-0 mover behind this explicit opt-in.
           kopiur.home-operations.com/privileged-movers: "true"
 resources:
   - ./qbittorrent/ks.yaml
@@ -30,6 +30,7 @@ resources:
   - ./recyclarr/ks.yaml
   - ./lidarr/ks.yaml
   - ./lazylibrarian/ks.yaml
+  - ./mylar3/ks.yaml
   - ./bazarr/ks.yaml
   - ./configarr/ks.yaml
   - ./arr-notifications/ks.yaml

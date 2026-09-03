@@ -1,0 +1,139 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mylar3
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: mylar3
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      mylar3:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/linuxserver/mylar3
+              tag: v0.11.0-ls270@sha256:8e860b822b0d22d4b1f210df135483915531b5348fedc91f11972de587614c9a
+            env:
+              # linuxserver s6-overlay v2: makes init-stage2 hiercopy the
+              # cont-init.d/services.d scripts into /var/run/s6 (writable
+              # emptyDir) instead of symlinking them onto the read-only rootfs.
+              # Without this, fix-attrs can't chmod the scripts (EROFS) and
+              # s6-supervise fails with "unable to exec run: Permission denied".
+              S6_READ_ONLY_ROOT: "1"
+              PUID: "1000"
+              PGID: "1000"
+              TZ: UTC
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 8090
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            # linuxserver images are designed to start as root (s6 init chowns to
+            # PUID/PGID and fix-attrs chmods the service scripts); the app itself
+            # drops to abc (1000) via s6-setuidgid. readOnlyRootFilesystem must
+            # stay false here - the PUID/PGID remap writes /etc/passwd and
+            # /etc/group, which silently no-ops under a read-only rootfs (see
+            # kubernetes/apps/download/lazylibrarian/app/helmrelease.yaml for
+            # the live incident this pattern is copied from).
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+                add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 1Gi
+
+    defaultPodOptions:
+      securityContext:
+        # linuxserver s6-overlay images must start as root; PUID/PGID drops the
+        # app to 1000. fsGroup 1000 keeps /config owned 1000:1000 like other apps.
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: mylar3
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - mylar3.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: mylar3
+        globalMounts:
+          - path: /config
+      # NAS static NFS mount - whole export, matching sonarr/radarr/
+      # lazylibrarian's own pattern. Needed (not just /media/comics) so
+      # hardlink-import from downloads/complete/ into comics/ works:
+      # hardlinks only work within a single mount, so both sides must be
+      # visible here. Same comics subdirectory Kavita and grimmory mount -
+      # in Mylar3's own Config > Web Interface > Post-Processing settings,
+      # set Comic Location = /media/comics, and point the usenet/torrent
+      # download-client folders at /media/downloads/usenet and
+      # /media/downloads/torrents to match qbittorrent/sabnzbd's own
+      # mounts.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
+      # s6-overlay (linuxserver base image) needs a writable /run to create its
+      # socket/pid dirs; /var/run is a symlink to /run on the Debian base. With
+      # readOnlyRootFilesystem + S6_READ_ONLY_ROOT=1, this emptyDir receives the
+      # hiercopied cont-init.d/services.d scripts that init-stage2 then chmods.
+      run:
+        type: emptyDir
+        globalMounts:
+          - path: /run
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
