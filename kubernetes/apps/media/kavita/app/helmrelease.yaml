@@ -88,6 +88,18 @@ spec:
                   timeoutSeconds: 1
                   failureThreshold: 3
               readiness: *probes
+              # First boot applies every EF Core migration since the start
+              # of the project (Kavita's own words) before Kestrel ever
+              # starts listening - confirmed live, the default 30-40s
+              # liveness grace (no startup probe) killed it mid-migration
+              # via SIGTERM (exit 143) well before that finished. Without
+              # this, liveness/readiness start counting immediately and
+              # never give first boot a real chance to complete.
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
