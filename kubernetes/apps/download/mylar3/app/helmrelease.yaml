@@ -101,12 +101,15 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "2Gi"
-        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        # for the full explanation.
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: mylar3
+        # dataSourceRef intentionally omitted for now - kopiur's Restore
+        # populator has a real bug on brand-new apps with no snapshot
+        # history yet: SecurityContextInherited never satisfies
+        # (MissingRecordedIdentity), and onMissingSnapshot: Continue
+        # doesn't unblock that gate, so the PVC sat Pending forever
+        # (confirmed live). SnapshotPolicy/SnapshotSchedule below still
+        # back this PVC up on schedule - re-add dataSourceRef once the
+        # populator bug is fixed (see drafts/Todo/ for the issue) and
+        # there's real snapshot history to restore from.
         globalMounts:
           - path: /config
       # NAS static NFS mount - whole export, matching sonarr/radarr/
