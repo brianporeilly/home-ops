@@ -52,6 +52,14 @@ spec:
                     secretKeyRef:
                       name: prowlarr-bootstrap-creds
                       key: LAZYLIBRARIAN_API_KEY
+                # Fixed value baked into mylar3's own seeded config.ini
+                # (kubernetes/apps/download/mylar3/app/secret.yaml,
+                # [API] api_key) - must match that value exactly.
+                - name: MYLAR3_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: prowlarr-bootstrap-creds
+                      key: MYLAR3_API_KEY
                 - name: NZBPLANET_API_KEY
                   valueFrom:
                     secretKeyRef:
