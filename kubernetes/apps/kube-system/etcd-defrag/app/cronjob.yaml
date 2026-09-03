@@ -1,0 +1,60 @@
+---
+# Periodic etcd defrag: the mvcc backend file only ever grows (freed pages are
+# reused but the file is never shrunk without an explicit defrag), so
+# etcd_mvcc_db_total_size_in_bytes creeps upward independent of actual data
+# volume until etcdDatabaseHighFragmentationRatio fires. Observed growth here
+# crosses that 50%-ratio threshold roughly every 2-3 weeks; weekly gives
+# comfortable margin (defrag itself is ~1-2s/member, so over-scheduling costs
+# nothing). `--cluster` resolves all members from the local member list and
+# defrags them one at a time, so a single call from any one endpoint covers
+# the whole cluster.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-defrag
+  namespace: kube-system
+spec:
+  # Mondays 11:00 UTC = 3am Alaska (AKDT, UTC-8). Cron is UTC-only and won't
+  # follow DST, so this drifts to 4am once Alaska falls back to AKST (UTC-9).
+  schedule: "0 11 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          restartPolicy: Never
+          hostNetwork: true                    # reach etcd on 127.0.0.1:2379
+          dnsPolicy: ClusterFirstWithHostNet
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              effect: NoSchedule
+          securityContext:
+            runAsUser: 0                        # /etc/kubernetes/pki is root-owned 0600
+          priorityClassName: system-cluster-critical
+          volumes:
+            - name: pki
+              hostPath:
+                path: /etc/kubernetes/pki
+                type: Directory
+          containers:
+            - name: etcd-defrag
+              image: registry.k8s.io/etcd:3.7.1-0
+              command:
+                - etcdctl
+                - --endpoints=https://127.0.0.1:2379
+                - --cacert=/pki/etcd/ca.crt
+                - --cert=/pki/etcd/server.crt
+                - --key=/pki/etcd/server.key
+                - --cluster
+                - defrag
+              volumeMounts:
+                - { name: pki, mountPath: /pki, readOnly: true }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { memory: 512Mi }

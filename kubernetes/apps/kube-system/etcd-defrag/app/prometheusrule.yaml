@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: etcd-defrag
+  namespace: kube-system
+spec:
+  groups:
+    - name: etcd-defrag
+      rules:
+        - alert: EtcdDefragStale
+          # No successful etcd-defrag Job in >10d (schedule is weekly, so this
+          # means a run was missed/failing with a few days of slack).
+          expr: |
+            time() - max(kube_cronjob_status_last_successful_time{cronjob="etcd-defrag", namespace="kube-system"}) > 60 * 60 * 24 * 10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: etcd defrag is stale
+            description: >-
+              The etcd-defrag CronJob last succeeded
+              {{ $value | humanizeDuration }} ago (schedule: weekly). etcd
+              database fragmentation may be building up unchecked.
+        - alert: EtcdDefragJobFailing
+          expr: kube_job_failed{namespace="kube-system", job_name=~"etcd-defrag-.+"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: etcd defrag job is failing
+            description: Job {{ $labels.job_name }} in kube-system has failed.
