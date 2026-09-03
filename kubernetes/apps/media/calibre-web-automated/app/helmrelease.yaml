@@ -61,7 +61,9 @@ spec:
             # NETWORK_SHARE_MODE=true (above) makes cwa-init skip chown on
             # /config, /calibre-library, /cwa-book-ingest specifically, so it
             # won't re-own their NFS-backed content the way LazyLibrarian did
-            # to grimmory's bookdrop before that was understood.
+            # to grimmory's bookdrop before that was understood - same reason
+            # /calibre-library itself is now grimmory's bookdrop export (see
+            # persistence.bookdrop below).
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -108,8 +110,7 @@ spec:
         globalMounts:
           - path: /config
       # csi-driver-nfs (nfs-slow), not ceph-block - deliberately isolated
-      # trial storage, dynamically provisioned on the NAS, fully separate
-      # from grimmory's/audiobookshelf's real libraries. Trivial to delete
+      # trial storage, dynamically provisioned on the NAS. Trivial to delete
       # and recreate if the trial doesn't work out.
       ingest:
         suffix: ingest
@@ -118,10 +119,17 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /cwa-book-ingest
-      library:
-        suffix: library
-        storageClass: "nfs-slow"
-        accessMode: ReadWriteOnce
-        size: "20Gi"
+      # Not an isolated PVC (the ingest volume above still is) - this is
+      # grimmory's own bookdrop NFS export, same one lazylibrarian writes
+      # to (see that helmrelease.yaml's comment) and the same reasoning:
+      # direct-to-library writes proved unreliable in testing, handing off
+      # to BookLore's own detect/tag/organize pipeline via bookdrop is the
+      # trustworthy path. /calibre-library is the container path CWA
+      # itself expects for its library - only the backing storage changed,
+      # not what CWA thinks it's writing to.
+      bookdrop:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/unsorted/bookdrop
         globalMounts:
           - path: /calibre-library
