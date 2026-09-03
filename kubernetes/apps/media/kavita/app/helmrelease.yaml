@@ -32,6 +32,24 @@ spec:
           # instead, in a container whose /tmp is untouched by that mount,
           # sidesteps entrypoint.sh's own copy entirely - same
           # config.yaml/config.ini pattern used by lazylibrarian.
+          #
+          # Also pre-creates config/temp/migration/vUnknown: on first boot
+          # (empty ServerSetting table -> GetMigrationDirectory returns
+          # "vUnknown") Kavita's own Program.cs backs up kavita.db into that
+          # directory before migrating, via a DirectoryService instance it
+          # deliberately constructs with a null ILogger. If that backup
+          # step throws for ANY reason, the null-logger crashes trying to
+          # log the error, masking the real exception behind an unhelpful
+          # ArgumentNullException (confirmed live, reproducible on every
+          # restart: "cp: cannot stat" is long gone, this is a second,
+          # separate bug). The node's ext4 mount carries an active SELinux
+          # seclabel, and a manual busybox mkdir/cp of the exact same path
+          # as the exact same uid succeeded fine - so this is suspected to
+          # be a SELinux-context/syscall difference in .NET's own
+          # Directory.CreateDirectory vs a plain shell mkdir, not a raw
+          # permissions problem. Pre-creating the directory here makes
+          # Kavita's own ExistOrCreate call a same-uid no-op, sidestepping
+          # whatever that difference actually is.
           init-config:
             image:
               repository: ghcr.io/kareadita/kavita
@@ -47,6 +65,7 @@ spec:
                 else
                   echo "appsettings.json already exists, leaving it alone"
                 fi
+                mkdir -p /kavita/config/temp/migration/vUnknown
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
