@@ -25,7 +25,7 @@ spec:
           app:
             image:
               repository: ghcr.io/9001/copyparty-ac
-              tag: 1.20.21
+              tag: 1.20.22
             env:
               LD_PRELOAD: /usr/lib/libmimalloc-secure.so.2
               PYTHONUNBUFFERED: 1
