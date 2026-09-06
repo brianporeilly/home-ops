@@ -32,6 +32,16 @@ spec:
               - |
                 set -eu
                 mkdir -p /config/qBittorrent/config
+                # Kubernetes guarantees a single Pod against this RWO PVC, so any
+                # on-disk single-instance lock/IPC socket left by a prior container
+                # is always stale - clear it. Otherwise a container SIGKILLed
+                # mid-session (e.g. by the liveness probe) leaves ipc-socket bound
+                # on disk; the next start tries to bind that same path, fails
+                # because the stale socket is still there, concludes another
+                # instance owns it, and exits immediately (clean exit 0, nothing
+                # on stdout - the message only goes to the internal log file)
+                # forever.
+                rm -f /config/qBittorrent/config/lockfile /config/qBittorrent/config/qBittorrent-data.conf.lock /config/qBittorrent/config/ipc-socket
                 if [ ! -f /config/qBittorrent/config/qBittorrent.conf ]; then
                   echo "Seeding qBittorrent.conf (WebUI credentials pre-configured, first run)"
                   cp /seed/qBittorrent.conf /config/qBittorrent/config/qBittorrent.conf
