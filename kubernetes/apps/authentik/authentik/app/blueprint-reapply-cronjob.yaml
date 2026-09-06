@@ -52,6 +52,18 @@ spec:
                   POD=$(kubectl get pod -n authentik -l app.kubernetes.io/name=authentik,app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}')
                   echo "Using worker pod: $POD"
                   kubectl exec -n authentik "$POD" -- sh -c '
+                    # Each apply_blueprint invocation below is a fresh, short-lived
+                    # process that registers itself in the prometheus_client
+                    # multiprocess dir but - unlike the long-running worker - never
+                    # goes through a graceful-shutdown hook that unlinks its own
+                    # metric files. Over enough 15m cycles those orphaned .db files
+                    # fill the 64Mi /dev/shm tmpfs, and once full any mmap write
+                    # there (including the resident workers own) SIGBUSes instead
+                    # of a clean OOM (confirmed live 2026-09-06, 17452 leaked files).
+                    # mtime-based, not a full wipe: the resident workers own files
+                    # get rewritten on every scrape so they never go stale, orphans
+                    # from past cron runs do.
+                    find /dev/shm/authentik_prometheus_tmp -name "*.db" -mmin +30 -delete 2>/dev/null || true
                     status=0
                     for f in /blueprints/mounted/*/*.yaml; do
                       echo "=== applying $f ==="
