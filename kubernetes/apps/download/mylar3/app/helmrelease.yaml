@@ -125,15 +125,15 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "2Gi"
-        # dataSourceRef intentionally omitted for now - kopiur's Restore
-        # populator has a real bug on brand-new apps with no snapshot
-        # history yet: SecurityContextInherited never satisfies
-        # (MissingRecordedIdentity), and onMissingSnapshot: Continue
-        # doesn't unblock that gate, so the PVC sat Pending forever
-        # (confirmed live). SnapshotPolicy/SnapshotSchedule below still
-        # back this PVC up on schedule - re-add dataSourceRef once the
-        # populator bug is fixed (see drafts/Todo/ for the issue) and
-        # there's real snapshot history to restore from.
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Re-added (was dropped: root cause was
+        # the shared restore.yaml component's mover.inheritSecurityContextFrom.snapshot
+        # setting, which needs a real prior snapshot to resolve - fixed at
+        # the component level, see kubernetes/components/kopiur/backup/restore.yaml).
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: mylar3
         globalMounts:
           - path: /config
       # Seeded on first run only (mirrors sabnzbd-config-seed/

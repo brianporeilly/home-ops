@@ -273,18 +273,18 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "2Gi"
-        # dataSourceRef intentionally omitted for now (unlike every other
-        # kopiur-backed app - see esphome/app/helmrelease.yaml for the
-        # normal pattern): kopiur's Restore populator got stuck indefinitely
-        # on first bootstrap here, waiting on an on-demand catalog scan that
-        # never completed even after the one thing we could confirm was
-        # actually broken (a deadlocked offsite-replication mover) was
-        # cleared. dataSourceRef only matters for a future cluster-rebuild
-        # restore anyway - it's not needed for this first deploy. Re-add it
-        # once there's a real Snapshot for this identity to restore from,
-        # and once we understand whether new (never-backed-up) apps hitting
-        # this populator is a general bug - separate research/fix, not
-        # scoped to navidrome.
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Re-added (was dropped in #815 during
+        # the stuck-populator incident): root cause was the shared
+        # restore.yaml component's mover.inheritSecurityContextFrom.snapshot
+        # setting, which needs a real prior snapshot to resolve - fixed at
+        # the component level, see kubernetes/components/kopiur/backup/restore.yaml.
+        # dataSourceRef only fires at PVC creation, so re-adding it here has
+        # no effect on this already-bound PVC until a future recreation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: navidrome
         globalMounts:
           - path: /data
       # NAS static NFS mount, dedicated music subdirectory - navidrome only
