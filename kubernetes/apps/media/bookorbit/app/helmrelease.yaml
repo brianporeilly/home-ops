@@ -1,0 +1,189 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bookorbit
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: bookorbit
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      bookorbit:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/bookorbit/bookorbit
+              tag: 2.8.1@sha256:57d0b51b002f0a1d5a3f14d25e5273f55da9c179b86b387e8a1695cd929a10ac
+            env:
+              PORT: &port 3000
+              APP_URL: https://bookorbit.internal.oreillys.io
+              POSTGRES_HOST: bookorbit-postgres-rw
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: bookorbit
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: bookorbit-postgres-creds
+                    key: username
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: bookorbit-postgres-creds
+                    key: password
+              JWT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: bookorbit-secret
+                    key: JWT_SECRET
+              SETUP_BOOTSTRAP_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: bookorbit-secret
+                    key: SETUP_BOOTSTRAP_TOKEN
+              # Scopes the in-app library folder picker to the read-only
+              # library mounts below instead of the whole filesystem.
+              LIBRARY_BROWSE_ROOT: /books
+              # Book Dock (bookorbit's own ingest/auto-organize pipeline)
+              # deliberately left unconfigured - grimmory and audiobookshelf
+              # already own organizing these libraries, and having two apps
+              # independently rename/move files in the same NFS tree is the
+              # exact bookdrop-ownership bug already hit once (see
+              # lazylibrarian history). bookorbit is a read-only reading
+              # layer over their libraries, not a second ingest path.
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  failureThreshold: 30
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+                add:
+                  - CHOWN
+                  - DAC_OVERRIDE
+                  - FOWNER
+                  - SETGID
+                  - SETUID
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+
+    # PUID/PGID de-escalation on startup (own entrypoint, per its
+    # docker-compose cap_add set) needs to start as root, same shape as
+    # grimmory.
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: bookorbit
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - bookorbit.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          bookorbit:
+            app:
+              - path: /tmp
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Book/reading metadata lives in Postgres,
+        # this PVC only holds bookorbit's own app-local state.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: bookorbit
+        advancedMounts:
+          bookorbit:
+            app:
+              - path: /data
+      # NAS static NFS mount - grimmory's own organized ebook library.
+      # readOnly: bookorbit only reads/scans here, grimmory owns
+      # organizing this tree.
+      ebooks:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/books
+        advancedMounts:
+          bookorbit:
+            app:
+              - path: /books/ebooks
+                readOnly: true
+      # NAS static NFS mount - grimmory's own organized comics library.
+      # readOnly, same reasoning as ebooks above.
+      comics:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/comics
+        advancedMounts:
+          bookorbit:
+            app:
+              - path: /books/comics
+                readOnly: true
+      # NAS static NFS mount - audiobookshelf's own organized audiobook
+      # library. readOnly, same reasoning as ebooks above.
+      audiobooks:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/audiobooks
+        advancedMounts:
+          bookorbit:
+            app:
+              - path: /books/audiobooks
+                readOnly: true
