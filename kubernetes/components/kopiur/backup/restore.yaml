@@ -38,15 +38,22 @@ spec:
       mode: Persistent
       capacity: ${KOPIUR_CACHE_CAPACITY:=2Gi}
       storageClassName: nfs-slow
-    # Reproduces whatever uid/gid/fsGroup the backup mover actually ran as,
-    # read from the snapshot itself rather than a live pod - there isn't
-    # one yet at restore-populator time, the app's own pod is waiting on
-    # this PVC to become Bound first. Covers the common UID-1000 case by
-    # default. The apps whose SnapshotPolicy needed an explicit
-    # mover.securityContext override (root + DAC_OVERRIDE) to back up in
-    # the first place will very likely need privilegedMode: true here too,
-    # to actually get CAP_CHOWN and reproduce non-1000 ownership on
-    # restore - not yet added, unconfirmed until a real restore is tested
-    # against one of those apps.
-    inheritSecurityContextFrom:
-      snapshot: {}
+    # Deliberately NOT using mover.inheritSecurityContextFrom.snapshot here.
+    # Per kopiur's own docs (security-context.md, restores.md "Declarative
+    # re-bootstrap"), that mode is designed for restoring a cluster that has
+    # a REAL prior snapshot to replay identity from - paired with
+    # deploy-or-restore (onMissingSnapshot: Continue) on a genuinely
+    # never-backed-up identity, the catalog scan it waits on can never find
+    # a matching row, so it holds forever on SecurityContextInherited=False/
+    # MissingRecordedIdentity - "the expected intermediate state" per the
+    # docs, but only if a snapshot is eventually going to exist. The docs'
+    # own fix is to pair it with an explicit mover.securityContext fallback;
+    # we don't maintain one per-app, so instead we just don't use inherit at
+    # all here and fall back to the ClusterRepository's moverDefaults
+    # (1000:1000, see nas-backups' clusterrepository.yaml) - same pattern
+    # upstream's own reference repo (onedr0p/home-ops) uses. Covers every
+    # app on the cluster's UID-1000 convention. An app whose SnapshotPolicy
+    # needed a non-standard mover.securityContext override to back up (root
+    # + DAC_OVERRIDE) will need a matching explicit override on ITS Restore
+    # too before a real cluster-rebuild restore - not yet needed since none
+    # has been through one.

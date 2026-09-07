@@ -142,16 +142,13 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "2Gi"
-        # dataSourceRef intentionally omitted for now (unlike every other
-        # kopiur-backed app - see esphome/app/helmrelease.yaml for the
-        # normal pattern): kopiur's Restore populator gets stuck
-        # indefinitely on first bootstrap (same failure hit navidrome, see
-        # PR #815) - the security-context inheritance gate has no fallback
-        # and can never resolve for an identity with zero prior snapshot
-        # history. Not needed for this first deploy anyway; book/reading
-        # metadata lives in Postgres, this PVC only holds bookorbit's own
-        # app-local state. Re-add once a real Snapshot exists for this
-        # identity.
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Book/reading metadata lives in Postgres,
+        # this PVC only holds bookorbit's own app-local state.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: bookorbit
         advancedMounts:
           bookorbit:
             app:
