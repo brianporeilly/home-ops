@@ -970,6 +970,16 @@ data:
           "title": "Dataset Usage",
           "transformations": [
             {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "__name__": true
+                },
+                "indexByName": {},
+                "renameByName": {}
+              }
+            },
+            {
               "id": "merge",
               "options": {}
             },
