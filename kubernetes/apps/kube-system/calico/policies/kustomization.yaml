@@ -16,6 +16,7 @@ resources:
   - ./globalnetworkpolicy-apiserver-webhooks.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-loki.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-akvorado.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-omada-controller.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
