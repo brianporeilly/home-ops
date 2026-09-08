@@ -54,7 +54,12 @@ spec:
               - secretRef:
                   name: sabnzbd-creds
             probes:
-              liveness: &probes
+              # unrar runs synchronously and can starve the web server thread
+              # for minutes on large archives; liveness needs a long grace
+              # period so kubelet doesn't SIGTERM mid-extraction (which just
+              # restarts the same extraction and loops forever). Readiness
+              # stays tighter so the Service still stops routing to it.
+              liveness:
                 enabled: true
                 custom: true
                 spec:
@@ -63,9 +68,19 @@ spec:
                     port: *port
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
-                  failureThreshold: 3
-              readiness: *probes
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
