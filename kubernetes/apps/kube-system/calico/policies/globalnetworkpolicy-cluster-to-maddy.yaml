@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Any cluster pod can submit outbound mail to the maddy relay (see the
+# maddy-smtp-relay memory) - the whole point of running it is that apps
+# don't hold their own SMTP creds, and every consumer other than forgejo
+# is cross-namespace: authentik (notifications, docs/security-plan.md),
+# bookorbit (media), paperless-ngx, and anything added later.
+#
+# Nothing covered this before: `allow-same-namespace` is why forgejo (also
+# `misc`) worked and hid the gap, and no other enforcing rule names `misc`
+# as a destination. So this was silently dropping mail from every other
+# namespace at end-of-tier rather than failing loudly.
+#
+# Same shape and same reasoning as allow-cluster-to-network-https:
+# `source: {selector: all()}` deliberately, never an omitted/empty source.
+# A selector-based rule only matches real Calico-known endpoints
+# (WorkloadEndpoints), so it can't be used to reach port 25 from an
+# arbitrary external IP - that path stays scoped by the sibling
+# allow-trusted-vlans-to-maddy. Omitting source would allow anywhere,
+# which for a no-auth SMTP listener means an open relay to SES.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-cluster-to-maddy
+spec:
+  selector: app.kubernetes.io/name == 'maddy'
+  namespaceSelector: kubernetes.io/metadata.name == 'misc'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: all()
+      destination:
+        ports: [25]
