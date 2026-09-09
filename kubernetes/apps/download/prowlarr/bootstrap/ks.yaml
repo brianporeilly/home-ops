@@ -18,8 +18,6 @@ spec:
       namespace: download
     - name: lidarr
       namespace: download
-    - name: lazylibrarian
-      namespace: download
     - name: mylar3
       namespace: download
   interval: 1h

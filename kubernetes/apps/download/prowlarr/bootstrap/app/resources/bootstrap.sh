@@ -59,9 +59,6 @@ register_app "Radarr" "http://radarr.download.svc.cluster.local:7878" "${RADARR_
 register_app "Lidarr" "http://lidarr.download.svc.cluster.local:8686" "${LIDARR_API_KEY}" \
   "[3000,3010,3030,3040,3050,3060]"
 
-register_app "LazyLibrarian" "http://lazylibrarian.download.svc.cluster.local:5299" "${LAZYLIBRARIAN_API_KEY}" \
-  "[7000,7020]"
-
 # implementation/configContract name is "Mylar" (Prowlarr's own class name,
 # see Applications/Mylar/MylarSettings.cs upstream) even though our own
 # app/service is called mylar3 - category 7030 = Books/Comics.
