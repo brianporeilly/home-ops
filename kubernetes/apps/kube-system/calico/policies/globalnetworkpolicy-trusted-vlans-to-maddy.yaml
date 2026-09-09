@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# LAN hosts submitting outbound mail to the relay (see maddy-smtp-relay
+# memory). maddy's Service is ClusterIP-only, so off-cluster senders reach
+# the pod IP directly over the BGP-advertised pod CIDR - which lands as an
+# external `PRIVATE NETWORK` source with nothing in the default tier to
+# match it, so it end-of-tier denies (confirmed live 2026-09-09 via
+# whisker: `PRIVATE NETWORK -> misc/maddy:25`, reporter Dst).
+#
+# Same narrower source list as the loki/fluent-bit/akvorado data-ingestion
+# rules rather than the full envoy-internal trusted-VLAN set: only
+# `10.10.0.0/16` and `10.20.0.0/16` have anything that submits mail here.
+#
+# Port 25 accepts mail with no auth - reachability *is* the trust boundary
+# for this listener (maddy.conf says so explicitly), so this rule is the
+# only thing standing between a VLAN and an open relay to SES. Keep the
+# source list tight.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-trusted-vlans-to-maddy
+spec:
+  selector: app.kubernetes.io/name == 'maddy'
+  namespaceSelector: kubernetes.io/metadata.name == 'misc'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+      destination:
+        ports: [25]

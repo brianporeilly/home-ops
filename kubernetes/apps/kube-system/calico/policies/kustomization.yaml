@@ -24,6 +24,8 @@ resources:
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
   - ./globalnetworkpolicy-internet-to-slskd.yaml
   - ./globalnetworkpolicy-kured-to-observability.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-maddy.yaml
+  - ./globalnetworkpolicy-cluster-to-maddy.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml

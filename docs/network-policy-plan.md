@@ -167,6 +167,21 @@ from the table below (see notes).
      (docs/network-observability-plan.md), a different VLAN entirely. akvorado and fluent-bit
      additionally allow `10.2.0.1/32` (OPNsense's own transit address) - OPNsense sends its own
      NetFlow/syslog directly, not just switches, and that address isn't in either VLAN block.
+     - `allow-trusted-vlans-to-maddy` (added 2026-09-09) follows the same shape for a
+       *destination* rather than a collector: LAN hosts submitting outbound mail to the maddy
+       relay on `tcp/25`. maddy's Service is ClusterIP-only, so these senders hit the pod IP
+       directly over the BGP-advertised pod CIDR and arrive as `PRIVATE NETWORK`, end-of-tier
+       denied until this rule existed. Same `10.10.0.0/16` + `10.20.0.0/16` source list; kept
+       tight deliberately, since that listener accepts mail with no auth.
+     - `allow-cluster-to-maddy` (added 2026-09-09) covers the *in-cluster* half of the same
+       gap, found while investigating the above: no enforcing rule named `misc` as a
+       destination at all, so every cross-namespace sender to the relay (authentik's
+       notifications, bookorbit, paperless-ngx) was being dropped at end-of-tier. Only forgejo
+       worked, because it lives in `misc` too and `allow-same-namespace` carried it — which is
+       exactly what hid the gap. Same `source: {selector: all()}` construction as
+       `allow-cluster-to-network-https`, and for the same reason: it matches only real
+       WorkloadEndpoints, so it can't be used to reach a no-auth SMTP listener from an
+       arbitrary external IP.
 7. ✅ **Default-deny ingress, everywhere** — promoted 2026-08-22/23. Confirmed live (this whole
    plan's central finding, see step 5 and the Verification sections): this was never a separate
    "flip a switch" step - promoting every staged Allow rule from steps 1-6 to real, enforcing
