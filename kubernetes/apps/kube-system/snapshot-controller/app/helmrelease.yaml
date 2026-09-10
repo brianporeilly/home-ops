@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: snapshot-controller
   install:
+    timeout: 15m
     crds: CreateReplace
     remediation:
       retries: -1

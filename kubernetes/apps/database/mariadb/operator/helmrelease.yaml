@@ -15,6 +15,7 @@ spec:
         name: mariadb-operator
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -39,6 +40,7 @@ spec:
         name: mariadb-operator
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

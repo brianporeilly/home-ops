@@ -365,6 +365,7 @@ persistence:
 - **Images**: `tag@sha256:` digest pinning
   - Find digests with `skopeo inspect --raw docker://ghcr.io/org/repo:tag | python3 -c "import sys,json; i=json.load(sys.stdin); [print(m['digest']) for m in i['manifests'] if m.get('platform',{}).get('architecture')=='amd64']"`
 - **Chart version**: `5.1.0` for app-template
+- **HelmRelease install timeout**: `spec.install.timeout: 15m` on every app HelmRelease (baked into the scaffold template). Mandatory: PVC population by the kopiur Restore `dataSourceRef` counts against the install wait, so the 5m Helm default kills fresh installs mid-restore. Override by changing the value (grimmory is 10m)
 - **User/Group**: `1000:1000` throughout
 - **Reloader**: `reloader.stakater.com/auto: "true"` annotation on controllers for auto-restart on secret/config changes
 - **Probes**: YAML anchors (`&probes`) shared between liveness and readiness

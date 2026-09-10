@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: {{ app_name }}
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
