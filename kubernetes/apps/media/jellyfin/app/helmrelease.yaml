@@ -110,9 +110,9 @@ spec:
                     f.write(version)
                 print(f"OIDC RBAC {version} installed")
             env:
-              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.8/oidc-rbac.zip"
-              COMPONENT_MD5: "d41a0b3792a51b50432c2a6710d10160"
-              COMPONENT_VERSION: "1.0.8"
+              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.10/oidc-rbac.zip"
+              COMPONENT_MD5: "81249667a265a6757cf010c23196f020"
+              COMPONENT_VERSION: "1.0.10"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
