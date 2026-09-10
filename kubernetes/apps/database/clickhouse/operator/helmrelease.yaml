@@ -15,6 +15,7 @@ spec:
         name: altinity
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

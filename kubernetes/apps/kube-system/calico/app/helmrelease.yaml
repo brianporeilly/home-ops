@@ -15,6 +15,7 @@ spec:
         name: tigera
       interval: 15m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

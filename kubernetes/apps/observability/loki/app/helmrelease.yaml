@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: loki
   install:
+    timeout: 15m
     crds: Skip
     remediation:
       retries: -1

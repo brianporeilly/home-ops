@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: qui
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

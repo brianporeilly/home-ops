@@ -43,6 +43,7 @@ spec:
     kind: OCIRepository
     name: calico-deny-log-shipper
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
