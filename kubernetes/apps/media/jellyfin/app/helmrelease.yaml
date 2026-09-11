@@ -339,10 +339,16 @@ spec:
                     "DefaultRoleName": "media-users",
                 }
 
+                # Jellyfin 12.0 dropped the legacy X-Emby-Token/X-MediaBrowser-Token
+                # headers entirely - confirmed live (401 on every request after the
+                # 12.0 upgrade). Authorization: MediaBrowser Token=... is now the
+                # only accepted form.
+                AUTH_HEADER = f'MediaBrowser Token="{os.environ["API_KEY"]}"'
+
                 req = urllib.request.Request(
                     f"{JELLYFIN_URL}/Plugins/{PLUGIN_ID}/Configuration",
                     data=json.dumps(payload).encode(),
-                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
                     method="POST",
                 )
                 with urllib.request.urlopen(req, timeout=15) as r:
@@ -364,7 +370,7 @@ spec:
                 # to their C# defaults.
                 net_get = urllib.request.Request(
                     f"{JELLYFIN_URL}/System/Configuration/network",
-                    headers={"X-Emby-Token": os.environ["API_KEY"]},
+                    headers={"Authorization": AUTH_HEADER},
                 )
                 with urllib.request.urlopen(net_get, timeout=15) as r:
                     net_config = json.loads(r.read())
@@ -381,7 +387,7 @@ spec:
                 net_req = urllib.request.Request(
                     f"{JELLYFIN_URL}/System/Configuration/network",
                     data=json.dumps(net_config).encode(),
-                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
                     method="POST",
                 )
                 with urllib.request.urlopen(net_req, timeout=15) as r:
