@@ -1,0 +1,49 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: firecrawl-postgres
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+  storage:
+    size: 5Gi
+    storageClass: ceph-block
+  postgresql:
+    shared_preload_libraries:
+      - pg_cron
+    parameters:
+      # Everything (schema + pg_cron jobs) lives in one database, same as
+      # firecrawl's own compose setup - pg_cron's background worker executes
+      # scheduled job bodies against cron.database_name specifically, so it
+      # has to be the same database the nuq schema/tables live in, not the
+      # cluster's default "postgres" maintenance DB.
+      cron.database_name: firecrawl
+      cron.use_background_workers: "on"
+    # CNPG's pluggable extension mechanism (ImageVolume, K8s 1.35+ / this
+    # cluster is 1.36) - mounts the extension's .so/control files into the
+    # pod without needing a custom base image. No firecrawl-specific image
+    # involved at all; this is the official cnpg-extensions pg_cron build.
+    extensions:
+      - name: pg_cron
+        image:
+          reference: ghcr.io/cnpg-extensions/pg-cron:1.6.8-18-trixie
+  bootstrap:
+    initdb:
+      database: firecrawl
+      owner: firecrawl
+      # Ported from firecrawl's own nuq-postgres image (see
+      # postgres-init-configmap.yaml for the full explanation of why this
+      # has to be re-run explicitly here instead of relying on the image's
+      # own /docker-entrypoint-initdb.d/ script). NOT independently
+      # verified end-to-end: bootstrap failure here leaves the cluster
+      # incomplete and needs manual intervention (CNPG's own documented
+      # behavior for postInit* errors) - watch the Cluster's status/events
+      # closely on first apply.
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - name: firecrawl-postgres-init
+            key: nuq.sql
+  monitoring:
+    enablePodMonitor: true

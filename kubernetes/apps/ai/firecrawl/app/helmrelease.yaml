@@ -1,0 +1,235 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firecrawl
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: app-template
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      # Runs the API + all queue workers (nuq-worker, extract-worker,
+      # index-worker, zdr-worker) in one process via
+      # `node dist/src/harness.js --start-docker` - upstream's own compose
+      # file doesn't split these into separate containers either.
+      api:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/firecrawl/firecrawl
+              tag: 2.10.19-production@sha256:618504f749ec8c9564839b383262e91dd46739073db406438edd308f7079f16d
+            env:
+              HOST: "0.0.0.0"
+              PORT: "3002"
+              ENV: local
+              REDIS_URL: "redis://firecrawl-redis:6379"
+              REDIS_RATE_LIMIT_URL: "redis://firecrawl-redis:6379"
+              PLAYWRIGHT_MICROSERVICE_URL: "http://firecrawl-playwright-service:3000/scrape"
+              NUQ_RABBITMQ_URL: "amqp://firecrawl-rabbitmq:5672"
+              # Read-write service is always <cluster-name>-rw for CNPG.
+              POSTGRES_HOST: "firecrawl-postgres-rw"
+              POSTGRES_PORT: "5432"
+              POSTGRES_DB: firecrawl
+              # No caller auth - only Hermes (same namespace) ever talks to
+              # this. Matches Hermes's own docs: "when FIRECRAWL_API_URL is
+              # set, the API key is optional".
+              USE_DB_AUTHENTICATION: "false"
+              # Trimmed well below upstream compose's defaults (8/10/5/5) -
+              # this backs one Hermes agent's occasional extract calls, not
+              # multi-tenant SaaS traffic.
+              NUM_WORKERS_PER_QUEUE: "2"
+              CRAWL_CONCURRENT_REQUESTS: "4"
+              MAX_CONCURRENT_JOBS: "2"
+              BROWSER_POOL_SIZE: "2"
+              # Reuses the in-cluster llama-cpp endpoint for Firecrawl's own
+              # LLM-based /extract and llms.txt features - same trick as
+              # hermes-agent. MODEL_NAME is coupled to whatever's actually
+              # loaded on llama-cpp today (Qwen2.5-3B-Instruct per that
+              # HelmRelease's comments) - update both together if it changes.
+              OPENAI_BASE_URL: "http://llama-cpp.ai.svc.cluster.local:8080/v1"
+              OPENAI_API_KEY: "unused-llama-cpp-has-no-auth"
+              MODEL_NAME: "Qwen2.5-3B-Instruct-GGUF"
+              # CNPG auto-generates this Secret (<cluster-name>-app) - no
+              # password stored in this repo at all.
+              POSTGRES_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: firecrawl-postgres-app
+                    key: username
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: firecrawl-postgres-app
+                    key: password
+            probes:
+              liveness: &api_probes
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 3002
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *api_probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      playwright-service:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/firecrawl/playwright-service
+              tag: latest@sha256:5cd4c2590eebcb8e0932553187d36ab7e76249165712b2bdbae6438b0b033d40
+            env:
+              PORT: "3000"
+              # Matches api's CRAWL_CONCURRENT_REQUESTS above - upstream
+              # compose derives this value from that same setting.
+              MAX_CONCURRENT_PAGES: "4"
+            probes:
+              liveness: &playwright_probes
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 3000
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *playwright_probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      redis:
+        containers:
+          app:
+            image:
+              repository: docker.io/library/redis
+              tag: alpine@sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354
+            args:
+              - redis-server
+              - --bind
+              - "0.0.0.0"
+            probes:
+              liveness: &redis_probes
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 6379
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *redis_probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+      # No durability needed - this backs Firecrawl's rate-limit/job-status
+      # cache, not the crawl queue itself (that's nuq-postgres). Losing it on
+      # a restart just clears in-flight rate-limit counters.
+      rabbitmq:
+        containers:
+          app:
+            image:
+              repository: docker.io/library/rabbitmq
+              tag: 3-management@sha256:9cfb7e92ae7d296aec4d1ae799e431209f7ed57d55f9c929d95667d0ccf1c920
+            probes:
+              liveness: &rabbitmq_probes
+                enabled: true
+                type: TCP
+                spec:
+                  tcpSocket:
+                    port: 5672
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *rabbitmq_probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      api:
+        primary: true
+        controller: api
+        ports:
+          http:
+            port: 3002
+      playwright-service:
+        controller: playwright-service
+        ports:
+          http:
+            port: 3000
+      redis:
+        controller: redis
+        ports:
+          tcp:
+            port: 6379
+      rabbitmq:
+        controller: rabbitmq
+        ports:
+          amqp:
+            port: 5672
+
+    persistence:
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          api:
+            app:
+              - path: /tmp
+          playwright-service:
+            app:
+              - path: /tmp/.cache
