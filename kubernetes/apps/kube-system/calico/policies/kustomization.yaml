@@ -21,6 +21,7 @@ resources:
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
   - ./globalnetworkpolicy-paperless-to-llama-cpp.yaml
+  - ./globalnetworkpolicy-hermes-agent-to-searxng.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
   - ./globalnetworkpolicy-internet-to-slskd.yaml
   - ./globalnetworkpolicy-kured-to-observability.yaml
@@ -67,3 +68,5 @@ resources:
   # pending-diff-driven like the rounds above
   - ./stagedglobalnetworkpolicy-paperless-to-llama-cpp-egress.yaml
   - ./stagedglobalnetworkpolicy-paperless-egress-imap.yaml
+  # hermes-agent web-search turn-up - anticipatory, not pending-diff-driven
+  - ./stagedglobalnetworkpolicy-hermes-agent-to-searxng-egress.yaml
