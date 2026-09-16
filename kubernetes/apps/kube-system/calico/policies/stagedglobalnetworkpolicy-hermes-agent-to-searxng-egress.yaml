@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Egress mirror of globalnetworkpolicy-hermes-agent-to-searxng.yaml. Added
+# anticipatorily alongside the web-search turn-up, not from observed
+# pending-diff data - there's no traffic yet since this is a new
+# integration. Same shape as allow-paperless-to-llama-cpp-egress.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-hermes-agent-to-searxng-egress
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'hermes-agent'
+  namespaceSelector: kubernetes.io/metadata.name == 'ai'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'searxng'
+        namespaceSelector: kubernetes.io/metadata.name == 'home'
+        ports: [8080]

@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# hermes-agent (`ai`) calls searxng's (`home`) JSON search API for its
+# web_search tool. Same shape as allow-paperless-to-llama-cpp.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-hermes-agent-to-searxng
+spec:
+  selector: app.kubernetes.io/name == 'searxng'
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'hermes-agent'
+        namespaceSelector: kubernetes.io/metadata.name == 'ai'
+      destination:
+        ports: [8080]
