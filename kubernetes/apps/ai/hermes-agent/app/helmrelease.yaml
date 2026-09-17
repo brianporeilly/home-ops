@@ -41,6 +41,16 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.9.14@sha256:1f983df4d778d46b3c3892d7598c9d57291430a6e35936ebc371ae1e5766699a
+            # Without this, the `main-hermes` s6 service execs the
+            # container's bare argv (empty by default), which runs the
+            # interactive chat CLI instead of the gateway daemon - it
+            # prints the welcome banner, hits "Input is not a terminal",
+            # and exits immediately, crash-looping the pod. `dashboard` is
+            # a separate static s6 service unaffected by this - only the
+            # main process needed the override.
+            args:
+              - gateway
+              - run
             env:
               # Dummy value - llama.cpp's OpenAI-compatible server doesn't
               # enforce auth, but Hermes requires a non-empty key to accept
