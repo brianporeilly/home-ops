@@ -48,24 +48,34 @@ spec:
                 mv "${dest}.tmp" "$dest"
                 echo "[fetch-model] done"
             env: &model_env
-              # Llama-3.2-3B-Instruct: swapped from Qwen2.5-3B-Instruct
-              # (2026-09-17) - Hermes Agent requires a minimum 64000 context
-              # window, and Qwen2.5-3B's native trained context is only
-              # 32768 (llama.cpp silently clamps to that regardless of
-              # --ctx-size or manual --rope-scaling/--yarn-* flags,
-              # confirmed live via /props across multiple attempts - see
-              # PRs #976/#977/#978). Llama-3.2-3B natively supports up to
-              # 131072 via Meta's own validated "llama3" rope scaling
-              # (baked into the model's config, not a bolted-on override),
-              # so 65536 below should actually stick instead of clamping.
-              # Same tool-calling requirement as before: llama.cpp
-              # recognizes Llama 3.x's chat template as one of its
-              # natively-supported tool-call families (llama3_json) -
-              # verify paperless-ngx's AI suggestions still work after this
-              # swap, same as when Qwen2.5 replaced Phi-4-mini for the same
-              # reason. 1.9GB at Q4_K_M, same ballpark as Qwen2.5-3B was.
-              MODEL_URL: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-              MODEL_FILE: "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+              # Qwen3-4B-Instruct-2507: swapped from Llama-3.2-3B-Instruct
+              # (2026-09-17, same day) - Llama-3.2-3B fixed the context
+              # length (real 65536, confirmed via /props) but turned out
+              # behaviorally incapable of the agentic tool-use loop:
+              # reproduced live against the raw API - after receiving a
+              # tool result it called the same zero-arg tool again with a
+              # hallucinated argument instead of producing a final answer,
+              # looping until Hermes's turn limit. Not a template/parsing
+              # bug (finish_reason and tool_calls were structured
+              # correctly) - the model itself couldn't close the loop.
+              #
+              # Qwen3-4B-Instruct-2507 gets both properties this time:
+              # max_position_embeddings 262144 with rope_scaling: null in
+              # its own config - genuinely native, not a bolted-on
+              # extension like Llama-3.2's or a manual override like the
+              # failed Qwen2.5 YaRN attempt. Same <tool_call></tool_call>
+              # XML template family as Qwen2.5 (the family that behaved
+              # correctly here, unlike Llama 3.x's plain-JSON format).
+              # Standard "qwen3" dense architecture, not the hybrid
+              # linear-attention "qwen3_5" - checked llama.cpp's GitHub,
+              # no open conversion-bug issues for plain qwen3.
+              #
+              # 2.33GB at Q4_K_M vs Llama-3.2-3B's 1.9GB - more VRAM
+              # pressure than anything tried so far on this 4GB card.
+              # Whether a 65536/q8_0 cache still fits alongside a bigger
+              # model is genuinely untested; watch startup for CUDA OOM.
+              MODEL_URL: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+              MODEL_FILE: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -91,17 +101,16 @@ spec:
               - --ctx-size
               # Hermes Agent requires a minimum 64000 context window (below
               # that it refuses to use the endpoint as a model provider).
-              # 65536 relies on Llama-3.2-3B's native 131072 support (see
-              # the model_env comment above) - NOT independently verified
-              # yet that llama.cpp actually honors this rather than
-              # clamping again. Check /props' "n_ctx" after this deploys;
-              # if it's still not 65536, the model swap alone didn't do it
-              # either.
+              # 65536 relies on Qwen3-4B-Instruct-2507's native 262144
+              # support (rope_scaling: null in its own config - see the
+              # model_env comment above). This exact value already worked
+              # correctly with Llama-3.2-3B (confirmed via /props showing
+              # n_ctx: 65536), so the context-length side of this shouldn't
+              # regress - the open question with this swap is VRAM fit for
+              # the bigger model, not context clamping.
               - "65536"
               # Quantizes the KV cache (~halves its memory footprint vs the
-              # f16 default). Real memory savings this time - unlike the
-              # Qwen2.5 attempts, this context size should actually be
-              # allocated, not silently clamped down to something smaller.
+              # f16 default).
               - --cache-type-k
               - q8_0
               - --cache-type-v
@@ -163,12 +172,11 @@ spec:
               # 8Gi (confirmed live, exit 137) at --ctx-size 32000 with an
               # f16 cache - host RAM scales with context length same as
               # VRAM does, even with every layer offloaded to the GPU
-              # (--n-gpu-layers -1). This 65536/q8_0 combination lands in
-              # roughly the same KV-cache byte size as that 32000/f16 setup
-              # that OOM'd at 8Gi, so 10Gi may still be tight - watch for
-              # OOMKilled after this deploys, node has some room to bump
-              # further but it's not abundant (~81% memory utilized
-              # already from other co-located apps).
+              # (--n-gpu-layers -1). 10Gi held fine for Llama-3.2-3B at
+              # 65536/q8_0; Qwen3-4B's ~400MB larger weights eat into the
+              # same budget - watch for OOMKilled after this deploys, node
+              # has some room to bump further but it's not abundant (~81%
+              # memory utilized already from other co-located apps).
               limits:
                 cpu: "4"
                 memory: 10Gi
