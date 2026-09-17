@@ -83,7 +83,24 @@ spec:
               - --n-gpu-layers
               - "-1"
               - --ctx-size
-              - "32000"
+              # Hermes Agent requires a minimum 64000 context window (below
+              # that it refuses to use the endpoint as a model provider).
+              # Doubling from 32000 roughly doubles KV-cache memory, which
+              # was already the thing OOMKilling this pod at 32000/8Gi
+              # (confirmed live, exit 137, twice) - offsetting that below
+              # with --cache-type-k/v q8_0 rather than just raising the
+              # limit further and hoping.
+              - "64000"
+              # Quantizes the KV cache (~halves its memory footprint vs the
+              # f16 default) so 64000 context lands in roughly the same
+              # VRAM/RAM ballpark the old 32000/f16 setup needed - the GTX
+              # 745's 4GB VRAM has no room to just double the f16 cache
+              # outright. Negligible quality impact at q8_0; drop to q4_0
+              # (more aggressive, more lossy) if this still doesn't fit.
+              - --cache-type-k
+              - q8_0
+              - --cache-type-v
+              - q8_0
               # Required for OpenAI-style tool/function calling (paperless-ngx's
               # AI suggestions use it) - without --jinja llama.cpp falls back to
               # a simplified template that can't emit tool_calls, so the model
@@ -137,14 +154,18 @@ spec:
               requests:
                 cpu: 250m
                 memory: 1Gi
-              # OOMKilled at 6Gi (confirmed live: 4867Mi resident against a
-              # 6144Mi limit, so barely 1.3Gi of headroom) - --ctx-size 32000
-              # scales KV-cache/scratch-buffer host RAM with request length,
-              # not just VRAM, even with every layer offloaded to the GPU
-              # (--n-gpu-layers -1). wk-roche has room (~8.5Gi free).
+              # History: OOMKilled at 6Gi, bumped to 8Gi, OOMKilled again at
+              # 8Gi (confirmed live, exit 137) even at the old --ctx-size
+              # 32000/f16-cache settings - host RAM scales with context
+              # length same as VRAM does, even with every layer offloaded
+              # to the GPU (--n-gpu-layers -1). Now on wk-drotte, not
+              # wk-roche - checked live, node has headroom for this but
+              # it's not abundant (~81% memory utilized already from other
+              # co-located apps). Watch for further OOMs after the 64000 +
+              # q8_0 cache change above; this may still need another bump.
               limits:
                 cpu: "4"
-                memory: 8Gi
+                memory: 10Gi
                 nvidia.com/gpu: 1
 
     defaultPodOptions:
