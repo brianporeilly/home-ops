@@ -42,7 +42,7 @@ spec:
           app:
             image:
               repository: ghcr.io/dgtlmoon/changedetection.io
-              tag: 0.60.4@sha256:e61f10fbbc635af1d396721bb9179464a38dd6f749b4cfc92a52e94057370a8e
+              tag: 0.60.7@sha256:938cded62165fa2db8c2ab23a21bfa397e8bc8079acc4278bbdf32224c04c883
             env:
               PLAYWRIGHT_DRIVER_URL: "ws://changedetection-sockpuppetbrowser:3000/?--origin-to-force-quic-on=www.bestbuy.com:443"
               ALLOW_IANA_RESTRICTED_ADDRESSES: true
