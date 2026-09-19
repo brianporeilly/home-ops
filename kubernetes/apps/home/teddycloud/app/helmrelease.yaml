@@ -1,0 +1,149 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: teddycloud
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: teddycloud
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      teddycloud:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/toniebox-reverse-engineering/teddycloud
+              tag: 0.7.0@sha256:c31ef85b54df8d6f722adf400d36523c124febd3a61c901e5141324a66a5259d
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              # teddyCloud binds :80 and :443 itself (no configurable
+              # listen-port remap) - NET_BIND_SERVICE lets it do that as
+              # non-root instead of needing runAsUser: 0.
+              capabilities: { add: [ "NET_BIND_SERVICE" ], drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 1Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: teddycloud
+        ports:
+          http:
+            port: 80
+      # Real Toniebox hardware connects to :443 with a custom TLS/client-cert
+      # handshake (no SNI) that teddyCloud must terminate itself - it can't
+      # sit behind envoy-internal's own :443 https listener (one backend per
+      # port, no SNI to demux on) or a TCPRoute (needs its own listener/port
+      # on the Gateway; the box firmware hardcodes 443, it can't move). A
+      # dedicated kube-vip LoadBalancer IP bypasses Envoy entirely instead.
+      # LAN-only by design - there's no equivalent path to expose this
+      # externally (envoy-external also owns :443 on its own IP), which
+      # matches how Toniebox base stations are used in practice.
+      boxes:
+        controller: teddycloud
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+        annotations:
+          kube-vip.io/loadbalancerIPs: "10.21.0.13"
+        ports:
+          https:
+            port: 443
+
+    route:
+      app:
+        hostnames:
+          - teddycloud.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      certs:
+        suffix: certs
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /teddycloud/certs
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /teddycloud/config
+      content:
+        suffix: content
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /teddycloud/data/content
+      library:
+        suffix: library
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /teddycloud/data/library
+      custom-img:
+        suffix: custom-img
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /teddycloud/data/www/custom_img
+      firmware:
+        suffix: firmware
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        globalMounts:
+          - path: /teddycloud/data/firmware
+      cache:
+        suffix: cache
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        globalMounts:
+          - path: /teddycloud/data/cache
+      plugins:
+        suffix: plugins
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "1Gi"
+        globalMounts:
+          - path: /teddycloud/data/www/plugins
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          teddycloud:
+            app:
+              - path: /tmp
