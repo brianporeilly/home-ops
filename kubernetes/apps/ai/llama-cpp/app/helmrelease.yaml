@@ -98,6 +98,21 @@ spec:
               # drop to a smaller positive number of layers if it OOMs.
               - --n-gpu-layers
               - "-1"
+              # Default is -1 (auto), which picked 4 slots. On this single
+              # weak GPU that meant concurrent slots actively fighting each
+              # other for compute: confirmed live in the startup log, two
+              # `prompt processing` tasks running interleaved at once, each
+              # dragging the other down to ~20-36 tok/s. Worse, Hermes's
+              # client-side timeout (150s) fires mid-prefill on a large
+              # prompt, cancels, and retries - the retry becomes a NEW
+              # concurrent task competing with the still-running original,
+              # compounding the slowdown into a pile-up. Forcing 1 slot
+              # serializes retries behind the original instead of racing
+              # it. Doesn't fix the underlying prefill speed (a large
+              # prompt will still take minutes on this hardware) - only
+              # stops it from getting worse under retries.
+              - --parallel
+              - "1"
               - --ctx-size
               # Hermes Agent requires a minimum 64000 context window (below
               # that it refuses to use the endpoint as a model provider).
