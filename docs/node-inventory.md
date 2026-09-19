@@ -62,6 +62,7 @@ rationale).
 | `wk-roche`     | worker (Ceph HDD OSD, **GPU**)     | k8s-cp-03 | Dell OptiPlex 9020 | i7-4790 (Haswell) | 32 GB | 10.20.20.13 | 10GbE |
 | `wk-eata`      | worker (Ceph HDD OSD)      | k8s-wk-03 | Dell Precision Tower 3620 | Xeon E3-1270 v5 (Skylake, ECC-capable) | 32 GB | 10.20.20.14 | **1GbE ⚠** |
 | `wk-jonas`     | worker (Ceph SSD OSD / compute) | k8s-wk-01 | HP EliteDesk 800 G2 DM (65W) | i5-6500 (Skylake) | 16 GB | 10.20.20.15 | 1GbE |
+| `wk-talos`     | worker (compute — Jellyfin transcode, iGPU Quick Sync) | — (new) | Dell OptiPlex 7090 Ultra (UFF) | i5-1145G7 (Tiger Lake) | 8 GB stock — upgrade planned | 10.20.20.16 (planned) | 1GbE |
 | `nas-ultan`    | NAS (ZFS)                  | ubuntu-01 | whitebox (ASRock, DMI OEM-blank) | Xeon E3-1230 v3 (Haswell, ECC) | 32 GB (4×8 DDR3-1333, **maxed**) | 10.20.30.11 | 10GbE |
 
 ## Nodes — MAC addresses & firmware (for DHCP static reservations)
@@ -80,6 +81,7 @@ not the 10GbE add-in card. 10GbE NICs are Intel dual-port; only port-0 (`f0`) is
 | `wk-roche`     | eno1      | `98:90:96:be:3a:ff` | enp5s0f0 | `a0:36:9f:b6:69:6c` | A10 |
 | `wk-eata`      | enp0s31f6 | `18:66:da:08:16:57` | ⚠ none detected | — | 2.22.0 |
 | `wk-jonas`     | eno1      | `ec:8e:b5:6e:71:17` | — | — | N21 v02.19 |
+| `wk-talos`     | eth0      | `70:b5:e8:59:ed:5a` | — | — | 1.43.0 |
 | `nas-ultan`    | enp0s25   | `bc:5f:f4:fd:ec:92` | enp2s0f0 (link down) | `a0:36:9f:e5:70:78` | P1.70 |
 
 ## Nodes with a separate mgmt NIC — kubelet `--node-ip` pinning required
@@ -131,6 +133,7 @@ max" is what SMBIOS type-16 reports (= the CPU/platform ceiling on these).
 | `wk-roche`     | 32 GB | 4 / 4 | 4×8 GB | DDR3-1600         | 32 GB | **maxed** — platform ceiling (DDR3) |
 | `wk-eata`      | 32 GB | 4 / 4 | 4×8 GB | DDR4-2133         | 64 GB | → 64 GB, but **no free slots** (4×16 swap) |
 | `wk-jonas`     | 16 GB | 2 / 2 | 2×8 GB | DDR4-2133 SODIMM  | 32 GB | → 32 GB, but **no free slots** (2×16 swap) |
+| `wk-talos`     | 8 GB  | 1 / 2 | 1×8 GB DIMM1 (DIMM2 empty) | DDR4-3200 UDIMM | 64 GB | **1 slot free** — cheapest add is a 2nd 8GB+ stick in DIMM2 (also picks up dual-channel) |
 | `nas-ultan`    | 32 GB | 4 / 4 | 4×8 GB | DDR3-1333         | 32 GB | **maxed** — platform ceiling (DDR3) |
 
 **Takeaways:** (1) the three DDR3 Haswell workers + the NAS are at their hard ceiling — more
@@ -152,6 +155,7 @@ round if 16 GB ever proves tight again; `palaemon` is out of slots and would nee
 | `wk-roche`     | SanDisk X400 128GB (SD8SB8U) | **HDD:** WD20EARX 2TB · **GPU:** GTX 745 | SATA SSD (pending) | SATA-only; block.db SSD not yet present |
 | `wk-eata`      | Patriot P210 128GB | **HDD:** WD20EARX 2TB | SATA SSD (pending) | SATA-only; block.db SSD not yet present; ⚠ **10GbE NIC not detected** (only onboard 1GbE) |
 | `wk-jonas`     | Patriot P210 128GB | **SSD:** WD_BLACK SN770M 1TB NVMe | — | MFF, M.2 |
+| `wk-talos`     | Micron 2450 NVMe 256GB (M.2, serial `22363B3CD51F`, fw 24500007) | — (compute-only, no OSD) | — | UFF, single M.2 slot — boot/OS disk only |
 | `nas-ultan`    | Crucial M4 64GB (boot) | **ZFS (planned):** 5× WD60EFAX 6TB + 1× HGST HUS726060ALE611 6TB (3 mirror vdevs) + 1× WD60EFAX cold spare | — | **disks to be re-laid to plan at teardown.** *Currently* (old cluster): 4× WD60EFAX + 1× HGST in ZFS; WD Blue 1TB SSD = `/data` (Longhorn — reclaim target); X400 128GB = `/var`; 6× iSCSI Longhorn PVCs mounted |
 
 ## Notes
@@ -174,7 +178,19 @@ round if 16 GB ever proves tight again; `palaemon` is out of slots and would nee
   (`10.20.100.0/24`) and keep nodes/infra as **static MAC reservations in their tiers**, outside
   the pool. Reservations are honored during PXE, so each node PXE-boots straight onto its tier IP.
 - **Addressing:** third octet = tier; hosts from `.11` (`.1–.10` reserved per tier). Workers =
-  apprentice quartet `.20.11–.14` (severian/drotte/roche/eata, eata youngest → last) + jonas `.15`;
-  drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool `10.21.0.0/16` (the old
-  `10.20.250.0/24` pool has been fully retired - see addressing plan above).
+  apprentice quartet `.20.11–.14` (severian/drotte/roche/eata, eata youngest → last) + jonas `.15`
+  + talos `.16` (planned). drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool
+  `10.21.0.0/16` (the old `10.20.250.0/24` pool has been fully retired - see addressing plan above).
+- **`wk-talos`** (Dell OptiPlex 7090 UFF, i5-1145G7, service tag `6BJPDF3`) added as a dedicated
+  Jellyfin-transcode compute node — Tiger Lake iGPU (Iris Xe / Quick Sync), not a discrete-GPU
+  node like drotte/roche, so it's **not** managed by nvidia-gpu-operator. BIOS 1.43.0. Onboard NIC
+  is Intel I219-LM (`eth0`, 1GbE, confirmed link at 1000Mb/s) — no 10GbE add-in, no PCIe slot on
+  this chassis, and 10GbE isn't worth adding for a transcode-only workload (output bitrate is
+  reduced by design; source reads from Ceph/NAS stay well under 1GbE even for 4K HDR). Single M.2
+  NVMe (Micron 2450 256GB) as boot/OS disk only — compute node, not a Ceph
+  OSD host. RAM: 1×8GB DDR4-3200 UDIMM in DIMM1, DIMM2 empty (64GB board ceiling) — upgrade planned.
+  Powers via USB-C/Thunderbolt PD from a display (90W+ required, monitor must be on the
+  Thunderbolt input) or the native 90W barrel adapter. Gathered via `scripts/node-hw-report.sh`;
+  not yet joined to the cluster (`kubectl get nodes` doesn't show it yet) — IP `10.20.20.16` is
+  still just the planned static reservation.
 - Full rationale/history lives in `docs/disk-hardware-plan.md`; this file is the terse reference.

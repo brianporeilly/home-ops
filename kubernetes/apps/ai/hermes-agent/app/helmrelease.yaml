@@ -52,6 +52,21 @@ spec:
               - gateway
               - run
             env:
+              # Off by default - the dashboard's own startup script exits
+              # cleanly (not an error) when this is unset, so `s6-rc: ...
+              # dashboard successfully started` in the logs is misleading;
+              # no dashboard process actually runs without this.
+              HERMES_DASHBOARD: "true"
+              # The script's own default bind is 0.0.0.0, which trips its
+              # mandatory auth-provider gate (fails closed without
+              # HERMES_DASHBOARD_BASIC_AUTH_USERNAME/_PASSWORD or OAuth -
+              # June 2026 hardening after unauthenticated dashboards became
+              # an attack entry point elsewhere). Only ever reached via
+              # `kubectl port-forward` here, which tunnels into the pod's
+              # own network namespace and can still reach a loopback-only
+              # bind - so 127.0.0.1 sidesteps the auth gate entirely
+              # instead of wiring up credentials for something local-only.
+              HERMES_DASHBOARD_HOST: "127.0.0.1"
               # Dummy value - llama.cpp's OpenAI-compatible server doesn't
               # enforce auth, but Hermes requires a non-empty key to accept
               # a custom base_url provider. Not a real secret.
