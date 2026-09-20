@@ -83,6 +83,12 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        # Explicit backendRef required once a second service (boxes) exists -
+        # app-template can no longer auto-detect which one this route means.
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 80
 
     persistence:
       certs:
