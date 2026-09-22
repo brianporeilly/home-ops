@@ -100,6 +100,16 @@ weight (RUNTIME=process itself provides none, regardless of UID - OpenHands's
 own docs call it "unsafe, but fast"), but the container process itself is no
 longer part of that risk either.
 
+## Second boot fix: file_store_path (2026-09-22)
+
+Fixed the UID above, then hit `PermissionError: '/.openhands/.jwt_secret'`.
+OpenHands's `file_store_path` config defaults to `~/.openhands`; `~` isn't
+resolving to a real home directory for UID 42420 in this container, so it
+lands on the unwritable root filesystem instead of the PVC. Set
+`FILE_STORE_PATH` (confirmed against `openhands/core/config/utils.py`'s
+env-var mapping - top-level config fields map straight to their uppercased
+name, same as `RUNTIME`) to a path under `/.openhands-state`.
+
 ## What's NOT built yet (Phase 2)
 
 - **Dynamic per-session sandbox provisioning from OpenHands.** Today,
