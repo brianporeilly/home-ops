@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Enforcing from day one, deliberately ahead of docs/egress-policy-plan.md's
+# fleet-wide staged rollout: agent-sandbox-system is a brand-new namespace
+# with no legacy traffic to break, and the workload class it hosts (agent
+# tool execution, see docs/agent-sandbox-plan.md) specifically warrants
+# default-deny-egress from the start rather than waiting for the general
+# rollout to reach it. Self-contained (DNS + apiserver spelled out here
+# directly) rather than depending on the fleet's still-staged
+# allow-dns-egress/allow-apiserver-egress, since those never enforce.
+#
+# The controller itself is a k8s API client only (watches Sandbox/
+# SandboxTemplate CRs, creates Pods/Services) - no internet access needed.
+# Actual sandboxed workload pods get their own, separate, wider policy: see
+# globalnetworkpolicy-agent-sandbox-workloads-egress.yaml.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-agent-sandbox-controller-egress
+spec:
+  selector: app == 'agent-sandbox-controller'
+  namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.10.11/32
+          - 10.20.10.12/32
+          - 10.20.10.13/32
+        ports: [6443]

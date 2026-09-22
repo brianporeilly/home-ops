@@ -27,6 +27,12 @@ resources:
   - ./globalnetworkpolicy-kured-to-observability.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-maddy.yaml
   - ./globalnetworkpolicy-cluster-to-maddy.yaml
+  # docs/agent-sandbox-plan.md - enforcing egress from day one for these two
+  # brand-new namespaces, deliberately ahead of the fleet-wide staged
+  # rollout below (see each file for the full rationale)
+  - ./globalnetworkpolicy-agent-sandbox-controller-egress.yaml
+  - ./globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
+  - ./globalnetworkpolicy-openhands-egress.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
