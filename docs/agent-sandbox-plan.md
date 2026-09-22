@@ -1,6 +1,6 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Five real issues hit
+Status: **Phase 1 merged and deployed (2026-09-22).** Six real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
@@ -163,6 +163,26 @@ live against the exact pinned image/digest) plus `/opt/tmux/bin` prepended.
 General lesson, not just for this app: never mount a volume at a path that
 already has content in the image without checking first - `kubectl run
 --rm -it <same-pinned-image> -- sh` is cheap and turns a guess into a fact.
+
+## Sixth fix: disabled the bundled browser (2026-09-22)
+
+Pod stopped crash-looping after the fifth fix, but never went `Ready`
+(startup probe: `connection refused` on 3000 - app was hung, not just slow).
+Logs showed a background subprocess failing:
+`playwright._impl._errors.Error: BrowserType.launch: EACCES: permission
+denied, mkdir '/workspace'`. `enable_browser` defaults `true` and spawns an
+in-process Chromium (via `playwright`) as part of startup; the parent
+appears to block waiting on it.
+
+Set `ENABLE_BROWSER: "false"` rather than chase this further - fixing the
+`/workspace` permission would likely only surface the next problem
+(headless Chromium's system-library chain, which this slim image almost
+certainly doesn't have), and this namespace already has a dedicated,
+working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar)
+rather than bundling a browser into the app itself. If the agent UI's
+`browser` tool turns out to matter for real usage, wiring OpenHands at a
+CDP endpoint (same shape as `hermes-agent`'s `browser.cdp_url`) is the
+follow-up, not re-enabling the bundled one.
 
 ## What's NOT built yet (Phase 2)
 
