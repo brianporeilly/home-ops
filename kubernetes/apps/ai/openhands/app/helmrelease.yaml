@@ -74,6 +74,12 @@ spec:
               # Required for runAsUser: 42420 above to work - see
               # docs/agent-sandbox-plan.md.
               NO_SETUP: "true"
+              # The agent's bash tool otherwise runs `su openhands -` to
+              # start its shell (bash.py hardcodes 'openhands' as always
+              # worth su-ing to, regardless of --username) - redundant and
+              # unauthenticatable here, we're already that user via
+              # securityContext, not root. See docs/agent-sandbox-plan.md.
+              SU_TO_USER: "false"
               WORKSPACE_BASE: "/.openhands-state/workspace"
               # Default (~/.openhands) resolves off this PVC - HOME isn't
               # meaningfully set for UID 42420 here, so it lands unwritable
