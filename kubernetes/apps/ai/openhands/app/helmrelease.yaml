@@ -47,6 +47,10 @@ spec:
               # docs/agent-sandbox-plan.md.
               NO_SETUP: "true"
               WORKSPACE_BASE: "/.openhands-state/workspace"
+              # Default (~/.openhands) resolves off this PVC - HOME isn't
+              # meaningfully set for UID 42420 here, so it lands unwritable
+              # on the root filesystem. See docs/agent-sandbox-plan.md.
+              FILE_STORE_PATH: "/.openhands-state/filestore"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
