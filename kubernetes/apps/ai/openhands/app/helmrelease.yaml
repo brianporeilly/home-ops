@@ -80,6 +80,12 @@ spec:
               # unauthenticatable here, we're already that user via
               # securityContext, not root. See docs/agent-sandbox-plan.md.
               SU_TO_USER: "false"
+              # Image bakes this to http://host.docker.internal (for the
+              # docker-run --add-host deployment style upstream documents) -
+              # doesn't resolve at all here (no such DNS record in this
+              # pod), and the runtime subprocess runs in this same network
+              # namespace anyway. See docs/agent-sandbox-plan.md.
+              SANDBOX_LOCAL_RUNTIME_URL: "http://localhost"
               WORKSPACE_BASE: "/.openhands-state/workspace"
               # Default (~/.openhands) resolves off this PVC - HOME isn't
               # meaningfully set for UID 42420 here, so it lands unwritable
