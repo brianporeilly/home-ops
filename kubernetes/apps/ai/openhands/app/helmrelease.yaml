@@ -22,20 +22,9 @@ spec:
       openhands:
         annotations:
           reloader.stakater.com/auto: "true"
-        # Confirmed live (2026-09-22): the image's containers/app/entrypoint.sh
-        # (as of 0.59.0) is baked --chown=openhands:openhands (UID/GID 42420)
-        # mode 0770 - not exec'able under this repo's usual runAsUser: 1000
-        # default (that default exists for NAS file access, which is
-        # irrelevant to this app - not a reason to run this one as root).
-        # entrypoint.sh's own setup logic separately hard-checks `id -u -ne 0`
-        # and only drops to non-root via a path that reads
-        # /var/run/docker.sock's group id - unusable here since RUNTIME=process
-        # means no docker socket is ever mounted, on purpose. NO_SETUP=true
-        # (below) skips all of that setup logic entirely - including the root
-        # check - and just execs the image's own CMD
-        # (uvicorn openhands.server.listen:app) directly, so running as the
-        # image's real non-root user works cleanly with no privilege-drop
-        # dance needed at all.
+        # Image's entrypoint.sh is chown'd to UID/GID 42420, not this repo's
+        # usual 1000 (that default's for NAS access, not needed here) - see
+        # docs/agent-sandbox-plan.md for the full story.
         pod:
           securityContext:
             runAsUser: 42420
@@ -49,46 +38,20 @@ spec:
               repository: ghcr.io/all-hands-ai/openhands
               tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
             env:
-              # No docker.sock, no nested containers - the agent's tool
-              # calls run as plain OS processes inside this same
-              # container, as the non-root 42420 user set above (not root -
-              # see the pod.securityContext comment). OpenHands's own docs
-              # still label this mode "(unsafe, but fast)" regardless of
-              # UID - no container-in-container isolation of any kind. This
-              # Pod (securityContext above + the egress GlobalNetworkPolicy
-              # in
-              # kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-openhands-egress.yaml)
-              # is what actually carries that weight, not anything
-              # OpenHands provides internally. See docs/agent-sandbox-plan.md
-              # for the fuller rationale (avoids docker.sock ==
-              # host-root-equivalent access, and avoids the zparnold
-              # remote-runtime project's unpublished-image/Ingress-controller
-              # blockers).
+              # RUNTIME=process: no docker.sock, no nested containers - the
+              # Pod (securityContext + globalnetworkpolicy-openhands-egress.yaml)
+              # is the isolation boundary, not OpenHands itself. See
+              # docs/agent-sandbox-plan.md.
               RUNTIME: "process"
-              # Skips entrypoint.sh's root-required setup/privilege-drop
-              # logic entirely (see the pod.securityContext comment above) -
-              # required for running as the image's real non-root user
-              # (42420) with no docker.sock present. Also matters for
-              # WORKSPACE_BASE below: entrypoint.sh's setup logic (skipped
-              # here) would otherwise unset WORKSPACE_BASE unless
-              # WORKSPACE_MOUNT_PATH is also set, which we don't need since
-              # NO_SETUP skips that check too.
+              # Required for runAsUser: 42420 above to work - see
+              # docs/agent-sandbox-plan.md.
               NO_SETUP: "true"
               WORKSPACE_BASE: "/.openhands-state/workspace"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
-              # http://llama-cpp.ai.svc.cluster.local:8080/v1
-              # (OpenAI-compatible) as an optional secondary provider -
-              # deliberately not wired as a second static [llm.*] config
-              # here (multi-provider env/config.toml schema not confirmed
-              # against this OpenHands version at plan time). Add it
-              # in-app via Settings > LLM once logged in instead. Realistic
-              # expectations: the current 4B Qwen3 model on a 4GB Maxwell
-              # card already struggled with Hermes's much simpler tool-use
-              # loop (see kubernetes/apps/ai/llama-cpp/app/helmrelease.yaml)
-              # - treat it as experimental against OpenHands's heavier
-              # agent loop, not a real alternative to Claude for actual
-              # coding tasks.
+              # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
+              # secondary provider - add via Settings > LLM once logged in.
+              # Expect it to struggle: see llama-cpp/app/helmrelease.yaml.
             envFrom:
               - secretRef:
                   name: openhands-secret
