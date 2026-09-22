@@ -10,6 +10,10 @@
 # Rule order matters here: the llama-cpp Allow has to come before the
 # RFC1918 Deny below, since llama-cpp's own pod IP is itself inside those
 # ranges - Calico evaluates egress rules in order, first match wins.
+#
+# Port 80 (alongside 443) is for initContainers.install-tmux's apt-get -
+# Calico enforces per-Pod, not per-container, so this also widens what the
+# main app container can reach. See docs/agent-sandbox-plan.md.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
@@ -50,4 +54,4 @@ spec:
       destination:
         nets:
           - 0.0.0.0/0
-        ports: [443]
+        ports: [80, 443]

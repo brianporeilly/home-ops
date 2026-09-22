@@ -1,6 +1,6 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Three real issues hit
+Status: **Phase 1 merged and deployed (2026-09-22).** Four real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
@@ -126,6 +126,24 @@ creates sandbox Pods/Services directly via the k8s API itself, no
 Phase 2 below; the one confirmed blocker so far is the same one that ruled
 out zparnold's project - it provisions a `V1Ingress` per sandbox, and this
 cluster has no Ingress controller (Envoy Gateway speaks Gateway API only).
+
+## Fourth boot fix: tmux missing from the image (2026-09-22)
+
+Fixed the `RUNTIME` value above, then hit `ValueError: tmux is not properly
+installed or available on the path.` - `LocalRuntime` shells out to a real
+`tmux` binary via `libtmux` for every command the agent runs, not just for
+this startup check. Confirmed in `containers/app/Dockerfile`: the published
+image genuinely never installs it.
+
+Chose an `initContainers.install-tmux` that `apt-get install`s it fresh each
+boot and copies the binary + its shared libs into two emptyDirs shared with
+the main container (`/usr/local/bin`, already on `PATH`; a dedicated lib dir
+via `LD_LIBRARY_PATH`), over building a custom derivative image - no new
+source repo/CI needed, stays inside this GitOps repo. Tradeoff accepted: a
+Debian-mirror network dependency and a few seconds added to every pod
+(re)start, and `globalnetworkpolicy-openhands-egress.yaml` now also allows
+port 80 (Calico enforces per-Pod, not per-container, so this widens the main
+container's own egress too, not just the initContainer's).
 
 ## What's NOT built yet (Phase 2)
 

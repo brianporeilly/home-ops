@@ -32,6 +32,34 @@ spec:
             runAsNonRoot: true
             fsGroup: 42420
             fsGroupChangePolicy: OnRootMismatch
+        # The published image never installs tmux, but LocalRuntime hard-
+        # requires it (not just at this check - libtmux needs the real
+        # binary for every command the agent runs). Installs it fresh each
+        # boot into a shared emptyDir rather than a custom image - see
+        # docs/agent-sandbox-plan.md for the tradeoff and why.
+        initContainers:
+          install-tmux:
+            image:
+              repository: ghcr.io/all-hands-ai/openhands
+              tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                apt-get update
+                apt-get install -y --no-install-recommends tmux
+                tmux_bin="$(command -v tmux)"
+                cp -aL "$tmux_bin" /usr/local/bin/tmux
+                ldd "$tmux_bin" | awk '$2=="=>" && $3~/^\// {print $3} $1~/^\// && $2!="=>" {print $1}' | sort -u | while read -r lib; do
+                  cp -aL "$lib" /usr/local/lib/tmux-deps/ 2>/dev/null || true
+                done
+            # Needs root for apt-get - same image as the main container, so
+            # no library/ABI mismatch risk in what gets copied to the
+            # shared volumes below.
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
         containers:
           app:
             image:
@@ -51,6 +79,10 @@ spec:
               # meaningfully set for UID 42420 here, so it lands unwritable
               # on the root filesystem. See docs/agent-sandbox-plan.md.
               FILE_STORE_PATH: "/.openhands-state/filestore"
+              # tmux's own shared libs, installed by initContainers.install-tmux
+              # into a directory not already on the dynamic linker's default
+              # search path.
+              LD_LIBRARY_PATH: "/usr/local/lib/tmux-deps"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
@@ -134,3 +166,22 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /tmp
+      # /usr/local/bin is already on PATH by default in this (Debian-based)
+      # image, so the main container picks up tmux with no PATH override -
+      # see docs/agent-sandbox-plan.md.
+      tmux-bin:
+        type: emptyDir
+        advancedMounts:
+          openhands:
+            install-tmux:
+              - path: /usr/local/bin
+            app:
+              - path: /usr/local/bin
+      tmux-lib:
+        type: emptyDir
+        advancedMounts:
+          openhands:
+            install-tmux:
+              - path: /usr/local/lib/tmux-deps
+            app:
+              - path: /usr/local/lib/tmux-deps
