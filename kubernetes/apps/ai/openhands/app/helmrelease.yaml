@@ -89,6 +89,13 @@ spec:
               # the container, not just tmux. See docs/agent-sandbox-plan.md.
               PATH: "/opt/tmux/bin:/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
               LD_LIBRARY_PATH: "/opt/tmux/lib"
+              # Default true spawns an in-process Chromium at startup
+              # (playwright) that hung the whole app on boot - see
+              # docs/agent-sandbox-plan.md. Not chasing headless Chromium's
+              # system-library chain for a bundled browser this namespace
+              # already has a dedicated pattern for (hermes-agent's
+              # sockpuppetbrowser CDP sidecar).
+              ENABLE_BROWSER: "false"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
