@@ -201,8 +201,8 @@ spec:
   # negotiation (Accept/X-Format/path-extension) picks HTML vs JSON vs XML
   # exactly like it would for a direct external request.
   #
-  # 400/401/403 deliberately excluded - those are the codes most likely to
-  # carry a real, actionable app-level message (e.g. Authentik's OIDC
+  # 400/401/403/404 deliberately excluded - those are the codes most likely
+  # to carry a real, actionable app-level message (e.g. Authentik's OIDC
   # errors), and this override replaces the body entirely with a generic
   # styled page, masking it. 400/401 cost a debugging session on the
   # Whisker OIDC rollout: the browser only ever showed error-pages'
@@ -214,19 +214,11 @@ spec:
   # Gateway bug that always reports the client-visible status as 302
   # regardless of the real code, the frontend never saw a real 403 to
   # detect "show the login page" and crashed instead trying to parse a
-  # response shape it didn't recognize.
+  # response shape it didn't recognize. 404 added 2026-09-22: OpenHands's
+  # own Settings API returns a real 404 for "no settings saved yet" (not a
+  # missing route) and its frontend depends on seeing that exact code -
+  # same 302-masking symptom as the 403 case above, same fix.
   responseOverride:
-    - match:
-        statusCodes:
-          - type: Value
-            value: 404
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /404
     - match:
         statusCodes:
           - type: Value
@@ -300,7 +292,7 @@ spec:
   # Same reason responseOverride (styled error pages, see the "envoy"
   # policy's comment for the full rationale) is repeated below too - without
   # it, external traffic would silently keep Envoy's blank-body errors while
-  # internal traffic got the styled ones. 400/401/403 excluded here too,
+  # internal traffic got the styled ones. 400/401/403/404 excluded here too,
   # same rationale as the "envoy" policy above.
   compression:
     - type: Brotli
@@ -316,17 +308,6 @@ spec:
             requests: 100
             unit: Second
   responseOverride:
-    - match:
-        statusCodes:
-          - type: Value
-            value: 404
-      redirect:
-        scheme: https
-        hostname: error-pages.internal.oreillys.io
-        port: 443
-        path:
-          type: ReplaceFullPath
-          replaceFullPath: /404
     - match:
         statusCodes:
           - type: Value
