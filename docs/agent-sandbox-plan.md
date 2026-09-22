@@ -1,7 +1,7 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Hit one real issue on
-first boot - see "OpenHands runs as root" below - fixed same day.
+Status: **Phase 1 merged and deployed (2026-09-22).** Three real issues hit
+across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
 
@@ -15,7 +15,7 @@ node-level changes (gVisor) for a first pass.
 
 ```
 ai namespace (existing: llama-cpp, hermes-agent)
-└── openhands          interactive web UI + headless mode, RUNTIME=process,
+└── openhands          interactive web UI + headless mode, RUNTIME=local,
                         own Pod is the isolation boundary, Anthropic Claude
                         as default LLM, llama-cpp selectable as a secondary
                         provider via Settings once logged in
@@ -62,7 +62,7 @@ enforcing.
   `SandboxTemplate` CRDs explicitly support adding a `RuntimeClass` later
   with zero other changes - see "Phase 2" below.
 
-`OpenHands` itself runs with `RUNTIME=process` - no nested containers at
+`OpenHands` itself runs with `RUNTIME=local` - no nested containers at
 all. OpenHands's own docs label this mode "(unsafe, but fast)": it provides
 no isolation of its own. That's intentional here - the Pod itself (hardened
 securityContext + the egress policy above) is the isolation boundary, not
@@ -81,7 +81,7 @@ why:
   irrelevant to this app).
 - Separately, `entrypoint.sh`'s own setup logic hard-exits unless `id -u` is
   0, and only drops to a non-root `enduser` via a path that reads
-  `/var/run/docker.sock`'s group id - unusable here since `RUNTIME=process`
+  `/var/run/docker.sock`'s group id - unusable here since `RUNTIME=local`
   means no docker socket is ever mounted, on purpose.
 - The fix isn't "run as root": `entrypoint.sh` also honors `NO_SETUP=true`,
   which skips all of that setup logic - including the root check - before it
@@ -96,7 +96,7 @@ So this ended up genuinely non-root, not merely root-with-capabilities-dropped
 - better than the `hermes-agent` precedent this was initially going to copy.
 The Pod/NetworkPolicy boundary in
 `globalnetworkpolicy-openhands-egress.yaml` still carries the real isolation
-weight (RUNTIME=process itself provides none, regardless of UID - OpenHands's
+weight (RUNTIME=local itself provides none, regardless of UID - OpenHands's
 own docs call it "unsafe, but fast"), but the container process itself is no
 longer part of that risk either.
 
@@ -110,16 +110,36 @@ lands on the unwritable root filesystem instead of the PVC. Set
 env-var mapping - top-level config fields map straight to their uppercased
 name, same as `RUNTIME`) to a path under `/.openhands-state`.
 
+## Third boot fix: RUNTIME value (2026-09-22)
+
+Fixed `file_store_path` above, then hit `ValueError: Runtime process not
+supported, known are: dict_keys(['eventstream', 'docker', 'remote', 'local',
+'kubernetes', 'cli'])` - `process` was never a real value for this OpenHands
+version; the docs page that suggested it was describing the UI label
+("Process"), not the config value. Correct value is `local`
+(`openhands/runtime/__init__.py`'s `LocalRuntime`).
+
+That registry also surfaced a first-party `kubernetes` runtime
+(`openhands/runtime/impl/kubernetes/kubernetes_runtime.py`) - OpenHands
+creates sandbox Pods/Services directly via the k8s API itself, no
+`agent-sandbox` or custom glue service needed. Worth real evaluation for
+Phase 2 below; the one confirmed blocker so far is the same one that ruled
+out zparnold's project - it provisions a `V1Ingress` per sandbox, and this
+cluster has no Ingress controller (Envoy Gateway speaks Gateway API only).
+
 ## What's NOT built yet (Phase 2)
 
 - **Dynamic per-session sandbox provisioning from OpenHands.** Today,
-  OpenHands (RUNTIME=process) and `agent-sandbox` (headless `Sandbox`/
+  OpenHands (RUNTIME=local) and `agent-sandbox` (headless `Sandbox`/
   `SandboxTemplate` CRs) are parallel, not integrated - OpenHands doesn't
-  create `Sandbox` CRs on your behalf per conversation. Real integration
-  needs a small service translating OpenHands's remote-runtime HTTP
-  contract into `Sandbox` CRUD via `agent-sandbox`'s Go/Python SDK. That's
-  actual software, needing its own source repo and image-build CI -
-  deliberately not attempted in this PR.
+  create `Sandbox` CRs on your behalf per conversation. Two paths, both
+  unevaluated in depth yet: (a) a small service translating OpenHands's
+  remote-runtime HTTP contract into `Sandbox` CRUD via `agent-sandbox`'s
+  Go/Python SDK - real software, its own source repo and image-build CI; or
+  (b) OpenHands's own `RUNTIME=kubernetes` (see above) - no new software,
+  but needs its Ingress-per-sandbox behavior worked around or patched
+  first. (b) is the more promising lead given it needs no separate
+  source repo, deliberately not attempted in this PR.
 - **gVisor / any `RuntimeClass`.** Add `runtimeClassName` to the
   `SandboxTemplate`'s `podTemplate.spec` once it's worth the node-level
   installer's blast radius - scope it to a single labeled node first, not

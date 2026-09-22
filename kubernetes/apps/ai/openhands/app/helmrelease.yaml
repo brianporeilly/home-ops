@@ -38,11 +38,11 @@ spec:
               repository: ghcr.io/all-hands-ai/openhands
               tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
             env:
-              # RUNTIME=process: no docker.sock, no nested containers - the
-              # Pod (securityContext + globalnetworkpolicy-openhands-egress.yaml)
-              # is the isolation boundary, not OpenHands itself. See
-              # docs/agent-sandbox-plan.md.
-              RUNTIME: "process"
+              # "local", not "process" - see docs/agent-sandbox-plan.md.
+              # No docker.sock, no nested containers - the Pod
+              # (securityContext + globalnetworkpolicy-openhands-egress.yaml)
+              # is the isolation boundary, not OpenHands itself.
+              RUNTIME: "local"
               # Required for runAsUser: 42420 above to work - see
               # docs/agent-sandbox-plan.md.
               NO_SETUP: "true"
@@ -87,7 +87,7 @@ spec:
               allowPrivilegeEscalation: false
               # NOT readOnlyRootFilesystem yet - OpenHands almost certainly
               # writes outside /.openhands-state (npm/asset caches, tmp
-              # files for tool execution under RUNTIME=process). Confirm
+              # files for tool execution under RUNTIME=local). Confirm
               # what actually needs write access post-deploy (check for
               # permission-denied errors, same approach hermes-agent's
               # helmrelease.yaml used) before locking this down.
