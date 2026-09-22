@@ -1,6 +1,6 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Six real issues hit
+Status: **Phase 1 merged and deployed (2026-09-22).** Seven real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
@@ -183,6 +183,27 @@ rather than bundling a browser into the app itself. If the agent UI's
 `browser` tool turns out to matter for real usage, wiring OpenHands at a
 CDP endpoint (same shape as `hermes-agent`'s `browser.cdp_url`) is the
 follow-up, not re-enabling the bundled one.
+
+## Seventh fix: su openhands - fails, we're not root (2026-09-22)
+
+With Settings configured (see the "expected first-run UX" note above) and a
+real 404 reaching the frontend again (separate cluster-wide fix - see
+`kubernetes/apps/network/envoy-gateway/config/envoy.yaml`'s own comment,
+not duplicated here), starting a conversation still hung at "Starting
+runtime." Logs showed the actual failure a few lines in:
+`Password: su: Authentication failure`, then `_init_bash_commands` raising
+`AssertionError` right after - the agent's shell tool never got a working
+bash session.
+
+`openhands/runtime/utils/bash.py`'s `BashSession.initialize()` runs
+`su {username} -` to start that shell whenever `SU_TO_USER` (env var,
+defaults `true`) is set AND `self.username` is `RUNTIME_USERNAME`, `root`,
+**or the literal string `'openhands'`** - hardcoded, not derived from our
+`--username` flag. Since we're already running as that exact user via
+`securityContext` (not root), `su` has no password to authenticate with and
+was never going to succeed - it's solving a problem (become the right user)
+that Kubernetes already solved a different way. Set `SU_TO_USER: "false"`
+to skip it and run bash directly as the current (already correct) user.
 
 ## What's NOT built yet (Phase 2)
 
