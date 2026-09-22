@@ -1,0 +1,136 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openhands
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: openhands
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      openhands:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/all-hands-ai/openhands
+              tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
+            env:
+              # No docker.sock, no nested containers - the agent's tool
+              # calls run as plain OS processes inside this same
+              # container. OpenHands's own docs label this "(unsafe, but
+              # fast)" - it provides no isolation of its own. That's fine
+              # here on purpose: this Pod (securityContext below + the
+              # egress GlobalNetworkPolicy in
+              # kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-openhands-egress.yaml)
+              # IS the isolation boundary, not anything OpenHands provides
+              # internally. See docs/agent-sandbox-plan.md for the fuller
+              # rationale (avoids docker.sock == host-root-equivalent
+              # access, and avoids the zparnold remote-runtime project's
+              # unpublished-image/Ingress-controller blockers).
+              RUNTIME: "process"
+              WORKSPACE_BASE: "/.openhands-state/workspace"
+              LLM_MODEL: "anthropic/claude-sonnet-5"
+              # llama-cpp (this namespace) is reachable at
+              # http://llama-cpp.ai.svc.cluster.local:8080/v1
+              # (OpenAI-compatible) as an optional secondary provider -
+              # deliberately not wired as a second static [llm.*] config
+              # here (multi-provider env/config.toml schema not confirmed
+              # against this OpenHands version at plan time). Add it
+              # in-app via Settings > LLM once logged in instead. Realistic
+              # expectations: the current 4B Qwen3 model on a 4GB Maxwell
+              # card already struggled with Hermes's much simpler tool-use
+              # loop (see kubernetes/apps/ai/llama-cpp/app/helmrelease.yaml)
+              # - treat it as experimental against OpenHands's heavier
+              # agent loop, not a real alternative to Claude for actual
+              # coding tasks.
+            envFrom:
+              - secretRef:
+                  name: openhands-secret
+            probes:
+              # TCP-only, not HTTP - no confirmed health endpoint path for
+              # this image at plan time (unlike llama-cpp's documented
+              # /health). Revisit with an HTTP probe once one's confirmed
+              # live.
+              liveness: &probes
+                enabled: true
+                type: TCP
+                port: 3000
+                spec:
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+              readiness: *probes
+              startup:
+                enabled: true
+                type: TCP
+                port: 3000
+                spec:
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 30
+            securityContext:
+              allowPrivilegeEscalation: false
+              # NOT readOnlyRootFilesystem yet - OpenHands almost certainly
+              # writes outside /.openhands-state (npm/asset caches, tmp
+              # files for tool execution under RUNTIME=process). Confirm
+              # what actually needs write access post-deploy (check for
+              # permission-denied errors, same approach hermes-agent's
+              # helmrelease.yaml used) before locking this down.
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        controller: openhands
+        ports:
+          http:
+            port: 3000
+
+    route:
+      app:
+        hostnames:
+          - openhands.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      state:
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /.openhands-state
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

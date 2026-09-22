@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app openhands
+  namespace: &namespace ai
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/authentik/protect
+  dependsOn:
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+    # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
+    # Not a hard startup requirement (llama-cpp is only a selectable
+    # secondary LLM provider here, Anthropic is the default) - documents
+    # the real runtime relationship, same as hermes-agent's llama-cpp dep.
+    - name: llama-cpp
+      namespace: *namespace
+  interval: 1h
+  path: ./kubernetes/apps/ai/openhands/app
+  postBuild:
+    substitute:
+      APP: *app
+      HTTPROUTE_NAME: *app
+      HOSTNAME: openhands.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false

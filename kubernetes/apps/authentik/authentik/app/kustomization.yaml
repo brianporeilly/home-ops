@@ -35,6 +35,7 @@ resources:
   - ./jellyfin-oidc-credentials.yaml
   - ./audiobookshelf-oidc-credentials.yaml
   - ./grimmory-oidc-credentials.yaml
+  - ./openhands-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml

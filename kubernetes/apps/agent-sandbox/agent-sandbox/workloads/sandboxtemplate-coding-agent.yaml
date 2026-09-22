@@ -1,0 +1,85 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/extensions.agents.x-k8s.io_sandboxtemplates.yaml
+#
+# Reusable template for headless/background coding-agent tasks against
+# scratch repos only - see docs/agent-sandbox-plan.md. Deliberately NOT a
+# live Sandbox: a running Sandbox is per-task session state, not desired
+# config, and doesn't belong in git (this repo's "no live cluster mutation,
+# repo/PR changes only" norm). Instantiate one per task with, e.g.:
+#
+#   kubectl create -n agent-sandbox-system -f - <<EOF
+#   apiVersion: agents.x-k8s.io/v1beta1
+#   kind: Sandbox
+#   metadata:
+#     generateName: coding-agent-
+#   spec:
+#     templateRef:
+#       name: coding-agent
+#   EOF
+#
+# podTemplate.metadata.labels below is set explicitly (rather than relying
+# on whatever labels the controller itself stamps on spawned pods) so the
+# egress GlobalNetworkPolicy in
+# kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
+# has a stable, self-defined selector to target.
+#
+# Base image is Claude Code's own published CLI image - git + a real dev
+# toolchain already present, and directly useful for exactly the kind of
+# headless coding-agent task this template exists for. Swap per task by
+# forking this template if a different toolchain is needed.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: coding-agent
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-sandbox-workload
+        agent-sandbox.internal.oreillys.io/template: coding-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: agent
+          image: docker.io/anthropics/claude-code:latest@sha256:a37853e1f7e53a60f6424288f3aa9c3a8149d210d0b5ad48da02055c129ef0aa
+          # Keeps the container alive so a task can be kicked off with
+          # `kubectl exec` (interactive) or a follow-up patch to `command`
+          # (headless, single-shot) - the image's own entrypoint expects a
+          # TTY/prompt and would otherwise exit immediately with no work
+          # queued yet.
+          command: ["sleep", "infinity"]
+          env:
+            # Scratch-repo-scoped only - see secret.yaml. Never this
+            # cluster's own credentials.
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-sandbox-scratch-git-secret
+                  key: SCRATCH_GIT_TOKEN
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 10Gi
