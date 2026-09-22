@@ -1,6 +1,6 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Seven real issues hit
+Status: **Phase 1 merged and deployed (2026-09-22).** Eight real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
@@ -204,6 +204,33 @@ defaults `true`) is set AND `self.username` is `RUNTIME_USERNAME`, `root`,
 was never going to succeed - it's solving a problem (become the right user)
 that Kubernetes already solved a different way. Set `SU_TO_USER: "false"`
 to skip it and run bash directly as the current (already correct) user.
+
+## Eighth fix: host.docker.internal doesn't exist here (2026-09-22)
+
+`SU_TO_USER=false` didn't fully fix it - still hung at "Starting runtime."
+The actual clue was in an earlier log line that looked benign at first:
+`[runtime ...] Waiting for server to become ready at
+http://host.docker.internal:NNNNN...` - `host.docker.internal` is Docker
+Desktop-specific DNS magic for reaching the host from inside a container;
+it has no CoreDNS record and never will in a Kubernetes pod. Matches the
+very first `httpx.ConnectError: [Errno -2] Name or service not known` seen
+back when tmux was still broken - not a stale/unrelated error, the same
+live bug the whole time, just masked by louder crashes until now.
+
+Root cause confirmed in `containers/app/Dockerfile`:
+`ENV SANDBOX_LOCAL_RUNTIME_URL=http://host.docker.internal` - baked in for
+upstream's documented `docker run --add-host host.docker.internal:host-gateway`
+deployment style. The actual code default (`sandbox_config.py`) is
+`http://localhost`, which is what we need: the `action_execution_server`
+subprocess `LocalRuntime` spawns runs in this same container/network
+namespace, not a separate host. Set
+`SANDBOX_LOCAL_RUNTIME_URL: "http://localhost"` to override the image's
+baked default back to the code's own actual default.
+
+Pulled the image's full `ENV` block at this point (`grep '^ENV '
+containers/app/Dockerfile`) to check for other baked defaults fighting our
+config in the same way, rather than keep finding them one crash at a time -
+nothing else stood out as live-affecting.
 
 ## What's NOT built yet (Phase 2)
 
