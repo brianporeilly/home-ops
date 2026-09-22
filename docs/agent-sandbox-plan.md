@@ -1,6 +1,6 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Four real issues hit
+Status: **Phase 1 merged and deployed (2026-09-22).** Five real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 
 ## Why this exists
@@ -137,13 +137,32 @@ image genuinely never installs it.
 
 Chose an `initContainers.install-tmux` that `apt-get install`s it fresh each
 boot and copies the binary + its shared libs into two emptyDirs shared with
-the main container (`/usr/local/bin`, already on `PATH`; a dedicated lib dir
-via `LD_LIBRARY_PATH`), over building a custom derivative image - no new
+the main container, over building a custom derivative image - no new
 source repo/CI needed, stays inside this GitOps repo. Tradeoff accepted: a
 Debian-mirror network dependency and a few seconds added to every pod
 (re)start, and `globalnetworkpolicy-openhands-egress.yaml` now also allows
 port 80 (Calico enforces per-Pod, not per-container, so this widens the main
 container's own egress too, not just the initContainer's).
+
+## Fifth boot fix: our own tmux fix shadowed the real Python (2026-09-22)
+
+The tmux fix above originally mounted its shared emptyDirs at `/usr/local/bin`
+and `/usr/local/lib/tmux-deps`, reasoning `/usr/local/bin` would "already be
+on PATH." It is - but it's also where this image's real `python3.13` lives
+(`/app/.venv/bin/python3` resolves there via symlink, confirmed by exec'ing
+into the actual pinned image). Mounting an emptyDir over an existing,
+non-empty directory doesn't merge with it - it fully shadows the image's own
+contents at that path for as long as the volume's mounted, so the real
+interpreter became unreachable and every process in the container failed:
+`/app/.venv/bin/uvicorn: cannot execute: required file not found`.
+
+Moved both mounts to `/opt/tmux/{bin,lib}` - confirmed empty/unused in the
+real image before adding anything there - and stopped relying on "already on
+PATH": `PATH` is now set explicitly to the real baked-in value (confirmed
+live against the exact pinned image/digest) plus `/opt/tmux/bin` prepended.
+General lesson, not just for this app: never mount a volume at a path that
+already has content in the image without checking first - `kubectl run
+--rm -it <same-pinned-image> -- sh` is cheap and turns a guess into a fact.
 
 ## What's NOT built yet (Phase 2)
 

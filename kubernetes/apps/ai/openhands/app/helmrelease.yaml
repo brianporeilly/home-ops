@@ -49,9 +49,9 @@ spec:
                 apt-get update
                 apt-get install -y --no-install-recommends tmux
                 tmux_bin="$(command -v tmux)"
-                cp -aL "$tmux_bin" /usr/local/bin/tmux
+                cp -aL "$tmux_bin" /opt/tmux/bin/tmux
                 ldd "$tmux_bin" | awk '$2=="=>" && $3~/^\// {print $3} $1~/^\// && $2!="=>" {print $1}' | sort -u | while read -r lib; do
-                  cp -aL "$lib" /usr/local/lib/tmux-deps/ 2>/dev/null || true
+                  cp -aL "$lib" /opt/tmux/lib/ 2>/dev/null || true
                 done
             # Needs root for apt-get - same image as the main container, so
             # no library/ABI mismatch risk in what gets copied to the
@@ -79,10 +79,16 @@ spec:
               # meaningfully set for UID 42420 here, so it lands unwritable
               # on the root filesystem. See docs/agent-sandbox-plan.md.
               FILE_STORE_PATH: "/.openhands-state/filestore"
-              # tmux's own shared libs, installed by initContainers.install-tmux
-              # into a directory not already on the dynamic linker's default
-              # search path.
-              LD_LIBRARY_PATH: "/usr/local/lib/tmux-deps"
+              # Base value confirmed live against this exact pinned image -
+              # re-verify if the image tag/digest above ever changes. Only
+              # addition is /opt/tmux/bin (initContainers.install-tmux) -
+              # deliberately NOT /usr/local/bin: that already holds this
+              # image's real python3.13 (/app/.venv/bin/python3 resolves
+              # there), and mounting an emptyDir over it shadows the
+              # interpreter entirely, silently breaking every process in
+              # the container, not just tmux. See docs/agent-sandbox-plan.md.
+              PATH: "/opt/tmux/bin:/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              LD_LIBRARY_PATH: "/opt/tmux/lib"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
@@ -166,22 +172,21 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /tmp
-      # /usr/local/bin is already on PATH by default in this (Debian-based)
-      # image, so the main container picks up tmux with no PATH override -
-      # see docs/agent-sandbox-plan.md.
+      # /opt/tmux didn't exist in the image at all before this - see the
+      # PATH env var comment above for why it's not /usr/local/bin.
       tmux-bin:
         type: emptyDir
         advancedMounts:
           openhands:
             install-tmux:
-              - path: /usr/local/bin
+              - path: /opt/tmux/bin
             app:
-              - path: /usr/local/bin
+              - path: /opt/tmux/bin
       tmux-lib:
         type: emptyDir
         advancedMounts:
           openhands:
             install-tmux:
-              - path: /usr/local/lib/tmux-deps
+              - path: /opt/tmux/lib
             app:
-              - path: /usr/local/lib/tmux-deps
+              - path: /opt/tmux/lib
