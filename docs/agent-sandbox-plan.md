@@ -1,9 +1,7 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 landed, not yet deployed.** PR adds the manifests; still
-needs a real Anthropic API key, a scratch-repo-scoped git token, and SOPS
-encryption of both secret placeholders before it can reconcile for real -
-see "Manual steps before this works" below.
+Status: **Phase 1 merged and deployed (2026-09-22).** Hit one real issue on
+first boot - see "OpenHands runs as root" below - fixed same day.
 
 ## Why this exists
 
@@ -69,6 +67,38 @@ all. OpenHands's own docs label this mode "(unsafe, but fast)": it provides
 no isolation of its own. That's intentional here - the Pod itself (hardened
 securityContext + the egress policy above) is the isolation boundary, not
 anything OpenHands provides internally.
+
+## First-boot crash: wrong UID (found live, fixed same day, 2026-09-22)
+
+First deploy crash-looped: `exec: "/app/entrypoint.sh": stat /app/entrypoint.sh:
+permission denied`. Pulled the image's actual source
+(`containers/app/{Dockerfile,entrypoint.sh}` at the `0.59.0` tag) to find out
+why:
+
+- `entrypoint.sh` is baked in `--chown=openhands:openhands --chmod=770` (UID/GID
+  42420) - not readable/executable under this repo's usual `runAsUser: 1000`
+  default (that default exists for NAS file access elsewhere in this repo,
+  irrelevant to this app).
+- Separately, `entrypoint.sh`'s own setup logic hard-exits unless `id -u` is
+  0, and only drops to a non-root `enduser` via a path that reads
+  `/var/run/docker.sock`'s group id - unusable here since `RUNTIME=process`
+  means no docker socket is ever mounted, on purpose.
+- The fix isn't "run as root": `entrypoint.sh` also honors `NO_SETUP=true`,
+  which skips all of that setup logic - including the root check - before it
+  ever runs, and just execs the image's own `CMD`
+  (`uvicorn openhands.server.listen:app`) directly. Paired with
+  `runAsUser: 42420` (the image's real non-root user, matched exactly), the
+  kernel can exec `entrypoint.sh` as its owner and the app never needs root
+  at all - see `kubernetes/apps/ai/openhands/app/helmrelease.yaml`'s inline
+  comments for the full detail.
+
+So this ended up genuinely non-root, not merely root-with-capabilities-dropped
+- better than the `hermes-agent` precedent this was initially going to copy.
+The Pod/NetworkPolicy boundary in
+`globalnetworkpolicy-openhands-egress.yaml` still carries the real isolation
+weight (RUNTIME=process itself provides none, regardless of UID - OpenHands's
+own docs call it "unsafe, but fast"), but the container process itself is no
+longer part of that risk either.
 
 ## What's NOT built yet (Phase 2)
 
