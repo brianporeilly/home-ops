@@ -263,6 +263,19 @@ up after. Found two real gaps in what Phase 1 claimed worked:
   is the planned real replacement, once real usage shows what it actually
   needs to contain.
 
+## Known issue, not chased down: OpenHands git clone (2026-09-22)
+
+Cloning a GitHub repo through OpenHands's own UI didn't work - the agent
+reported it appeared to be in the OpenHands app directory instead of the
+workspace. Not investigated: plausibly `git` missing from the OpenHands
+image itself (same class of gap as `agent-sandbox`'s original base image),
+or a `WORKSPACE_BASE`-vs-actual-cwd mismatch given that env var's own
+deprecation warning (see the env block in
+`kubernetes/apps/ai/openhands/app/helmrelease.yaml`). Deliberately not
+chased tonight - agreed to move to Phase 2 instead once the core
+conversation loop worked. Worth a `which git` check inside a running
+`openhands` pod as the first step whenever this gets picked back up.
+
 ## What's NOT built yet (Phase 2)
 
 - **Dynamic per-session sandbox provisioning from OpenHands.** Today,
@@ -276,6 +289,35 @@ up after. Found two real gaps in what Phase 1 claimed worked:
   but needs its Ingress-per-sandbox behavior worked around or patched
   first. (b) is the more promising lead given it needs no separate
   source repo, deliberately not attempted in this PR.
+
+  Whichever path: **remove `RUNTIME=local`'s scaffolding once switched off
+  it** - none of it applies once the agent's shell tool runs inside a
+  *spawned sandbox pod* instead of this container. In
+  `kubernetes/apps/ai/openhands/app/helmrelease.yaml`:
+  - `initContainers.install-tmux` entirely, plus the `tmux-bin`/`tmux-lib`
+    `persistence` entries and their `advancedMounts` - only exists because
+    `LocalRuntime` shells out to `tmux` in-container via `libtmux`.
+  - `PATH`/`LD_LIBRARY_PATH` env overrides - exist only to surface that
+    tmux install; not needed once it's gone.
+  - `SU_TO_USER: "false"` and `SANDBOX_LOCAL_RUNTIME_URL` - both
+    `LocalRuntime`-specific (the `su`-to-self bash-session bug, and the
+    `host.docker.internal` default) - meaningless once the bash session
+    happens in a different pod entirely.
+  - `WORKSPACE_BASE` - already deprecated upstream in favor of
+    `SANDBOX_VOLUMES`; re-derive whatever the new runtime actually needs
+    rather than carry this forward.
+  - `ENABLE_BROWSER: "false"` - was disabling an in-*this*-container
+    Chromium; re-evaluate fresh for whatever pod ends up running agent
+    actions instead of assuming the same fix still applies.
+  - `RUNTIME: "local"` itself, obviously, becomes whatever the chosen path
+    needs (`kubernetes`, or `remote` pointed at the glue service).
+
+  **Stays regardless of which path wins** - these are about the OpenHands
+  *server* process itself, not the sandbox execution backend:
+  `pod.securityContext` (UID 42420 + `NO_SETUP: "true"`, needed just to
+  exec `entrypoint.sh` and start the server at all), `FILE_STORE_PATH`
+  (conversation/settings persistence, unrelated to how agent actions
+  execute), and the probes/persistence for `/.openhands-state`.
 - **gVisor / any `RuntimeClass`.** Add `runtimeClassName` to the
   `SandboxTemplate`'s `podTemplate.spec` once it's worth the node-level
   installer's blast radius - scope it to a single labeled node first, not
