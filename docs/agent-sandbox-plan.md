@@ -400,13 +400,25 @@ off deliberately rather than chased further (see "Known gaps" below).
   fix would be something that turns each per-conversation Ingress into a
   Gateway API `HTTPRoute` (a small controller, or patching
   `kubernetes_runtime.py` directly) - not attempted here.
-- **Stale PVCs accumulate.** `KubernetesRuntime.close()` only deletes the
-  Pod/Services (not the PVC) unless the conversation is explicitly deleted
-  from the UI (`remove_pvc=True` only on that path and on process
-  shutdown). Abandoned/crashed conversations leave a `ceph-block` PVC
-  behind in `openhands-runtime` with no automatic cleanup. Worth a
-  periodic `kubectl get pvc -n openhands-runtime` check until/unless this
-  gets its own CronJob.
+- **Stale PVCs accumulate - now reported, deliberately not auto-cleaned.**
+  `KubernetesRuntime.close()` only deletes the Pod/Services (not the PVC)
+  unless the conversation is explicitly deleted from the UI
+  (`remove_pvc=True` only on that path and on process shutdown). Worse:
+  `CONVERSATION_MAX_AGE_SECONDS` (raised in `helmrelease.yaml`, see its own
+  env comment) only ever filtered the sidebar's conversation *list*, never
+  deleted anything - past that age a conversation simply falls out of the
+  UI with no way left to browse to it and delete it, while its PVC keeps
+  existing indefinitely. `conversation-report-cronjob.yaml` finds these
+  daily (via `last_updated_at`, not `created_at` - so an actively-used
+  conversation is never flagged just for having started a while ago) and
+  logs one JSON line per stale conversation, including its still-working
+  direct URL. `observability/grafana/app/openhands-conversation-report-
+  dashboard.yaml` renders that as a table (Grafana → AI folder →
+  "OpenHands Orphaned Conversations") with a clickable link per row.
+  Deliberately report-only - nothing here ever calls `DELETE`. Rehydrating
+  or stopping/deleting a found conversation is a human action from the UI,
+  not something automated: the chat transcript has no other copy, so
+  automatic deletion felt like the wrong default for a first version.
 - **Untested end-to-end.** Everything above passed `helm template` (against
   the exact pinned chart), `kubectl kustomize` per changed directory, and
   a full `flux build kustomization cluster-apps --strict-substitute`
