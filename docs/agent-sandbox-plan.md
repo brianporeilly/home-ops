@@ -2,6 +2,10 @@
 
 Status: **Phase 1 merged and deployed (2026-09-22).** Eight real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
+**Phase 2 written and locally validated (2026-09-22)** - RUNTIME=kubernetes
+wired up, see "Phase 2: dynamic per-conversation sandboxes" below. Not yet
+live-tested; expect this to take its own round of real-cluster boot fixes,
+same as Phase 1 did.
 
 ## Why this exists
 
@@ -14,20 +18,29 @@ node-level changes (gVisor) for a first pass.
 ## Architecture
 
 ```
-ai namespace (existing: llama-cpp, hermes-agent)
-└── openhands          interactive web UI + headless mode, RUNTIME=local,
-                        own Pod is the isolation boundary, Anthropic Claude
-                        as default LLM, llama-cpp selectable as a secondary
-                        provider via Settings once logged in
+ai namespace (existing: llama-cpp)
+└── openhands          interactive web UI + headless mode, RUNTIME=kubernetes
+                        (Phase 2 - was RUNTIME=local in Phase 1), Anthropic
+                        Claude as default LLM, llama-cpp selectable as a
+                        secondary provider via Settings once logged in
 
-agent-sandbox-system namespace (new, rook-ceph-style operator + CR siblings)
+openhands-runtime namespace (new, Phase 2) - namespace + RBAC only, no
+workloads of its own. openhands's KubernetesRuntime creates a Pod/Service/
+PVC/Ingress here per conversation directly via the k8s API (no CRDs, no
+controller - this is OpenHands's own first-party runtime backend, separate
+from agent-sandbox below). See "Phase 2" below.
+
+agent-sandbox-system namespace (rook-ceph-style operator + CR siblings)
 ├── agent-sandbox            controller - vendored kubernetes-sigs/agent-sandbox
 │                             v1.0.2 release manifest (CRDs + Deployment + RBAC)
 └── agent-sandbox-workloads  a SandboxTemplate + SandboxWarmPool for headless
                               coding-agent tasks + a scratch-repo-scoped git
                               credential - claim a Sandbox with a SandboxClaim
                               (see sandboxtemplate-coding-agent.yaml's header
-                              comment for the exact command)
+                              comment for the exact command). Kept as a
+                              separate, general-purpose mechanism (usable via
+                              kubectl without OpenHands at all) - Phase 2
+                              didn't fold this into openhands, see below.
 ```
 
 Both namespaces run **enforcing** (not staged) egress `GlobalNetworkPolicy`
@@ -181,11 +194,13 @@ Set `ENABLE_BROWSER: "false"` rather than chase this further - fixing the
 `/workspace` permission would likely only surface the next problem
 (headless Chromium's system-library chain, which this slim image almost
 certainly doesn't have), and this namespace already has a dedicated,
-working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar)
-rather than bundling a browser into the app itself. If the agent UI's
-`browser` tool turns out to matter for real usage, wiring OpenHands at a
-CDP endpoint (same shape as `hermes-agent`'s `browser.cdp_url`) is the
-follow-up, not re-enabling the bundled one.
+working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar,
+`browser.cdp_url`) rather than bundling a browser into the app itself. If
+the agent UI's `browser` tool turns out to matter for real usage, wiring
+OpenHands at a CDP endpoint the same way is the follow-up, not re-enabling
+the bundled one. (`hermes-agent` itself was later removed - see its own
+PR; a dedicated `sockpuppetbrowser` sidecar for `openhands`/`agent-sandbox`
+specifically is the resulting fallback plan, not a shared one.)
 
 ## Seventh fix: su openhands - fails, we're not root (2026-09-22)
 
@@ -276,54 +291,157 @@ chased tonight - agreed to move to Phase 2 instead once the core
 conversation loop worked. Worth a `which git` check inside a running
 `openhands` pod as the first step whenever this gets picked back up.
 
-## What's NOT built yet (Phase 2)
+## Phase 2: dynamic per-conversation sandboxes (2026-09-22)
 
-- **Dynamic per-session sandbox provisioning from OpenHands.** Today,
-  OpenHands (RUNTIME=local) and `agent-sandbox` (headless `Sandbox`/
-  `SandboxTemplate` CRs) are parallel, not integrated - OpenHands doesn't
-  create `Sandbox` CRs on your behalf per conversation. Two paths, both
-  unevaluated in depth yet: (a) a small service translating OpenHands's
-  remote-runtime HTTP contract into `Sandbox` CRUD via `agent-sandbox`'s
-  Go/Python SDK - real software, its own source repo and image-build CI; or
-  (b) OpenHands's own `RUNTIME=kubernetes` (see above) - no new software,
-  but needs its Ingress-per-sandbox behavior worked around or patched
-  first. (b) is the more promising lead given it needs no separate
-  source repo, deliberately not attempted in this PR.
+Chose path (b) from the original Phase 2 writeup below: OpenHands's own
+first-party `RUNTIME=kubernetes` backend
+(`openhands/runtime/impl/kubernetes/kubernetes_runtime.py`), not a custom
+glue service translating to `agent-sandbox` `Sandbox` CRs. No new source
+repo/CI, and the one blocker the original writeup flagged turned out not to
+be one - see below.
 
-  Whichever path: **remove `RUNTIME=local`'s scaffolding once switched off
-  it** - none of it applies once the agent's shell tool runs inside a
-  *spawned sandbox pod* instead of this container. In
-  `kubernetes/apps/ai/openhands/app/helmrelease.yaml`:
-  - `initContainers.install-tmux` entirely, plus the `tmux-bin`/`tmux-lib`
-    `persistence` entries and their `advancedMounts` - only exists because
-    `LocalRuntime` shells out to `tmux` in-container via `libtmux`.
-  - `PATH`/`LD_LIBRARY_PATH` env overrides - exist only to surface that
-    tmux install; not needed once it's gone.
-  - `SU_TO_USER: "false"` and `SANDBOX_LOCAL_RUNTIME_URL` - both
-    `LocalRuntime`-specific (the `su`-to-self bash-session bug, and the
-    `host.docker.internal` default) - meaningless once the bash session
-    happens in a different pod entirely.
-  - `WORKSPACE_BASE` - already deprecated upstream in favor of
-    `SANDBOX_VOLUMES`; re-derive whatever the new runtime actually needs
-    rather than carry this forward.
-  - `ENABLE_BROWSER: "false"` - was disabling an in-*this*-container
-    Chromium; re-evaluate fresh for whatever pod ends up running agent
-    actions instead of assuming the same fix still applies.
-  - `RUNTIME: "local"` itself, obviously, becomes whatever the chosen path
-    needs (`kubernetes`, or `remote` pointed at the glue service).
+**The "Ingress-per-sandbox" blocker wasn't real.** `KubernetesRuntime`
+unconditionally creates a per-conversation `networking.k8s.io/v1 Ingress`
+(for VSCode-in-browser access) alongside the Pod/Service/PVC, and this
+cluster's only ingress controller (Envoy Gateway) speaks Gateway API
+(`HTTPRoute`), not classic `Ingress` - the concern was that this would
+error out and block every conversation from starting. Confirmed live
+(read-only `kubectl get ingressclass`, `kubectl get validatingwebhook...
+-o json` scan) before writing any of this: no `IngressClass` exists and no
+admission webhook targets `Ingress` resources in this cluster, so the
+`create_namespaced_ingress` call the runtime makes still succeeds - it just
+produces an object nothing ever reconciles. Net effect: the conversation/
+shell/editor loop works, VSCode-in-browser access is a silent no-op. Traded
+off deliberately rather than chased further (see "Known gaps" below).
 
-  **Stays regardless of which path wins** - these are about the OpenHands
-  *server* process itself, not the sandbox execution backend:
-  `pod.securityContext` (UID 42420 + `NO_SETUP: "true"`, needed just to
-  exec `entrypoint.sh` and start the server at all), `FILE_STORE_PATH`
-  (conversation/settings persistence, unrelated to how agent actions
-  execute), and the probes/persistence for `/.openhands-state`.
+**What changed:**
+- `kubernetes/apps/openhands-runtime/` (new top-level category = new
+  namespace `openhands-runtime`, sibling to `ai`) - namespace + RBAC only,
+  no workloads of its own. `rbac/app/rbac.yaml` grants the `openhands`
+  ServiceAccount (created in the `ai` namespace by
+  `helmrelease.yaml`'s `serviceAccount.openhands` + each controller's
+  `serviceAccount.identifier: openhands`) a namespaced `Role` to create/
+  list/delete `pods`, `services`, `persistentvolumeclaims`, and
+  `ingresses.networking.k8s.io` - exactly what `_init_k8s_resources`/
+  `_cleanup_k8s_resources` in `kubernetes_runtime.py` call. Cross-namespace
+  `RoleBinding` (subject in `ai`, `Role` in `openhands-runtime`) - kept
+  separate rather than granting this in `openhands`'s own namespace so the
+  blast radius of "what can spawn/delete pods" stays scoped to one
+  namespace, same reasoning as `agent-sandbox-system`.
+- `kubernetes/apps/ai/openhands/app/helmrelease.yaml`:
+  - `RUNTIME: "kubernetes"` (was `"local"`).
+  - Added `KUBERNETES_NAMESPACE`, `KUBERNETES_PVC_STORAGE_CLASS`,
+    `KUBERNETES_PVC_STORAGE_SIZE`, `KUBERNETES_RESOURCE_CPU_REQUEST`,
+    `KUBERNETES_RESOURCE_MEMORY_REQUEST`, `KUBERNETES_RESOURCE_MEMORY_LIMIT`
+    - all map onto `KubernetesConfig` fields via `load_from_env`'s generic
+    `<field>_<name>` prefix walk (confirmed against `utils.py` and
+    `kubernetes_config.py` at the 0.59.0 tag - `cfg.kubernetes` is a real
+    `KubernetesConfig()` instance by default, not `None`, so it's walked
+    like any other nested config section; no `config.toml` file needed).
+  - Added `SANDBOX_RUNTIME_CONTAINER_IMAGE` pointed at upstream's
+    pre-built `ghcr.io/all-hands-ai/runtime:0.59-nikolaik` (digest-pinned,
+    confirmed to exist for `amd64` via the ghcr.io v2 manifest API).
+    Without this, `KubernetesRuntime.pod_image` falls back to the bare
+    `nikolaik/python-nodejs` base image - fine for the Docker runtime
+    (which builds `action_execution_server` into it first), but
+    `KubernetesRuntime` has no build step and uses `pod_image` as-is, so
+    the bare base image would boot a pod with no OpenHands server in it at
+    all.
+  - `controllers.openhands.serviceAccount.identifier` +
+    `pod.automountServiceAccountToken: true` + top-level
+    `serviceAccount.openhands: {}` - the in-cluster k8s client
+    (`config.load_incluster_config()`) needs a mounted SA token, which the
+    chart disables by default. Confirmed the resulting ServiceAccount name
+    (`openhands`, not a suffixed variant) via `helm template` against the
+    pinned chart version before relying on it for the RoleBinding subject.
+  - Removed all of Phase 1's `RUNTIME=local`-only scaffolding, now dead
+    weight: `initContainers.install-tmux` and its `tmux-bin`/`tmux-lib`
+    `persistence` entries (tmux/libtmux only mattered when the bash tool
+    ran in *this* container - it now runs in the spawned runtime pod,
+    whose pre-built image already has tmux), the `PATH`/`LD_LIBRARY_PATH`
+    overrides that existed only to surface that tmux install,
+    `SU_TO_USER`/`SANDBOX_LOCAL_RUNTIME_URL` (both `LocalRuntime`-specific
+    bugs), `WORKSPACE_BASE` (already-deprecated, `LocalRuntime`-specific
+    mount path), and `ENABLE_BROWSER: "false"` (was working around an
+    in-*this*-container headless Chromium under `LocalRuntime` - left
+    **unset** now, defaulting to enabled, since the browser tool runs in
+    the spawned runtime pod's own filesystem instead; genuinely untested,
+    first thing to check if a conversation hangs on startup again).
+  - Kept, unchanged: `pod.securityContext` (UID 42420 + `NO_SETUP: "true"`,
+    needed to exec `entrypoint.sh` at all, unrelated to the runtime
+    backend), `FILE_STORE_PATH`, and the probes/persistence for
+    `/.openhands-state` - all about this server process itself, not how
+    agent actions execute.
+- `kubernetes/apps/kube-system/calico/policies/`:
+  `globalnetworkpolicy-openhands-egress.yaml` gained an `Allow` to the
+  three CP node IPs on 6443 (kubeadm's stacked etcd/apiserver run as
+  hostNetwork static pods, so their identity is the node IP, same pattern
+  as `globalnetworkpolicy-agent-sandbox-controller-egress.yaml`) - the
+  `openhands` pod is now a k8s API client. Two new files:
+  `globalnetworkpolicy-openhands-runtime-egress.yaml` (DNS + HTTPS-only
+  egress for the spawned sandbox pods, enforcing from day one, same
+  shape/rationale as `...-agent-sandbox-workloads-egress.yaml` - selector
+  matches `app: openhands-runtime`, the label `KubernetesRuntime` itself
+  hardcodes on every pod it creates, confirmed against source, not
+  something we control) and
+  `globalnetworkpolicy-openhands-to-runtime-sandbox.yaml` (cross-namespace
+  ingress allow, `ai` → `openhands-runtime` port 8080 only - the
+  same-namespace-only default doesn't cover this since the two live in
+  different namespaces on purpose).
+- `kubernetes/apps/ai/openhands/ks.yaml` gained a `dependsOn` on the new
+  `openhands-runtime-rbac` Kustomization - not a hard boot requirement
+  (the k8s calls only happen lazily per-conversation), just avoids a race
+  on first real use right after a fresh install.
+
+**Known gaps, not chased further this round:**
+- **VSCode-in-browser is inert** (see the Ingress note above) - the
+  execution-server/shell/editor/browser-tool loop doesn't depend on it,
+  but a human clicking "Open VSCode" in the UI will hit a dead link. Real
+  fix would be something that turns each per-conversation Ingress into a
+  Gateway API `HTTPRoute` (a small controller, or patching
+  `kubernetes_runtime.py` directly) - not attempted here.
+- **Stale PVCs accumulate.** `KubernetesRuntime.close()` only deletes the
+  Pod/Services (not the PVC) unless the conversation is explicitly deleted
+  from the UI (`remove_pvc=True` only on that path and on process
+  shutdown). Abandoned/crashed conversations leave a `ceph-block` PVC
+  behind in `openhands-runtime` with no automatic cleanup. Worth a
+  periodic `kubectl get pvc -n openhands-runtime` check until/unless this
+  gets its own CronJob.
+- **Untested end-to-end.** Everything above passed `helm template` (against
+  the exact pinned chart), `kubectl kustomize` per changed directory, and
+  a full `flux build kustomization cluster-apps --strict-substitute`
+  locally - but none of that exercises the actual runtime behavior (a
+  real conversation spawning a real pod, the RBAC actually being
+  sufficient, the egress policy actually being enough for `pip`/`npm`/
+  `git`). Phase 1 needed eight live-debugged boot fixes before it worked;
+  expect this to need its own round the same way. First things to check
+  when picking this back up live: does the spawned Pod reach `Running`,
+  does `kubectl logs` on the openhands pod show a successful `_init_k8s_
+  resources`, and does `ENABLE_BROWSER` (now unset) cause the same
+  startup hang Phase 1's sixth fix found.
+- **`hermes-agent` removal was kept out of the Phase 2 change** (a separate
+  PR handled it - removing an unrelated app shouldn't ride on this change).
+  If Phase 2's browser tool (now enabled, untested per above) turns out not
+  to work reliably inside the spawned runtime pod, the fallback is a
+  dedicated `sockpuppetbrowser` CDP sidecar for `openhands`/`agent-sandbox`
+  specifically - not shared with changedetection's own instance (see that
+  instance's capacity-isolation rationale in its own `helmrelease.yaml`).
+  Not built yet; contingent on what live testing actually shows.
+
+## What was considered and not built (from the original Phase 2 writeup)
+
+- **A custom glue service translating OpenHands's remote-runtime HTTP
+  contract into `agent-sandbox` `Sandbox` CRUD** (path (a) above) - ruled
+  out once path (b) turned out not to need it: real software, its own
+  source repo and image-build CI, for no benefit over OpenHands's own
+  built-in `RUNTIME=kubernetes` backend.
 - **gVisor / any `RuntimeClass`.** Add `runtimeClassName` to the
   `SandboxTemplate`'s `podTemplate.spec` once it's worth the node-level
   installer's blast radius - scope it to a single labeled node first, not
   fleet-wide, given the reboot-every-node-it-touches installer behavior.
 - **Promoting the fleet-wide staged egress rollout.** Unrelated to this
-  work - only the two new namespaces above go enforcing here.
+  work - only `agent-sandbox-system`, `ai`, and (as of Phase 2)
+  `openhands-runtime` go enforcing here.
 
 ## Manual steps before this works
 
@@ -339,7 +457,8 @@ conversation loop worked. Worth a `which git` check inside a running
 
 - `kustomize build` each new/changed directory locally before merging
 - After merge: `flux get kustomizations -A` to confirm `agent-sandbox`,
-  `agent-sandbox-workloads`, and `openhands` all reconcile;
+  `agent-sandbox-workloads`, `openhands`, and (Phase 2)
+  `openhands-runtime-rbac` all reconcile;
   `kubectl get sandboxtemplate -n agent-sandbox-system`
 - Instantiate one `Sandbox` from the `coding-agent` template (see the
   comment atop `sandboxtemplate-coding-agent.yaml` for the exact command),
@@ -348,3 +467,12 @@ conversation loop worked. Worth a `which git` check inside a running
 - Log into `openhands.internal.oreillys.io` through Authentik as an
   `infra-users` member, run one small real task against a scratch repo
   end-to-end (clone → edit → push to a branch)
+- Phase 2 specifically: while that task runs, `kubectl get pods -n
+  openhands-runtime -w` to confirm a real `openhands-runtime-<sid>` pod
+  gets created and reaches `Running`/`Ready`; `kubectl logs -n ai
+  deploy/openhands` for `_init_k8s_resources` / RBAC-denied errors if it
+  doesn't; confirm the pod cannot reach rook-ceph or any other app
+  namespace (same check as the `agent-sandbox` one above) but can reach
+  the internet for `git clone`/`pip`/`npm`; delete the conversation from
+  the UI afterward and confirm its PVC is actually gone (see "stale PVCs"
+  above)
