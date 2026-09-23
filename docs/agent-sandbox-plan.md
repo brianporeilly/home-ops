@@ -23,8 +23,11 @@ ai namespace (existing: llama-cpp, hermes-agent)
 agent-sandbox-system namespace (new, rook-ceph-style operator + CR siblings)
 ├── agent-sandbox            controller - vendored kubernetes-sigs/agent-sandbox
 │                             v1.0.2 release manifest (CRDs + Deployment + RBAC)
-└── agent-sandbox-workloads  a SandboxTemplate for headless coding-agent
-                              tasks + a scratch-repo-scoped git credential
+└── agent-sandbox-workloads  a SandboxTemplate + SandboxWarmPool for headless
+                              coding-agent tasks + a scratch-repo-scoped git
+                              credential - claim a Sandbox with a SandboxClaim
+                              (see sandboxtemplate-coding-agent.yaml's header
+                              comment for the exact command)
 ```
 
 Both namespaces run **enforcing** (not staged) egress `GlobalNetworkPolicy`
@@ -231,6 +234,34 @@ Pulled the image's full `ENV` block at this point (`grep '^ENV '
 containers/app/Dockerfile`) to check for other baked defaults fighting our
 config in the same way, rather than keep finding them one crash at a time -
 nothing else stood out as live-affecting.
+
+With OpenHands working end-to-end (conversation started, agent responded
+and ran commands in its own container), attention turned to validating
+`agent-sandbox` before starting Phase 2 - tested live (2026-09-22), cleaned
+up after. Found two real gaps in what Phase 1 claimed worked:
+
+- **`SandboxTemplate` was never actually claimable.** `Sandbox` has no
+  `templateRef` field, and `SandboxClaim` requires a `warmPoolRef`, not a
+  template ref - the instantiation instructions originally written in
+  `sandboxtemplate-coding-agent.yaml`'s header comment didn't work at all.
+  Added `sandboxwarmpool-coding-agent.yaml` (`replicas: 1` - a WarmPool
+  pre-provisions ahead of demand, not scale-from-zero on claim, so 0 would
+  mean nothing ever exists to claim) and corrected the instructions to
+  claim from it. Confirmed live: claiming adopts the pre-warmed Sandbox
+  immediately, and the pool self-heals by creating a replacement.
+- **The `claude-code` CLI base image has no `git`.** Confirmed live
+  (`which git` → nothing). Tried Microsoft's `devcontainers/base:ubuntu-24.04`
+  next (git + a pre-baked non-root `vscode` user at UID 1000, matching this
+  repo's convention) but the user preferred to avoid a vendor-branded image
+  for what's meant to be a placeholder - landed on plain
+  `docker.io/library/buildpack-deps:noble-scm` (Docker Official Image,
+  Ubuntu 24.04, scm variant): confirmed live to have git 2.43.0 and,
+  usefully, a real `ubuntu` user already at UID 1000 with `HOME` resolved
+  correctly (no repeat of the OpenHands UID/HOME class of bug). No language
+  runtime - intentional, this is the "something pre-built that works today"
+  stand-in, not the destination. A purpose-built Fedora-based sandbox image
+  is the planned real replacement, once real usage shows what it actually
+  needs to contain.
 
 ## What's NOT built yet (Phase 2)
 

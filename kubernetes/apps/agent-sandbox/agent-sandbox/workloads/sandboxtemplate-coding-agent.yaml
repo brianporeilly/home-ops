@@ -5,15 +5,20 @@
 # scratch repos only - see docs/agent-sandbox-plan.md. Deliberately NOT a
 # live Sandbox: a running Sandbox is per-task session state, not desired
 # config, and doesn't belong in git (this repo's "no live cluster mutation,
-# repo/PR changes only" norm). Instantiate one per task with, e.g.:
+# repo/PR changes only" norm).
+#
+# NOT directly instantiable - confirmed live (2026-09-22): Sandbox has no
+# templateRef field, and SandboxClaim requires a warmPoolRef, not a
+# template ref. Claim one from sandboxwarmpool-coding-agent.yaml (also in
+# this directory) instead:
 #
 #   kubectl create -n agent-sandbox-system -f - <<EOF
-#   apiVersion: agents.x-k8s.io/v1beta1
-#   kind: Sandbox
+#   apiVersion: extensions.agents.x-k8s.io/v1beta1
+#   kind: SandboxClaim
 #   metadata:
 #     generateName: coding-agent-
 #   spec:
-#     templateRef:
+#     warmPoolRef:
 #       name: coding-agent
 #   EOF
 #
@@ -23,10 +28,15 @@
 # kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
 # has a stable, self-defined selector to target.
 #
-# Base image is Claude Code's own published CLI image - git + a real dev
-# toolchain already present, and directly useful for exactly the kind of
-# headless coding-agent task this template exists for. Swap per task by
-# forking this template if a different toolchain is needed.
+# Base image confirmed live (2026-09-22): Claude Code's own CLI image
+# (previously used here) has no git at all. Using plain
+# buildpack-deps:noble-scm (Docker Official Image, Ubuntu 24.04 "noble",
+# scm variant - no vendor branding) instead - confirmed live: git 2.43.0,
+# curl/wget/ssh, nothing else. No language runtime and no pre-baked
+# non-root user (unlike a devcontainers-style image) - deliberately kept
+# minimal. A proper purpose-built (Fedora-based) sandbox image is the
+# planned real replacement for this; this is the "something pre-built that
+# works today" placeholder, not the destination.
 apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
 metadata:
@@ -46,12 +56,11 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: agent
-          image: docker.io/anthropics/claude-code:latest@sha256:a37853e1f7e53a60f6424288f3aa9c3a8149d210d0b5ad48da02055c129ef0aa
+          image: docker.io/library/buildpack-deps:noble-scm@sha256:6a78b404fc653922fe9b7717e1dc382d200517d4be146303f87d2928999192d6
           # Keeps the container alive so a task can be kicked off with
           # `kubectl exec` (interactive) or a follow-up patch to `command`
-          # (headless, single-shot) - the image's own entrypoint expects a
-          # TTY/prompt and would otherwise exit immediately with no work
-          # queued yet.
+          # (headless, single-shot) - this image's own default entrypoint
+          # would otherwise just start a shell and exit once it ends.
           command: ["sleep", "infinity"]
           env:
             # Scratch-repo-scoped only - see secret.yaml. Never this
