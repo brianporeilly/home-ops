@@ -9,6 +9,8 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -18,8 +20,14 @@ spec:
       namespace: download
     - name: radarr
       namespace: download
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/download/bazarr/app
+  postBuild:
+    substitute:
+      APP: bazarr
+      PVC: bazarr-config
   prune: true
   retryInterval: 2m
   sourceRef:

@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/extensions.agents.x-k8s.io_sandboxwarmpools.yaml
+#
+# Confirmed live (2026-09-22): a SandboxTemplate alone isn't directly
+# claimable - Sandbox has no templateRef field, and SandboxClaim requires a
+# warmPoolRef, not a template ref. This WarmPool is what actually makes
+# coding-agent (sandboxtemplate-coding-agent.yaml) usable - see that file's
+# header comment for the corrected instantiation instructions.
+#
+# replicas: 1, not 0 - a WarmPool exists to pre-provision ahead of demand,
+# not scale-from-zero on claim; 0 would mean no Sandbox ever exists to
+# claim. One idle pod (+ its 10Gi PVC, from the template) is a small,
+# acceptable standing cost on this cluster for fast claim fulfillment.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: coding-agent
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: coding-agent

@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: jellyfin
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -21,11 +22,140 @@ spec:
       jellyfin:
         annotations:
           reloader.stakater.com/auto: "true"
+        pod:
+          # Quick Sync needs a node with a live, driver-bound Intel iGPU -
+          # confirmed live only wk-jonas/wk-severian actually expose
+          # /dev/dri (wk-eata/wk-drotte/wk-roche all have a discrete Nvidia
+          # GPU occupying the display-class PCI slot instead, which
+          # disables the platform's iGPU - see node-feature-discovery's
+          # own ks.yaml for the full story). Tracks the NFD-applied label
+          # rather than hardcoding node names, so this keeps working if
+          # that hardware layout changes later. Required (not preferred):
+          # landing anywhere else means a silent fallback to slow CPU
+          # transcoding, worse than just not enabling Quick Sync at all.
+          # intel.feature.node.kubernetes.io/gpu is applied by the intel-gpu-plugin's
+          # own NodeFeatureRule (more precise than the raw PCI-class label -
+          # it only fires once the device plugin's DaemonSet is actually
+          # schedulable there) but scheduling is really gated by the
+          # gpu.intel.com/i915 resource request below, so this is belt-and-suspenders.
+          # NotIn Haswell (cpu-model.id=60, wk-severian) rather than In
+          # Skylake-only - confirmed live, Jellyfin's QSV pipeline
+          # hardcodes the iHD VAAPI driver, which only supports
+          # Broadwell/Gen8 and later. Haswell's iGPU passes the GPU-present
+          # check above just fine but fails at VAAPI device init ("libva:
+          # iHD_drv_video.so init failed", ffmpeg exit 251) since iHD never
+          # supported Gen7.5 hardware at all - there's no config fix, only
+          # the legacy i965 driver works there, which Jellyfin's QSV path
+          # doesn't use. A blocklist (not allowlist) so a future node with
+          # a newer, iHD-compatible iGPU schedules here automatically
+          # without editing this file - cpu-model.id isn't monotonic with
+          # generation (Intel reuses IDs across generations), so this can
+          # only ever be "known-bad exclusions", not a real minimum-
+          # generation gate. If another too-old node ever lands here, it'll
+          # fail the same loud, obvious way (ffmpeg exit 251) - add its
+          # cpu-model.id below when that happens.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: intel.feature.node.kubernetes.io/gpu
+                        operator: In
+                        values: ["true"]
+                      - key: feature.node.kubernetes.io/cpu-model.id
+                        operator: NotIn
+                        values: ["60"]
+        initContainers:
+          # Installs the OIDC RBAC plugin (jellyfin-plugin-oidc, see
+          # docs/security-plan.md) straight from its pinned GitHub release
+          # into the persistent /config volume - Jellyfin has no plugin
+          # catalog-repository automation, this is a GitOps-managed
+          # substitute for the manual "Admin Dashboard > Plugins >
+          # Repositories" step. Idempotent on the pinned version (checks
+          # .installed_version before re-downloading), same pattern as
+          # llama-cpp's fetch-model / home-assistant's install-oidc init
+          # containers. Directory name matches the plugin's own documented
+          # manual-install path exactly. Bump all three COMPONENT_* env
+          # vars together to upgrade (get the new MD5 from the release's
+          # manifest.json, not a separately-published checksum file).
+          install-oidc:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
+            command: ["python3", "-c"]
+            args:
+              - |
+                import hashlib, os, sys, urllib.request, zipfile, io
+
+                url = os.environ["COMPONENT_URL"]
+                want_md5 = os.environ["COMPONENT_MD5"]
+                version = os.environ["COMPONENT_VERSION"]
+                dest = "/config/plugins/OIDC-RBAC"
+                marker = f"{dest}/.installed_version"
+
+                if os.path.exists(marker) and open(marker).read().strip() == version:
+                    print(f"OIDC RBAC {version} already installed, skipping")
+                    sys.exit(0)
+
+                print(f"downloading {url}")
+                data = urllib.request.urlopen(url).read()
+                got_md5 = hashlib.md5(data).hexdigest()
+                if got_md5 != want_md5:
+                    sys.exit(f"checksum mismatch: got {got_md5}, want {want_md5}")
+
+                os.makedirs(dest, exist_ok=True)
+                with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                    zf.extractall(dest)
+                with open(marker, "w") as f:
+                    f.write(version)
+                print(f"OIDC RBAC {version} installed")
+            env:
+              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.10/oidc-rbac.zip"
+              COMPONENT_MD5: "81249667a265a6757cf010c23196f020"
+              COMPONENT_VERSION: "1.0.10"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+          # jellyfin-plugin-oidc serves its login-button injector script at
+          # /sso/OIDC/LoginButtons but never adds a <script> tag anywhere
+          # for it - confirmed live, the plugin's own /Configuration and
+          # /sso/OIDC/Providers endpoints are correctly set up, but the
+          # actual served index.html has zero reference to it. Same image
+          # as the app container so /jellyfin/jellyfin-web always matches
+          # whatever ships with this jellyfin version - copies it onto the
+          # shared emptyDir below (can't patch in place, app's root fs is
+          # read-only) and inserts the script tag once, idempotently.
+          patch-web-sso:
+            image:
+              repository: ghcr.io/jellyfin/jellyfin
+              tag: 12.1@sha256:008ec8024bdaaa6f0a3f0de468e185633eeba9d67c56936e8dbf5ef6b8d6200f
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                cp -r /jellyfin/jellyfin-web/. /web-patched/
+                if ! grep -q 'sso/OIDC/LoginButtons' /web-patched/index.html; then
+                  sed -i 's#</body>#<script src="/sso/OIDC/LoginButtons" defer></script></body>#' /web-patched/index.html
+                fi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
               repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+              tag: 12.1@sha256:008ec8024bdaaa6f0a3f0de468e185633eeba9d67c56936e8dbf5ef6b8d6200f
+            # Native /metrics is enabled via <EnableMetrics>true</EnableMetrics>
+            # in /config/config/system.xml directly, not an env var -
+            # JELLYFIN_EnableMetrics/MetricsListenPort don't do anything
+            # (both upstream PRs for them are unmerged, see git log). A
+            # one-time manual edit persists fine since /config is the
+            # ceph-block PVC, not ephemeral. No separate port exists either
+            # (same reason), so /metrics rides the same 8096 as the app
+            # itself - blocked at the route level below, not the pod.
             env:
               JELLYFIN_CACHE_DIR: /config/cache
             probes:
@@ -53,8 +183,241 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                gpu.intel.com/i915: 1
               limits:
                 memory: 4Gi
+                gpu.intel.com/i915: 1
+
+      exporter:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/rebelcore/jellyfin-exporter
+              tag: v1.5.2@sha256:8759fdd5826c92c3827229d547f4d80e1b3991de6889047b63ce55d4593df440
+            args:
+              - --jellyfin.address=http://jellyfin.media.svc.cluster.local:8096
+              # media/playing/system/users collectors are enabled by default -
+              # these four default off, but the dashboard queries all of them.
+              - --collector.activity
+              - --collector.storage
+              - --collector.tasks
+              - --collector.transcoding
+            env:
+              JELLYFIN_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-exporter-secret
+                    key: JELLYFIN_TOKEN
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 128Mi
+
+      # OIDC RBAC has no config file/env var path either (server/api-only,
+      # like Audiobookshelf) - unlike Audiobookshelf though, saving config
+      # is Jellyfin's own generic POST /Plugins/{id}/Configuration
+      # endpoint (not something the plugin author had to build), auth'd
+      # with a plain admin API key instead of a username/password login
+      # dance. Idempotent - POSTing the same payload every run is a no-op
+      # after the first. Only runs once install-oidc has actually put the
+      # plugin's DLL in place and Jellyfin has restarted and loaded it -
+      # on a fresh install this may 404 for a few minutes until that
+      # happens, which is fine given the 15m schedule.
+      oidc-bootstrap:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
+            command:
+              - python3
+              - -c
+              - |
+                import json, os, urllib.request
+
+                JELLYFIN_URL = "http://jellyfin.media.svc.cluster.local:8096"
+                PLUGIN_ID = "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f90"
+                # External hostname, not auth.internal.oreillys.io - same
+                # reasoning as audiobookshelf's oidc-bootstrap: this is the
+                # backend's own server-to-Authentik traffic, Authentik's
+                # discovery response is host-header-sensitive, and jellyfin
+                # is next on the security-plan external-exposure roadmap -
+                # auth.oreillys.io already resolves in-cluster straight to
+                # envoy-external's own VIP, no cost to picking it now.
+                AUTH_HOSTNAME = "auth.oreillys.io"
+
+                payload = {
+                    "Providers": [
+                        {
+                            "ProviderId": "authentik",
+                            "DisplayName": "Authentik",
+                            "Authority": f"https://{AUTH_HOSTNAME}/application/o/jellyfin/",
+                            "ClientId": os.environ["OIDC_CLIENT_ID"],
+                            "ClientSecret": os.environ["OIDC_CLIENT_SECRET"],
+                            "Scopes": "openid profile email groups",
+                            "RoleClaim": "groups",
+                            "UsernameClaim": "preferred_username",
+                            "DisplayNameClaim": "name",
+                            "PictureClaim": "picture",
+                            "SyncProfileImage": True,
+                            "Enabled": True,
+                            "ButtonColor": "#FC6D26",
+                            "ButtonIcon": "",
+                            "AdditionalParameters": "",
+                            # Deliberately blank, not a fixed hostname - the
+                            # plugin falls back to deriving the redirect_uri
+                            # from the live request when this is empty
+                            # (Api/OidcController.cs BuildRedirectUri), the
+                            # same fix already applied for home-assistant/
+                            # audiobookshelf, just for free here.
+                            "ServerBaseUrl": "",
+                        }
+                    ],
+                    "RoleMappings": [
+                        # Everyone who can complete Authentik login for this
+                        # app is already in media-users (the PolicyBinding
+                        # gate, blueprints-native-apps.yaml) - this grants
+                        # baseline playback access to that same group.
+                        {
+                            "RoleName": "media-users",
+                            "IsAdmin": False,
+                            "EnableAllLibraries": True,
+                            "LibraryIds": [],
+                            "LibraryNames": [],
+                            "EnableLiveTv": False,
+                            "EnableLiveTvManagement": False,
+                            "EnableMediaPlayback": True,
+                            "EnableRemoteAccess": True,
+                            "EnableTranscoding": True,
+                            "EnableContentDeletion": False,
+                            "EnableCollectionManagement": False,
+                            "EnableSubtitleManagement": False,
+                            "MaxParentalRating": None,
+                            "Priority": 0,
+                        },
+                        # jellyfin-admins is unique to this plugin among the
+                        # apps wired up so far - unlike Audiobookshelf's
+                        # hardcoded admin/user/guest groups, this plugin's
+                        # RoleMapping group names are fully ours to choose.
+                        # Merge semantics (plugin README): a user in both
+                        # groups gets the union, so admin membership doesn't
+                        # need to duplicate media-users' own grants.
+                        {
+                            "RoleName": "jellyfin-admins",
+                            "IsAdmin": True,
+                            "EnableAllLibraries": True,
+                            "LibraryIds": [],
+                            "LibraryNames": [],
+                            "EnableLiveTv": True,
+                            "EnableLiveTvManagement": True,
+                            "EnableMediaPlayback": True,
+                            "EnableRemoteAccess": True,
+                            "EnableTranscoding": True,
+                            "EnableContentDeletion": True,
+                            "EnableCollectionManagement": True,
+                            "EnableSubtitleManagement": True,
+                            "MaxParentalRating": None,
+                            "Priority": 10,
+                        },
+                    ],
+                    "DefaultProvider": "authentik",
+                    "AutoCreateUsers": True,
+                    "DefaultRoleName": "media-users",
+                }
+
+                # Jellyfin 12.0 dropped the legacy X-Emby-Token/X-MediaBrowser-Token
+                # headers entirely - confirmed live (401 on every request after the
+                # 12.0 upgrade). Authorization: MediaBrowser Token=... is now the
+                # only accepted form.
+                AUTH_HEADER = f'MediaBrowser Token="{os.environ["API_KEY"]}"'
+
+                req = urllib.request.Request(
+                    f"{JELLYFIN_URL}/Plugins/{PLUGIN_ID}/Configuration",
+                    data=json.dumps(payload).encode(),
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    print(f"OIDC RBAC configured, status {r.status}")
+
+                # Without this, Jellyfin builds the OIDC redirect_uri from
+                # the raw connection it sees (the pod's own ClusterIP:port,
+                # since Envoy Gateway sits in front) instead of whatever
+                # hostname the browser actually used - confirmed live:
+                # Authentik rejected redirect_uri=http://10.x.x.x:8096/...
+                # as unregistered. This makes Jellyfin derive its own base
+                # URL from the incoming request's Host header instead (the
+                # same "whichever hostname reached it" approach every other
+                # app here already uses), matching the plugin's own
+                # changelog note about needing "Jellyfin's published URL".
+                # GET-then-POST, not a partial payload - this endpoint
+                # replaces the whole NetworkConfiguration section, so a
+                # partial body would reset every other field (ports, etc)
+                # to their C# defaults.
+                net_get = urllib.request.Request(
+                    f"{JELLYFIN_URL}/System/Configuration/network",
+                    headers={"Authorization": AUTH_HEADER},
+                )
+                with urllib.request.urlopen(net_get, timeout=15) as r:
+                    net_config = json.loads(r.read())
+                net_config["EnablePublishedServerUriByRequest"] = True
+                # Fixed the hostname, but the redirect_uri Authentik saw was
+                # still http:// not https:// - confirmed live. Envoy
+                # terminates TLS and forwards to Jellyfin over plain HTTP,
+                # so the raw connection genuinely is HTTP; Jellyfin only
+                # trusts the X-Forwarded-Proto it's given from IPs in
+                # KnownProxies (empty by default = trust nothing). Pod CIDR
+                # covers Envoy Gateway's pods regardless of which one/how
+                # many replicas are actually running.
+                net_config["KnownProxies"] = ["10.246.0.0/16"]
+                net_req = urllib.request.Request(
+                    f"{JELLYFIN_URL}/System/Configuration/network",
+                    data=json.dumps(net_config).encode(),
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(net_req, timeout=15) as r:
+                    print(f"Network config updated, status {r.status}")
+            env:
+              API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-admin-secret
+                    key: API_KEY
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: jellyfin-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
 
     defaultPodOptions:
       securityContext:
@@ -68,18 +431,115 @@ spec:
       app:
         primary: true
         controller: jellyfin
+        # Pins the Service name to "jellyfin" - without this, adding the
+        # exporter Service below makes the chart suffix *both* Services with
+        # their identifier (jellyfin-app / jellyfin-exporter), and something
+        # outside this chart already hardcodes the bare name (arr-notifications'
+        # bootstrap.sh webhook host).
+        forceRename: jellyfin
         ports:
           http:
             port: *port
+      exporter:
+        controller: exporter
+        # Deliberately not referenced by route.app or any HTTPRoute -
+        # metrics stay cluster-internal, scraped only by the ServiceMonitor.
+        ports:
+          http:
+            port: 9594
 
     route:
       app:
+        annotations:
+          # gatus-sidecar's HTTPRoute auto-discovery skips a bare "/" match
+          # and picks the next PathPrefix rule it finds instead (confirmed
+          # against its source - see the authentik-server-external fix,
+          # same repo, same bug) - without this override it would start
+          # probing /metrics instead of / the moment the named rule below
+          # exists, and the metrics-blocked policy would make that a
+          # permanent false-positive UNHEALTHY.
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - media.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        # Explicit now that there are two Services - the chart can no longer
+        # auto-detect which one this route should point to.
+        rules:
+          - filters:
+              # LG webOS app can't connect under the cluster-wide default
+              # Content-Security-Policy: frame-ancestors 'self' (Envoy
+              # Gateway config, envoy.yaml) - well-documented upstream
+              # issue, needs file: added as an allowed frame ancestor.
+              # Setting it here (not loosening the cluster default) since
+              # the Gateway policy uses addIfAbsent specifically so a
+              # route's own header wins - see that policy's comment for
+              # why a plain override can't work any other way.
+              - type: ResponseHeaderModifier
+                responseHeaderModifier:
+                  set:
+                    - name: Content-Security-Policy
+                      value: "frame-ancestors 'self' file:;"
+            backendRefs:
+              - name: jellyfin
+                port: *port
+          # Named so the BackendTrafficPolicy below (metrics-block.yaml) can
+          # target just this rule via sectionName. Same backend as the
+          # catch-all above - the block happens via fault injection before
+          # the request ever reaches Jellyfin, this rule only exists to give
+          # the policy something scoped to attach to.
+          - name: metrics-blocked
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
+              - name: jellyfin
+                port: *port
+      external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - media.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          # Same CSP override as the internal route's catch-all rule above
+          # - the webOS app may hit either hostname depending on network.
+          - filters:
+              - type: ResponseHeaderModifier
+                responseHeaderModifier:
+                  set:
+                    - name: Content-Security-Policy
+                      value: "frame-ancestors 'self' file:;"
+            backendRefs:
+              - name: jellyfin
+                port: *port
+          - name: metrics-blocked
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /metrics
+            backendRefs:
+              - name: jellyfin
+                port: *port
+          # Named so the BackendTrafficPolicy below
+          # (backendtrafficpolicy-login-ratelimit.yaml) can target just this
+          # rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /Users/AuthenticateByName
+            backendRefs:
+              - name: jellyfin
+                port: *port
 
     persistence:
       config:
@@ -87,22 +547,43 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "3Gi"
-        globalMounts:
-          - path: /config
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: jellyfin
+        # advancedMounts, not globalMounts - globalMounts applies to every
+        # controller by default, which put this RWO PVC on both jellyfin
+        # AND exporter pods and caused a real Multi-Attach error the moment
+        # they landed on different nodes (confirmed live). The exporter
+        # only talks to Jellyfin's HTTP API - it has no reason to touch any
+        # of these volumes at all.
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /config
+            install-oidc:
+              - path: /config
       metadata:
         suffix: metadata
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
-        globalMounts:
-          - path: /config/metadata
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /config/metadata
+      # NAS static NFS mount - whole export, matches library layout
+      # (tv/movies/music) directly.
       media:
-        suffix: media
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
-        globalMounts:
-          - path: /media
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        advancedMounts:
+          jellyfin:
+            app:
+              - path: /media
       tmpfs:
         type: emptyDir
         advancedMounts:
@@ -114,3 +595,11 @@ spec:
                 subPath: log
               - path: /tmp
                 subPath: tmp
+              # Overrides the image's own (read-only) jellyfin-web dir with
+              # patch-web-sso's copy, patched with the OIDC login button
+              # script tag - see that init container's comment above.
+              - path: /jellyfin/jellyfin-web
+                subPath: jellyfin-web
+            patch-web-sso:
+              - path: /web-patched
+                subPath: jellyfin-web

@@ -9,8 +9,23 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/authentik/protect
+    - ../../../../components/authentik/protect-external
+  # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+  dependsOn:
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/network/echo/app
+  postBuild:
+    substitute:
+      APP: echo
+      HTTPROUTE_NAME: echo
+      HOSTNAME: echo.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
+      EXTERNAL_HTTPROUTE_NAME: echo-external
+      EXTERNAL_HOSTNAME: echo.oreillys.io
   prune: true
   retryInterval: 2m
   sourceRef:

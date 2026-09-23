@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: nebraska
-      version: 2.0.0
+      version: 3.0.0
       sourceRef:
         kind: HelmRepository
         name: nebraska
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -23,6 +24,12 @@ spec:
       retries: 3
   values:
     replicaCount: 1
+
+    # Chart's own image.tag default just floats to .Chart.AppVersion (4.0.0
+    # for this chart version) with no digest - pin explicitly so a future
+    # chart bump can't silently drag along an unreviewed app image change.
+    image:
+      tag: 4.0.0@sha256:3dba7d3dae51baf8d5e0ded418683bc234ff98ec25e74ea10c04350f376324f8
 
     podSecurityContext:
       runAsUser: 65534
@@ -46,8 +53,51 @@ spec:
           enabled: true
           storageClass: ceph-block
           size: 30Gi
+      # Nebraska's own auth middleware (backend/pkg/middleware/auth.go
+      # commonPaths) always exempts /v1/update (the Omaha device-update
+      # endpoint Flatcar nodes actually call) and /apps, /apps/*,
+      # /instances, /instances/* (read-only views) regardless of auth
+      # mode - so switching this to oidc only gates the write/management
+      # surface, node updates keep working unauthenticated.
       auth:
-        mode: noop
+        mode: oidc
+        oidc:
+          # Public client, no secret - see the matching comment on the
+          # Authentik blueprint (blueprints-native-apps.yaml,
+          # provider-nebraska.yaml) for the full architecture rationale.
+          # No existingSecret set: the chart auto-creates its own Secret
+          # wrapping this clientID (confirmed against
+          # charts/nebraska/templates/secrets.yaml) - nothing extra to
+          # manage here.
+          clientID: "05e3a848335180ba305a18a3fa75a926395937e1"
+          issuerURL: https://auth.internal.oreillys.io/application/o/nebraska/
+          managementURL: https://nebraska.internal.oreillys.io
+          logoutURL: https://auth.internal.oreillys.io/application/o/nebraska/end-session/
+          adminRoles: nebraska-admins
+          # Required non-empty by this chart's app version (3.0.0) even if
+          # you don't plan to use it - config.go's Validate() rejects an
+          # empty viewerRoles outright, confirmed live (crashloop,
+          # "invalid OIDC configuration", before adding this).
+          viewerRoles: nebraska-viewers
+          # Read straight from the JWT access token (this chart version -
+          # 2.0.0/app v3.0.0 - has no userinfo-fallback option at all, only
+          # a later unreleased version does). Confirmed via Authentik's own
+          # IDToken.to_access_token(): it's built from the same claims dict
+          # as the id_token (`id_dict.update(self.claims)`), so the access
+          # token carries the profile scope's groups claim too, not just
+          # minimal bearer-token fields.
+          rolesPath: groups
+          scopes: openid,profile,email
+          # New in app v4.0.0 (GHSA-8535-v9q5-f7qp) - required in OIDC mode,
+          # backend now refuses to start without it. Our nebraska-provider
+          # Authentik blueprint has no custom scope mapping that overrides
+          # "aud", and Authentik has no separate resource-server/audience
+          # concept for a plain public client, so the access token's aud
+          # claim defaults to the client_id (same pattern the chart's own
+          # migration guide describes for Dex) - verify against a real
+          # token after upgrading (decode the JWT, check .aud) before
+          # trusting this.
+          audience: "05e3a848335180ba305a18a3fa75a926395937e1"
       database:
         host: nebraska-postgres-rw
         port: 5432

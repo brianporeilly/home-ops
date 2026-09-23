@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: akvorado
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -29,7 +30,7 @@ spec:
           create-clickhouse-db:
             image:
               repository: curlimages/curl
-              tag: 8.21.0
+              tag: 8.22.0
             env:
               CLICKHOUSE_PASSWORD:
                 valueFrom:
@@ -303,7 +304,13 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.6"
+          # Was 10.20.250.6 - migrated to the routed 10.21.0.0/16 pool (see
+          # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
+          # risk: this is a flow-collector RECEIVER - OPNsense/the Mikrotik
+          # are presumably configured to actively export NetFlow/IPFIX to
+          # this exact IP:port. Repoint the flow-export target BEFORE
+          # merging, or flow data silently stops.
+          kube-vip.io/loadbalancerIPs: "10.21.0.6"
         ipFamilies: [IPv4]
         ipFamilyPolicy: PreferDualStack
         ports:

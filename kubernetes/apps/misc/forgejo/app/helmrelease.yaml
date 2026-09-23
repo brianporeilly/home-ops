@@ -1,0 +1,321 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: forgejo
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      forgejo:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: codeberg.org/forgejo/forgejo
+              tag: 16.0.5-rootless@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
+            env:
+              FORGEJO__database__DB_TYPE: postgres
+              FORGEJO__database__HOST: forgejo-postgres-rw:5432
+              FORGEJO__database__NAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: dbname
+              FORGEJO__database__USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: username
+              FORGEJO__database__PASSWD:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: password
+              # Skips the web installer - DB is already configured above, so
+              # there's nothing left for it to collect.
+              FORGEJO__security__INSTALL_LOCK: "true"
+              FORGEJO__server__DOMAIN: forgejo.internal.oreillys.io
+              FORGEJO__server__ROOT_URL: https://forgejo.internal.oreillys.io/
+              FORGEJO__server__HTTP_PORT: "3000"
+              # SSH clone support. LISTEN_PORT is the actual in-container bind
+              # port - 2222, unprivileged, so no NET_BIND_SERVICE capability
+              # needed (matches the rootless image's own EXPOSE 2222 default).
+              # PORT is what's advertised in generated clone URLs and the
+              # server's own banner; the ssh Service below maps external :22
+              # to container :2222, so users still see/use the standard port.
+              # Host keys land under /var/lib/gitea (the persistent `data`
+              # PVC), same self-managed-and-persisted treatment as
+              # SECRET_KEY/JWT_SECRET - no separate host-key secret needed.
+              FORGEJO__server__DISABLE_SSH: "false"
+              FORGEJO__server__SSH_DOMAIN: forgejo.internal.oreillys.io
+              FORGEJO__server__SSH_PORT: "22"
+              FORGEJO__server__SSH_LISTEN_PORT: "2222"
+              # Repo + LFS data lives on the nfs-csi-driver PVC (see persistence
+              # below), not the ceph-block config volume - explicit paths so we
+              # don't depend on undocumented default subpaths.
+              FORGEJO__repository__ROOT: /data/git/repositories
+              FORGEJO__lfs__STORAGE_TYPE: local
+              FORGEJO__lfs__PATH: /data/git/lfs
+              # Single-user instance - no public signup.
+              FORGEJO__service__DISABLE_REGISTRATION: "true"
+              # Outbound mail via the in-cluster maddy relay - no local SMTP
+              # creds to hold (see maddy-smtp-relay memory). maddy's internal
+              # listener has TLS off entirely; verify this negotiates plain
+              # SMTP cleanly on first real send.
+              FORGEJO__mailer__ENABLED: "true"
+              FORGEJO__mailer__PROTOCOL: smtp
+              FORGEJO__mailer__SMTP_ADDR: maddy.misc.svc.cluster.local
+              FORGEJO__mailer__SMTP_PORT: "25"
+              FORGEJO__mailer__FROM: forgejo@oreillys.io
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/healthz
+                    port: &port 3000
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /api/healthz
+                    port: *port
+                  failureThreshold: 30
+                  periodSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+
+      # Forgejo has no env-var/config-file mechanism for its OIDC auth
+      # source (unlike every other native-OIDC app in this repo) - only a
+      # CLI (`forgejo admin auth add-oauth`/`update-oauth`) with no
+      # built-in idempotent apply. Runs hourly against the same DB the
+      # main controller uses (same image, same FORGEJO__database__* env),
+      # self-healing on drift (credential rotation, a DB restore that
+      # loses the auth source row, etc.) instead of being a one-time
+      # manual step. list-then-upsert logic and exact CLI flags confirmed
+      # live against this exact chart/image version before being written
+      # here - Forgejo's add-oauth validates the OIDC discovery URL at
+      # creation time, so this only works once
+      # authentik/authentik/app/blueprints-native-apps.yaml's
+      # provider-forgejo.yaml entry already exists.
+      oidc-source-sync:
+        type: cronjob
+        cronjob:
+          schedule: "17 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        containers:
+          app:
+            image:
+              repository: codeberg.org/forgejo/forgejo
+              tag: 16.0.5-rootless@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
+            # forgejo's FORGEJO__section__KEY env-var config only gets turned
+            # into an app.ini by /usr/local/bin/docker-setup.sh, which runs as
+            # part of the image's own ENTRYPOINT (confirmed by reading it
+            # live) - overriding `command` bypasses that entirely, and
+            # GITEA_APP_INI's default location lives on the same PVC the main
+            # controller already holds RWO (Multi-Attach conflict - confirmed
+            # live). admin auth only needs DB connectivity, not the full
+            # server config, so this writes its own minimal app.ini to /tmp
+            # instead (INSTALL_LOCK = true is required - MustInstalled()
+            # rejects a config without it even with valid DB settings,
+            # confirmed live).
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -eu
+                cat > /tmp/app.ini <<CFG
+                [database]
+                DB_TYPE = $DB_TYPE
+                HOST    = $DB_HOST
+                NAME    = $DB_NAME
+                USER    = $DB_USER
+                PASSWD  = $DB_PASSWD
+
+                [security]
+                INSTALL_LOCK = true
+                CFG
+                LIST=$(forgejo admin auth list --config /tmp/app.ini --vertical-bars)
+                ID=$(printf '%s\n' "$LIST" | awk -F'|' '$2 ~ /authentik/ {gsub(/[ \t]/,"",$1); print $1}')
+                # Plain $ID here, deliberately not brace-wrapped with a bash
+                # default-value suffix - this Kustomization's postBuild.substitute
+                # (ks.yaml) string-replaces ANY dollar-brace pattern across the
+                # whole rendered manifest, comments included, and either mangles
+                # it (undefined var -> empty string) or hard-fails the build
+                # (invalid variable name) - confirmed both failure modes live via
+                # `flux build`. Brace-wrapped bash parameter expansion is unsafe
+                # anywhere inside a postBuild.substitute-enabled Kustomization.
+                if [ -n "$ID" ]; then
+                  echo "Updating existing auth source id=$ID"
+                  forgejo admin auth update-oauth --config /tmp/app.ini --id="$ID" --name=authentik --provider=openidConnect \
+                    --key="$OIDC_CLIENT_ID" --secret="$OIDC_CLIENT_SECRET" \
+                    --auto-discover-url="https://auth.internal.oreillys.io/application/o/forgejo/.well-known/openid-configuration" \
+                    --scopes="openid email profile groups"
+                else
+                  echo "Creating new auth source"
+                  forgejo admin auth add-oauth --config /tmp/app.ini --name=authentik --provider=openidConnect \
+                    --key="$OIDC_CLIENT_ID" --secret="$OIDC_CLIENT_SECRET" \
+                    --auto-discover-url="https://auth.internal.oreillys.io/application/o/forgejo/.well-known/openid-configuration" \
+                    --scopes="openid email profile groups"
+                fi
+            env:
+              DB_TYPE: postgres
+              DB_HOST: forgejo-postgres-rw:5432
+              DB_NAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: dbname
+              DB_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: username
+              DB_PASSWD:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-postgres-app
+                    key: password
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: forgejo
+        ports:
+          http:
+            port: 3000
+      # Separate Service, not folded into `app` above - that one's reached via
+      # the envoy-internal HTTPRoute, this one via the envoy-internal TCPRoute
+      # (see network/envoy-gateway/config/envoy.yaml's `ssh` listener) - both
+      # ClusterIP, no dedicated kube-vip LB IP needed for either.
+      ssh:
+        controller: forgejo
+        ports:
+          ssh:
+            port: 22
+            targetPort: 2222
+
+    route:
+      app:
+        hostnames:
+          - forgejo.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 3000
+
+    persistence:
+      # App state (config, sessions, indexers, avatars, attachments) - durable,
+      # managed like any other app's config volume.
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Only covers this PVC - git-data below is
+        # separate and untouched.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: forgejo
+        # advancedMounts, not globalMounts - the oidc-source-sync CronJob
+        # controller below doesn't touch this PVC at all, and globalMounts
+        # would've mounted it there too, causing a Multi-Attach conflict
+        # with the main forgejo pod (both RWO) - confirmed live.
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /var/lib/gitea
+      # Dynamically-provisioned NFS PVC (nfs-csi-driver) - repo/LFS data lives
+      # here so Kubernetes owns its lifecycle instead of a hand-managed static
+      # export; space is capped via a quota on the NAS-side parent dataset, not
+      # per-PVC. Deliberately not backed up, unlike the DB below - not treated
+      # as durable/managed data (see migration-inventory.md backlog notes).
+      git-data:
+        suffix: git-data
+        storageClass: "nfs-slow"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /data/git
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          forgejo:
+            app:
+              - path: /tmp
+          # oidc-source-sync also needs a writable /tmp under
+          # readOnlyRootFilesystem - confirmed live: with none at all it
+          # exits immediately with no log output at all (forgejo's CLI
+          # needs somewhere to write). Safe to share this same emptyDir
+          # entry across controllers - unlike the RWO PVCs above, emptyDir
+          # is pod-local, no Multi-Attach concern.
+          oidc-source-sync:
+            app:
+              - path: /tmp

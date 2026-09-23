@@ -1,0 +1,32 @@
+---
+# RBAC for blueprint-reapply-cronjob.yaml - scoped to just this namespace,
+# just enough to find and exec into the authentik-worker pod. See that
+# file for the full rationale.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: authentik-blueprint-reapply
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: authentik-blueprint-reapply
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: authentik-blueprint-reapply
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: authentik-blueprint-reapply
+subjects:
+  - kind: ServiceAccount
+    name: authentik-blueprint-reapply

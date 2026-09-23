@@ -1,0 +1,71 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik-valkey
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: authentik-valkey
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Dedicated cache/task-queue instance for authentik - not shared with any
+    # other app's redis/valkey, matching this repo's per-app isolation
+    # convention (immich, paperless-ngx each have their own too). authentik's
+    # official chart doesn't bundle one (confirmed against its values.yaml),
+    # so this is a standalone release rather than a second controller inside
+    # the authentik chart's own HelmRelease.
+    controllers:
+      valkey:
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+        containers:
+          app:
+            image:
+              repository: docker.io/valkey/valkey
+              tag: 9.2-alpine@sha256:48dc9d22ed984d9599e0d5823726053b0b426a86cff534f6bf1bd3dfb951f33e
+            args:
+              - valkey-server
+              - --appendonly
+              - "yes"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 50Mi
+              limits:
+                memory: 256Mi
+
+    service:
+      app:
+        primary: true
+        controller: valkey
+        ports:
+          http:
+            port: 6379
+
+    persistence:
+      # readOnlyRootFilesystem + --appendonly need somewhere writable for
+      # valkey's appendonlydir - paperless-ngx's own inline valkey controller
+      # has the same requirement (see its helmrelease.yaml persistence.valkey-data).
+      # emptyDir, not a PVC - this is a cache, not data worth persisting past
+      # a pod restart.
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /data

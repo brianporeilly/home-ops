@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: copyparty
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/9001/copyparty-ac
-              tag: 1.20.20
+              tag: 1.20.24
             env:
               LD_PRELOAD: /usr/lib/libmimalloc-secure.so.2
               PYTHONUNBUFFERED: 1
@@ -74,13 +75,23 @@ spec:
             port: *port
     route:
       app:
-        annotations:
-          gatus.home-operations.com/endpoint: |-
-            path: /?reset=/._
         hostnames:
           - copyparty.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
+            namespace: network
+            sectionName: https
+      # External twin - no Authentik SecurityPolicy in front, by design:
+      # access is gated by copyparty's own [accounts]/[groups] ACLs
+      # (resources/config.conf), same as any other copyparty client.
+      external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - files.oreillys.io
+        parentRefs:
+          - name: envoy-external
             namespace: network
             sectionName: https
     persistence:
@@ -89,6 +100,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: copyparty
         globalMounts:
           - path: /w
       config:

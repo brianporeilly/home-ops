@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: prowlarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/prowlarr
-              tag: 2.6.1.5509@sha256:ce5d6bdd5be6529f503df77aa9d2bad20239031d7c660406e8fb1c6d621dd020
+              tag: 2.6.5.5623@sha256:6152751c3ea2e7751564f5952173d5e83eed0e09f3fabd2cb6bdb58690c39e2f
             env:
               PROWLARR__APP__INSTANCENAME: Prowlarr
               PROWLARR__APP__THEME: dark
@@ -80,12 +81,40 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # See sonarr/app/helmrelease.yaml for the full rationale - same
+      # pattern, unauthenticated-at-the-Gateway /api path for direct API
+      # clients, still gated by Prowlarr's own API key. Adding this
+      # second route key renames the one above from `prowlarr` to
+      # `prowlarr-app` (see ks.yaml's HTTPROUTE_NAME).
+      api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - prowlarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
     persistence:
       config:
         suffix: config
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: prowlarr
         globalMounts:
           - path: /config
       custom-definitions:

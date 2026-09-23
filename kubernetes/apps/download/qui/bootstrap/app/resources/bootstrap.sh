@@ -4,6 +4,9 @@ set -eu
 QUI_URL="http://qui.download.svc.cluster.local:7476"
 QBT_HOST="http://qbittorrent.download.svc.cluster.local:8080"
 COOKIES=/tmp/cookies.txt
+# Qui's CSRF protection 403s any authenticated POST/PUT/DELETE without this
+# header (cookie auth alone isn't enough) - every mutating call below needs it.
+XRW_HEADER="X-Requested-With: XMLHttpRequest"
 
 echo "Waiting for qui to become ready..."
 until curl -sf "$QUI_URL/health" >/dev/null 2>&1; do
@@ -17,13 +20,13 @@ done
 
 echo "Running qui setup (no-op if already completed)..."
 SETUP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -c "$COOKIES" -X POST "$QUI_URL/api/auth/setup" \
-  -H "Content-Type: application/json" \
+  -H "Content-Type: application/json" -H "$XRW_HEADER" \
   -d "{\"username\":\"${QUI_USERNAME}\",\"password\":\"${QUI_PASSWORD}\"}")
 echo "Setup responded with status $SETUP_STATUS (200 = created, 400 = already completed, anything else is worth investigating)"
 
 echo "Logging in..."
 LOGIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -c "$COOKIES" -X POST "$QUI_URL/api/auth/login" \
-  -H "Content-Type: application/json" \
+  -H "Content-Type: application/json" -H "$XRW_HEADER" \
   -d "{\"username\":\"${QUI_USERNAME}\",\"password\":\"${QUI_PASSWORD}\"}")
 
 if [ "$LOGIN_STATUS" != "200" ]; then
@@ -32,7 +35,20 @@ if [ "$LOGIN_STATUS" != "200" ]; then
 fi
 
 echo "Checking for an existing qbittorrent instance..."
-EXISTING="$(curl -s -b "$COOKIES" "$QUI_URL/api/instances" | jq -r --arg host "$QBT_HOST" '.[]? | select(.host==$host) | .id' | head -n1)"
+MATCHES="$(curl -s -b "$COOKIES" "$QUI_URL/api/instances" | jq -r --arg host "$QBT_HOST" '.[]? | select(.host==$host) | .id')"
+EXISTING="$(echo "$MATCHES" | head -n1)"
+
+# A prior bug (one-shot Job manually rerun against a fresh qui DB, before
+# this became a self-healing CronJob) left duplicate instances registered.
+# Clean up any extras beyond the one we're about to sync, so this stays
+# self-healing if it ever happens again.
+DUPLICATES="$(echo "$MATCHES" | tail -n +2)"
+if [ -n "${DUPLICATES:-}" ]; then
+  for dup_id in $DUPLICATES; do
+    echo "Removing duplicate qbittorrent instance (id=$dup_id)..."
+    curl -s -o /dev/null -b "$COOKIES" -H "$XRW_HEADER" -X DELETE "$QUI_URL/api/instances/${dup_id}"
+  done
+fi
 
 response_file=$(mktemp)
 if [ -n "${EXISTING:-}" ]; then
@@ -41,12 +57,12 @@ if [ -n "${EXISTING:-}" ]; then
   # not just left alone, or the connection silently goes stale.
   echo "qbittorrent instance already registered (id=$EXISTING), syncing credentials..."
   status=$(curl -s -o "$response_file" -w "%{http_code}" -b "$COOKIES" -X PUT "$QUI_URL/api/instances/${EXISTING}" \
-    -H "Content-Type: application/json" \
+    -H "Content-Type: application/json" -H "$XRW_HEADER" \
     -d "{\"name\":\"qbittorrent\",\"host\":\"${QBT_HOST}\",\"username\":\"${QBT_USERNAME}\",\"password\":\"${QBT_PASSWORD}\"}")
 else
   echo "Registering qbittorrent instance..."
   status=$(curl -s -o "$response_file" -w "%{http_code}" -b "$COOKIES" -X POST "$QUI_URL/api/instances" \
-    -H "Content-Type: application/json" \
+    -H "Content-Type: application/json" -H "$XRW_HEADER" \
     -d "{\"name\":\"qbittorrent\",\"host\":\"${QBT_HOST}\",\"username\":\"${QBT_USERNAME}\",\"password\":\"${QBT_PASSWORD}\"}")
 fi
 

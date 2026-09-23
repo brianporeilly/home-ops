@@ -1,0 +1,94 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/extensions.agents.x-k8s.io_sandboxtemplates.yaml
+#
+# Reusable template for headless/background coding-agent tasks against
+# scratch repos only - see docs/agent-sandbox-plan.md. Deliberately NOT a
+# live Sandbox: a running Sandbox is per-task session state, not desired
+# config, and doesn't belong in git (this repo's "no live cluster mutation,
+# repo/PR changes only" norm).
+#
+# NOT directly instantiable - confirmed live (2026-09-22): Sandbox has no
+# templateRef field, and SandboxClaim requires a warmPoolRef, not a
+# template ref. Claim one from sandboxwarmpool-coding-agent.yaml (also in
+# this directory) instead:
+#
+#   kubectl create -n agent-sandbox-system -f - <<EOF
+#   apiVersion: extensions.agents.x-k8s.io/v1beta1
+#   kind: SandboxClaim
+#   metadata:
+#     generateName: coding-agent-
+#   spec:
+#     warmPoolRef:
+#       name: coding-agent
+#   EOF
+#
+# podTemplate.metadata.labels below is set explicitly (rather than relying
+# on whatever labels the controller itself stamps on spawned pods) so the
+# egress GlobalNetworkPolicy in
+# kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
+# has a stable, self-defined selector to target.
+#
+# Base image confirmed live (2026-09-22): Claude Code's own CLI image
+# (previously used here) has no git at all. Using plain
+# buildpack-deps:noble-scm (Docker Official Image, Ubuntu 24.04 "noble",
+# scm variant - no vendor branding) instead - confirmed live: git 2.43.0,
+# curl/wget/ssh, nothing else. No language runtime and no pre-baked
+# non-root user (unlike a devcontainers-style image) - deliberately kept
+# minimal. A proper purpose-built (Fedora-based) sandbox image is the
+# planned real replacement for this; this is the "something pre-built that
+# works today" placeholder, not the destination.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: coding-agent
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-sandbox-workload
+        agent-sandbox.internal.oreillys.io/template: coding-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: agent
+          image: docker.io/library/buildpack-deps:noble-scm@sha256:6a78b404fc653922fe9b7717e1dc382d200517d4be146303f87d2928999192d6
+          # Keeps the container alive so a task can be kicked off with
+          # `kubectl exec` (interactive) or a follow-up patch to `command`
+          # (headless, single-shot) - this image's own default entrypoint
+          # would otherwise just start a shell and exit once it ends.
+          command: ["sleep", "infinity"]
+          env:
+            # Scratch-repo-scoped only - see secret.yaml. Never this
+            # cluster's own credentials.
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-sandbox-scratch-git-secret
+                  key: SCRATCH_GIT_TOKEN
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 10Gi

@@ -7,6 +7,7 @@ resources:
   - ./ocirepository.yaml
   - ./cluster.yaml
   - ./secret.yaml
+  - ./oidc-secret.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml

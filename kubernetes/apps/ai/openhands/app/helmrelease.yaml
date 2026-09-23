@@ -1,0 +1,204 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openhands
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: openhands
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      openhands:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        # Image's entrypoint.sh is chown'd to UID/GID 42420, not this repo's
+        # usual 1000 (that default's for NAS access, not needed here) - see
+        # docs/agent-sandbox-plan.md for the full story.
+        pod:
+          securityContext:
+            runAsUser: 42420
+            runAsGroup: 42420
+            runAsNonRoot: true
+            fsGroup: 42420
+            fsGroupChangePolicy: OnRootMismatch
+          # KubernetesRuntime (RUNTIME=kubernetes, see env below) needs the
+          # in-cluster k8s client's token - the chart disables automount by
+          # default. See openhands-runtime/rbac/app/rbac.yaml for what this
+          # identity is actually allowed to do.
+          automountServiceAccountToken: true
+        # Named identifier so RBAC (openhands-runtime/rbac/app/rbac.yaml)
+        # has a stable ServiceAccount name to bind - confirmed via `helm
+        # template` against this chart version that a single
+        # serviceAccount.openhands entry + this identifier renders the SA
+        # as plain "openhands" (the release name), not a suffixed variant.
+        serviceAccount:
+          identifier: openhands
+        containers:
+          app:
+            image:
+              repository: ghcr.io/all-hands-ai/openhands
+              tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
+            env:
+              # Phase 2 (docs/agent-sandbox-plan.md): each conversation's
+              # shell/editor/browser tools now run in their own spawned Pod
+              # (openhands's own first-party KubernetesRuntime), not
+              # in-process in this container - that's what made the whole
+              # Phase 1 LocalRuntime scaffolding below (tmux initContainer,
+              # PATH/LD_LIBRARY_PATH, SU_TO_USER, SANDBOX_LOCAL_RUNTIME_URL,
+              # WORKSPACE_BASE, ENABLE_BROWSER) LocalRuntime-specific dead
+              # weight - removed, not carried forward. This container is
+              # now purely the orchestrator/API/UI; it talks to the
+              # Kubernetes API instead.
+              RUNTIME: "kubernetes"
+              # Required for runAsUser: 42420 above to work - see
+              # docs/agent-sandbox-plan.md.
+              NO_SETUP: "true"
+              # Default (~/.openhands) resolves off this PVC - HOME isn't
+              # meaningfully set for UID 42420 here, so it lands unwritable
+              # on the root filesystem. See docs/agent-sandbox-plan.md.
+              FILE_STORE_PATH: "/.openhands-state/filestore"
+              # Namespace the spawned per-conversation Pod/Service/PVC/
+              # Ingress land in - deliberately NOT this namespace (ai), so
+              # RBAC (openhands-runtime/rbac/app/rbac.yaml) and egress
+              # NetworkPolicy for those pods stay scoped away from
+              # llama-cpp/this app itself. See
+              # kubernetes/apps/openhands-runtime/.
+              KUBERNETES_NAMESPACE: "openhands-runtime"
+              KUBERNETES_PVC_STORAGE_CLASS: "ceph-block"
+              KUBERNETES_PVC_STORAGE_SIZE: "10Gi"
+              KUBERNETES_RESOURCE_CPU_REQUEST: "250m"
+              KUBERNETES_RESOURCE_MEMORY_REQUEST: "512Mi"
+              KUBERNETES_RESOURCE_MEMORY_LIMIT: "2Gi"
+              # KUBERNETES_INGRESS_DOMAIN deliberately left at its
+              # ("localhost") default rather than a real oreillys.io name:
+              # KubernetesRuntime always creates a VSCode Ingress
+              # (networking.k8s.io/v1) per conversation, but this cluster's
+              # only ingress controller is Envoy Gateway, which speaks
+              # Gateway API (HTTPRoute), not classic Ingress - it will never
+              # reconcile this object. Confirmed live (2026-09-22): no
+              # IngressClass, no admission webhook targets Ingress, so
+              # creation still succeeds (doesn't block the pod/conversation
+              # loop) - it just sits inert. VSCode-in-browser access is a
+              # known gap until/unless that's worth wiring up for real
+              # (e.g. an HTTPRoute-generating shim), not attempted here.
+              #
+              # SANDBOX_RUNTIME_CONTAINER_IMAGE: without this,
+              # KubernetesRuntime falls back to the bare
+              # nikolaik/python-nodejs base image (see sandbox_config.py) -
+              # fine for the Docker runtime, which builds the
+              # action_execution_server into it first, but KubernetesRuntime
+              # has no build step and uses pod_image as-is. Point it at
+              # upstream's own pre-built runtime image instead (same OpenHands
+              # version as the app image above) - confirmed to exist for
+              # amd64 via the ghcr.io v2 manifest API.
+              SANDBOX_RUNTIME_CONTAINER_IMAGE: "ghcr.io/all-hands-ai/runtime:0.59-nikolaik@sha256:a5541eb6512ad368e9637c94b89ff76d9282fd2598c01b5566d18b7731940f86"
+              # Default 864000 (10d) - but this filters on created_at, not
+              # last_updated_at (confirmed against manage_conversations.py's
+              # _filter_conversations_by_age), so a conversation you're
+              # still actively using vanishes from the sidebar's history
+              # list once it's 10+ days old, same as a genuinely abandoned
+              # one. Raised to effectively "never hide" so the sidebar
+              # reflects real activity - openhands-conversation-report-
+              # cronjob.yaml does its own staleness check against
+              # last_updated_at instead, at that same 10-day number, and
+              # reports (never auto-deletes) what it finds. See "stale
+              # PVCs accumulate" in docs/agent-sandbox-plan.md.
+              CONVERSATION_MAX_AGE_SECONDS: "31536000"
+              LLM_MODEL: "anthropic/claude-sonnet-5"
+              # llama-cpp (this namespace) is reachable at
+              # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
+              # secondary provider - add via Settings > LLM once logged in.
+              # Expect it to struggle: see llama-cpp/app/helmrelease.yaml.
+            envFrom:
+              - secretRef:
+                  name: openhands-secret
+            probes:
+              # TCP-only, not HTTP - no confirmed health endpoint path for
+              # this image at plan time (unlike llama-cpp's documented
+              # /health). Revisit with an HTTP probe once one's confirmed
+              # live.
+              liveness: &probes
+                enabled: true
+                type: TCP
+                port: 3000
+                spec:
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+              readiness: *probes
+              startup:
+                enabled: true
+                type: TCP
+                port: 3000
+                spec:
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 30
+            securityContext:
+              allowPrivilegeEscalation: false
+              # NOT readOnlyRootFilesystem yet - OpenHands almost certainly
+              # writes outside /.openhands-state (npm/asset caches, general
+              # tmp files for this orchestrator process). Confirm what
+              # actually needs write access post-deploy (check for
+              # permission-denied errors) before locking this down.
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    # Named so controllers.openhands.serviceAccount.identifier (above) can
+    # reference it - see that key's comment for the naming guarantee.
+    serviceAccount:
+      openhands: {}
+
+    service:
+      app:
+        controller: openhands
+        ports:
+          http:
+            port: 3000
+
+    route:
+      app:
+        hostnames:
+          - openhands.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      state:
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "20Gi"
+        globalMounts:
+          - path: /.openhands-state
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

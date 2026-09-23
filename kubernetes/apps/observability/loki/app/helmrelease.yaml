@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: loki
   install:
+    timeout: 15m
     crds: Skip
     remediation:
       retries: -1
@@ -136,6 +137,23 @@ spec:
       # credentials from the loki-bucket OBC Secret as ${AWS_*} env vars.
       extraArgs:
         - "-config.expand-env=true"
+      # Exposes the same `loki` Service (still gets its ClusterIP too - this
+      # only adds an external IP) so nas-ultan's Alloy agent can push journal
+      # logs in from outside the cluster (see flatcar-ignition repo). Same
+      # kube-vip LB-IP technique fluent-bit already uses for external syslog
+      # input, but on the routed 10.21.0.0/16 pool (kube-vip-cloud-provider
+      # HelmRelease) rather than 10.20.250.0/24 - that pool overlaps
+      # non-cluster hosts' own local /16, which makes it unreachable via ARP
+      # for a genuinely external host like nas-ultan. NB:
+      # auth_enabled is false, so this puts Loki's full push+query HTTP API
+      # on the LAN at 10.21.0.5:3100 - not scoped down to push-only. .5 to
+      # match Loki's old 10.20.250.5 slot - .1-.4 are reserved for the other
+      # 10.20.250.0/24 services (envoy-gateway x2, omada, fluent-bit) when
+      # they migrate to this pool later.
+      service:
+        type: LoadBalancer
+        annotations:
+          kube-vip.io/loadbalancerIPs: "10.21.0.5"
       extraEnvFrom:
         - secretRef:
             name: loki-bucket
@@ -173,7 +191,7 @@ spec:
     sidecar:
       image:
         repository: ghcr.io/home-operations/k8s-sidecar
-        tag: 2.10.1@sha256:9d9338eba4dbf0ae8151e772ef96d3806d56115acf5521d615e31694e046fe47
+        tag: 2.11.2@sha256:2e18fa6af75c94fb9aff610fba3386e7d518b0d639ecf0948aecaa071b126be0
       enableUniqueFilenames: true
       rules:
         searchNamespace: ALL

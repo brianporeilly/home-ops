@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/generators.external-secrets.io/password_v1alpha1.json
+# Shared across every OIDC-protected app's ExternalSecret (oidc-credentials.yaml
+# in each app's own directory) - not per-app, created once. `length` is the
+# pre-encoding character count, not the final string length -
+# encoding: hex doubles it (confirmed live: length 20 -> a 40-char hex
+# string), matching this repo's prior openssl rand -hex 20/40 convention
+# for client_id/client_secret respectively.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: oidc-client-id
+spec:
+  length: 20
+  encoding: hex
+  digits: 0
+  symbols: 0
+  noUpper: true
+  allowRepeat: true
+  secretKeys: ["client-id"]
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: oidc-client-secret
+spec:
+  length: 40
+  encoding: hex
+  digits: 0
+  symbols: 0
+  noUpper: true
+  allowRepeat: true
+  secretKeys: ["client-secret"]

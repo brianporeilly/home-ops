@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: llama-cpp
+spec:
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - ai
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llama-cpp
+      app.kubernetes.io/service: llama-cpp

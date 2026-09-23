@@ -1,0 +1,454 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-protected-apps
+data:
+  # Authentik acting as the OIDC Identity Provider FOR each app behind a
+  # kubernetes/components/authentik/protect SecurityPolicy - separate
+  # concern (and separate ConfigMap) from oauth-sources.yaml, where
+  # Google/GitHub act as IdPs FOR authentik. One data key per protected
+  # app, consolidated into a single ConfigMap so adding a new app only
+  # means appending a key here + one blueprints.configMaps list entry
+  # that's already permanently present (see helmrelease.yaml) - not a new
+  # ConfigMap resource and list entry every time. Each key still stays
+  # independently addable/removable, same as before.
+  #
+  # Schema confirmed against a real shipped blueprint
+  # (blueprints/testing/oidc-conformance.yaml) and the default scope
+  # mappings (blueprints/system/providers-oauth2.yaml), not guessed.
+  # Flow slugs: default-provider-authorization-implicit-consent (skips the
+  # "do you want to share your info with <app>?" click - confirmed by
+  # reading both flows: explicit-consent binds one extra ConsentStage,
+  # implicit-consent has zero stages bound at all, immediate pass-through.
+  # Both still require authentication: require_authenticated - this only
+  # removes the consent click, not any actual auth check. Fine for apps we
+  # control ourselves. Not to be confused with the OAuth2 "implicit" *grant
+  # type* below - unrelated "implicit", every provider here only uses
+  # authorization_code/refresh_token grants) and
+  # default-provider-invalidation-flow.
+  #
+  # Issuer URL confirmed from authentik/providers/oauth2/{models,apps,urls}.py:
+  # mountpoint application/o/ + <application_slug>/, default issuer_mode
+  # (per_provider, not global) - https://auth.internal.oreillys.io/application/o/<slug>/
+  #
+  # Redirect URI matches Envoy Gateway's own OIDC callback convention
+  # (<route-path-prefix>/oauth2/callback, confirmed against envoyproxy/gateway's
+  # own docs example) - see each app's own SecurityPolicy (via
+  # kubernetes/components/authentik/protect).
+  provider-echo.yaml: |
+    metadata:
+      name: OIDC Provider - echo
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: echo
+        id: echo-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env ECHO_OAUTH_CLIENT_ID
+          client_secret: !Env ECHO_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://echo.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://echo.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: echo
+        id: echo-application
+        attrs:
+          name: Echo
+          provider: !KeyOf echo-provider
+      # Deliberately no PolicyBinding here, unlike every other app below -
+      # echo is the test/demo app used to validate the auth pipeline
+      # itself, restricting it doesn't protect anything real and would
+      # just get in the way next time the SSO flow needs poking at. Any
+      # authenticated user can reach it.
+      #
+      # Sets this Application as the default Brand's default_application -
+      # fixes the "Interface can only be accessed by internal users"
+      # lockout hit testing SSO enrollment: external-type (SSO-enrolled)
+      # users are denied both /if/admin/ and /if/user/ unless the Brand has
+      # one set (authentik/core/views/interface.py's
+      # BrandDefaultRedirectView). Only the first protected app should set
+      # this - it's a singular "where do external users land" designation.
+      - model: authentik_brands.brand
+        identifiers:
+          domain: authentik-default
+        attrs:
+          default_application: !KeyOf echo-application
+  provider-kopiur-ui.yaml: |
+    metadata:
+      name: OIDC Provider - kopiur-ui
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: kopiur-ui
+        id: kopiur-ui-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env KOPIUR_UI_OAUTH_CLIENT_ID
+          client_secret: !Env KOPIUR_UI_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://kopiur.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: kopiur-ui
+        id: kopiur-ui-application
+        attrs:
+          name: Kopiur UI
+          provider: !KeyOf kopiur-ui-provider
+      # Gates who can complete the OIDC login for this app - group
+      # membership managed via the Authentik UI, see
+      # blueprints-groups.yaml for the rationale.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf kopiur-ui-application
+          group: !Find [authentik_core.group, [name, infra-users]]
+  provider-changedetection.yaml: |
+    metadata:
+      name: OIDC Provider - changedetection
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: changedetection
+        id: changedetection-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env CHANGEDETECTION_OAUTH_CLIENT_ID
+          client_secret: !Env CHANGEDETECTION_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://changedetection.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: changedetection
+        id: changedetection-application
+        attrs:
+          name: changedetection.io
+          provider: !KeyOf changedetection-provider
+      # Dedicated group, not arr-users/media-users - changedetection has no
+      # per-user isolation (one shared watch list/session for everyone who
+      # can log in), so membership here is meant to stay small/deliberate
+      # rather than tier-wide.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf changedetection-application
+          group: !Find [authentik_core.group, [name, changedetection-users]]
+  provider-sonarr.yaml: |
+    metadata:
+      name: OIDC Provider - sonarr
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: sonarr
+        id: sonarr-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env SONARR_OAUTH_CLIENT_ID
+          client_secret: !Env SONARR_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://sonarr.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: sonarr
+        id: sonarr-application
+        attrs:
+          name: Sonarr
+          provider: !KeyOf sonarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf sonarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
+  provider-radarr.yaml: |
+    metadata:
+      name: OIDC Provider - radarr
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: radarr
+        id: radarr-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env RADARR_OAUTH_CLIENT_ID
+          client_secret: !Env RADARR_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://radarr.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: radarr
+        id: radarr-application
+        attrs:
+          name: Radarr
+          provider: !KeyOf radarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf radarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
+  provider-prowlarr.yaml: |
+    metadata:
+      name: OIDC Provider - prowlarr
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: prowlarr
+        id: prowlarr-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env PROWLARR_OAUTH_CLIENT_ID
+          client_secret: !Env PROWLARR_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://prowlarr.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: prowlarr
+        id: prowlarr-application
+        attrs:
+          name: Prowlarr
+          provider: !KeyOf prowlarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf prowlarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
+  provider-lidarr.yaml: |
+    metadata:
+      name: OIDC Provider - lidarr
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: lidarr
+        id: lidarr-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env LIDARR_OAUTH_CLIENT_ID
+          client_secret: !Env LIDARR_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://lidarr.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: lidarr
+        id: lidarr-application
+        attrs:
+          name: Lidarr
+          provider: !KeyOf lidarr-provider
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf lidarr-application
+          group: !Find [authentik_core.group, [name, arr-users]]
+  provider-navidrome.yaml: |
+    metadata:
+      name: OIDC Provider - navidrome
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: navidrome
+        id: navidrome-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env NAVIDROME_OAUTH_CLIENT_ID
+          client_secret: !Env NAVIDROME_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://music.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://music.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: navidrome
+        id: navidrome-application
+        attrs:
+          name: Navidrome
+          provider: !KeyOf navidrome-provider
+      # This gates the Envoy-level SecurityPolicy login only - navidrome
+      # has no native OIDC support (ExtAuth header-trust only, not used
+      # here), so it still shows its own local-account login behind this
+      # gate. media-users is the shared tier group, reused from
+      # blueprints-groups.yaml rather than a dedicated one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf navidrome-application
+          group: !Find [authentik_core.group, [name, media-users]]
+  provider-whisker.yaml: |
+    metadata:
+      name: OIDC Provider - whisker
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: whisker
+        id: whisker-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env WHISKER_OAUTH_CLIENT_ID
+          client_secret: !Env WHISKER_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://whisker.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: whisker
+        id: whisker-application
+        attrs:
+          name: Whisker
+          provider: !KeyOf whisker-provider
+      # Real network flow data (source/dest, labels, ports) - same
+      # infra-users gate as kopiur-ui, not open to every authenticated user.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf whisker-application
+          group: !Find [authentik_core.group, [name, infra-users]]
+  provider-openhands.yaml: |
+    metadata:
+      name: OIDC Provider - openhands
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: openhands
+        id: openhands-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env OPENHANDS_OAUTH_CLIENT_ID
+          client_secret: !Env OPENHANDS_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              url: https://openhands.internal.oreillys.io/oauth2/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: openhands
+        id: openhands-application
+        attrs:
+          name: OpenHands
+          provider: !KeyOf openhands-provider
+      # Shell/code-exec access via the web UI - same infra-users gate as
+      # kopiur-ui/whisker, not open to every authenticated user.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf openhands-application
+          group: !Find [authentik_core.group, [name, infra-users]]

@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/configmap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-notification-destinations
+data:
+  # The four NotificationRules authentik ships by default already point at
+  # default-email-transport, but confirmed live none of them had a
+  # destination_group set - so even with SMTP now wired up
+  # (helmrelease.yaml's authentik.email block), these were still going
+  # nowhere. Points them at the authentik-notifications group
+  # (blueprints-groups.yaml) instead - empty by default, add yourself via
+  # the Authentik UI to actually receive these.
+  notification-destinations.yaml: |
+    metadata:
+      name: Route shipped system alerts to a real destination
+    version: 1
+    entries:
+      - model: authentik_events.notificationrule
+        identifiers:
+          name: default-notify-configuration-error
+        attrs:
+          destination_group: !Find [authentik_core.group, [name, authentik-notifications]]
+      - model: authentik_events.notificationrule
+        identifiers:
+          name: default-notify-configuration-warning
+        attrs:
+          destination_group: !Find [authentik_core.group, [name, authentik-notifications]]
+      - model: authentik_events.notificationrule
+        identifiers:
+          name: default-notify-update
+        attrs:
+          destination_group: !Find [authentik_core.group, [name, authentik-notifications]]
+      - model: authentik_events.notificationrule
+        identifiers:
+          name: default-notify-exception
+        attrs:
+          destination_group: !Find [authentik_core.group, [name, authentik-notifications]]

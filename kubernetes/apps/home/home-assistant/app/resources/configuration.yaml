@@ -6,15 +6,10 @@ homeassistant:
   latitude: !env_var HOME_LATITUDE
   longitude: !env_var HOME_LONGITUDE
   elevation: !env_var HOME_ELEVATION
-  unit_system: metric
+  unit_system: us_customary
   time_zone: America/Anchorage
   currency: USD
   country: US
-
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 10.246.0.0/16
 
 # DB connection configured via DB_URL env var from CNPG auto-generated secret.
 recorder:
@@ -40,5 +35,31 @@ rest_command:
     headers:
       content-type: "application/json; charset=utf-8"
     payload: '{"text": "{{ message }}"}'
+
+# SSO via authentik (auth_oidc custom_component, installed by the
+# install-oidc initContainer - see helmrelease.yaml and
+# docs/security-plan.md §3.2). Public client (no client_secret) - matches
+# the authentik provider config in
+# kubernetes/apps/authentik/authentik/app/blueprints-native-apps.yaml
+# (provider-home-assistant.yaml), client_id/slug: home-assistant.
+auth_oidc:
+  client_id: home-assistant
+  # Must be the EXTERNAL hostname, not auth.internal.oreillys.io - Authentik's
+  # discovery doc is host-header-sensitive (issuer_mode: per_provider), so
+  # every endpoint in it (including authorization_endpoint, which becomes
+  # the browser's actual login redirect, not just this backend's own
+  # discovery/token calls) gets anchored to whatever hostname fetched it.
+  # Using the internal hostname broke login for anyone off the LAN - the
+  # browser got redirected to auth.internal.oreillys.io, unreachable from
+  # outside. Safe to use the external hostname for the in-cluster calls
+  # too: confirmed live, auth.oreillys.io resolves in-cluster straight to
+  # envoy-external's own VIP (10.21.0.1), no internet round-trip/NAT
+  # hairpin involved.
+  discovery_url: https://auth.oreillys.io/application/o/home-assistant/.well-known/openid-configuration
+  # groups claim comes free from the profile scope (see the provider
+  # blueprint's comment) - anyone in home-assistant-admins gets HA's
+  # 'admin' role, everyone else who can complete login gets 'user'.
+  roles:
+    admin: home-assistant-admins
 
 automation: !include automations.yaml

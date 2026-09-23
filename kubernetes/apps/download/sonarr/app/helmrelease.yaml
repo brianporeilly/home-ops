@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: sonarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.19.2997@sha256:01db3e6a923f6e0f3a217baa94b4660cf2f9b45d4166b2fc8c20c67c5221cb78
+              tag: 4.0.20.3012@sha256:1f19eb5e0f421418c1a956bbe01310a0141423afe28bd9a4b1dcb8629ff2bce2
             env:
               SONARR__APP__INSTANCENAME: Sonarr
               SONARR__APP__THEME: dark
@@ -80,12 +81,47 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # Unauthenticated (at the Gateway level) path for direct API clients
+      # (LunaSea etc.) that can't complete an OIDC redirect - Gateway
+      # API's cross-route precedence (longest path match wins) sends
+      # /api traffic here instead of through the SecurityPolicy-protected
+      # app route below. Adding this second route key renames that one
+      # from `sonarr` to `sonarr-app` (see ks.yaml's HTTPROUTE_NAME) -
+      # confirmed via `helm template` against this chart version. Still
+      # gated by Sonarr's own API key - confirmed live that /api/v3/*
+      # returns 401 without one even for in-cluster requests, so this
+      # isn't a net new exposure versus the pre-SSO baseline.
+      api:
+        annotations:
+          # No 401-expecting UI check for this one - not meaningful to
+          # monitor and Gatus would otherwise flag it as always-down.
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - sonarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
     persistence:
       config:
         suffix: config
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: sonarr
         globalMounts:
           - path: /config
       config-cache:
@@ -95,11 +131,14 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /config/MediaCover
-#      media:
-#        type: nfs
-#        server: nfs.oreillys.lan
-#        path: /hecate/media
-#        globalMounts:
-#          - path: /media
+      # NAS static NFS mount - whole export. Needed (not just /media/tv) so
+      # hardlink-import from downloads/complete/ into tv/ works: hardlinks
+      # only work within a single mount, so both sides must be visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmp:
         type: emptyDir

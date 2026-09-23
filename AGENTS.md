@@ -31,6 +31,54 @@ kubernetes/
 2. **Namespace-level** `apps/{ns}/kustomization.yaml`: Sets namespace, includes `../../components/common`, lists `./{app}/ks.yaml`
 3. **App-level** `apps/{ns}/{app}/ks.yaml`: Flux Kustomization pointing to `./kubernetes/apps/{ns}/{app}/app`
 
+## Sibling Directories for Independently-Lifecycled Units
+
+When a top-level app needs two (or more) separately-reconciled pieces that share one namespace
+but have different lifecycles/health checks/dependency chains — e.g. an operator vs. the custom
+resource it manages, or an app vs. a small dedicated backing service it needs (Redis/Valkey,
+etc.) — put them in **sibling directories**, each with its own Flux `Kustomization`, not one
+nested inside the other's `app/` directory.
+
+The canonical example: `kubernetes/apps/rook-ceph/rook-ceph/`. A single multi-document `ks.yaml`
+declares **two separate `Kustomization` objects**:
+
+```yaml
+# kubernetes/apps/rook-ceph/rook-ceph/ks.yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: rook-ceph          # the operator
+spec:
+  path: ./kubernetes/apps/rook-ceph/rook-ceph/app
+  healthChecks: [...]       # operator Deployment + CRD
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: rook-ceph-cluster  # the CephCluster CR
+spec:
+  path: ./kubernetes/apps/rook-ceph/rook-ceph/cluster
+  dependsOn:
+    - name: rook-ceph        # cross-references the sibling by name
+      namespace: rook-ceph
+  healthChecks: [...]       # CephCluster + StorageClasses
+```
+
+`app/` and `cluster/` are **siblings** on disk, each a flat directory with its own
+`kustomization.yaml` (plain Kustomize resource list — `helmrelease.yaml`, `ocirepository.yaml`,
+etc.), cross-referenced only via `dependsOn` in the parent `ks.yaml`, never by one directory
+including the other's path. Same pattern used for `kubernetes/apps/authentik/authentik/`
+(`valkey/` + `app/`).
+
+**Don't** nest a second app's manifests inside an existing `app/` directory (e.g. an app's own
+Redis/Valkey release living at `app/valkey/`) — that loses independent health-gating and reads
+as if it's part of the same release when it isn't. If two things genuinely deploy and reconcile
+together as one unit (e.g. a CNPG `Cluster` CR living alongside the chart that uses it, per
+`kubernetes/apps/misc/linkwarden/app/cluster.yaml`), bundling in the same `app/` dir is fine —
+the test is whether the two pieces have their own independent lifecycle/health check worth
+tracking separately, not just "is it a separate YAML file."
+
 ## Adding a New App (Required Files)
 
 ### 1. `apps/{category}/{app-name}/ks.yaml`
@@ -84,7 +132,7 @@ spec:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    tag: 5.0.1                # app-template chart version
+    tag: 5.1.0                # app-template chart version
   url: oci://ghcr.io/bjw-s-labs/helm/app-template
 ```
 
@@ -166,8 +214,8 @@ The read-write service is always `<cluster-name>-rw` (e.g., `immich-postgres-rw`
 
 - **Gateway API controller**: Envoy Gateway
 - **Gateways** (in `network` namespace):
-  - `envoy-external`: `*.external.oreillys.io`, IP `10.20.250.2`
-  - `envoy-internal`: `*.internal.oreillys.io`, same IP
+  - `envoy-external`: `*.external.oreillys.io`, IP `10.21.0.1`
+  - `envoy-internal`: `*.internal.oreillys.io`, IP `10.21.0.2`
 - **TLS**: Wildcard cert `*.oreillys.io` via cert-manager + Let's Encrypt DNS-01 (Cloudflare)
 - **Routes**: Apps create `HTTPRoute` resources via `route` block in app-template values
   - Internal: `parentRefs: [{ name: envoy-internal, namespace: network, sectionName: https }]`
@@ -186,6 +234,7 @@ The read-write service is always `<cluster-name>-rw` (e.g., `immich-postgres-rw`
 | `cert-manager` | cert-manager |
 | `database` | postgres-operator, mariadb-operator |
 | `download` | sabnzbd, sonarr, radarr, prowlarr, recyclarr |
+| `external-secrets` | external-secrets |
 | `home` | home-assistant, frigate, grocy |
 | `immich` | immich |
 | `kube-system` | kube-vip, kube-vip-cloud-provider, metrics-server, kured, reloader, snapshot-controller |
@@ -315,8 +364,10 @@ persistence:
 - **YAML anchors**: `&app`/`&namespace` for DRY name/namespace references
 - **Images**: `tag@sha256:` digest pinning
   - Find digests with `skopeo inspect --raw docker://ghcr.io/org/repo:tag | python3 -c "import sys,json; i=json.load(sys.stdin); [print(m['digest']) for m in i['manifests'] if m.get('platform',{}).get('architecture')=='amd64']"`
-- **Chart version**: `5.0.1` for app-template
+- **Chart version**: `5.1.0` for app-template
+- **HelmRelease install timeout**: `spec.install.timeout: 15m` on every app HelmRelease (baked into the scaffold template). Mandatory: PVC population by the kopiur Restore `dataSourceRef` counts against the install wait, so the 5m Helm default kills fresh installs mid-restore. Override by changing the value (grimmory is 10m)
 - **User/Group**: `1000:1000` throughout
 - **Reloader**: `reloader.stakater.com/auto: "true"` annotation on controllers for auto-restart on secret/config changes
 - **Probes**: YAML anchors (`&probes`) shared between liveness and readiness
 - **Service name**: Always `app` for the primary service
+- **Comments**: minimal - only the non-obvious "why" (a hidden constraint, a gotcha). No narrative/history of the change or the incident that prompted it; that belongs in the commit message, not the file.

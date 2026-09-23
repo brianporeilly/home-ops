@@ -9,13 +9,66 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
+  # qui's root UID only comes from its image's own USER line, not a pinned
+  # pod/container securityContext - invisible to the component's
+  # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
+  # download namespace carries the privileged-movers opt-in for this.
+  # DAC_OVERRIDE: /repo on the NAS is chowned 1000:1000 with 0600 blob
+  # files - only readable/writable by an exact UID match or by root's NFS
+  # no_root_squash bypass, which is server-side and independent of local
+  # Linux capabilities. Locally, though, the mover's "drop: ALL" hardened
+  # base strips root's own DAC bypass for the source PVC too, so without
+  # DAC_OVERRIDE root can only read files it happens to own outright -
+  # added uniformly on every explicit-root override so a future image
+  # update that changes internal file ownership doesn't silently reopen
+  # this failure mode. (qui/linkwarden's data happens to be owned 0:0
+  # already and works without it, but omada-controller (508:508) and
+  # thelounge (65534:65534) need it to read their own PVC at all.)
+  patches:
+    - target:
+        kind: SnapshotPolicy
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: SnapshotPolicy
+        metadata:
+          name: qui
+        spec:
+          mover:
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
+    # Restoring needs mover.privilegedMode: true too, for the same reason
+    # as the backup-side override above (CAP_CHOWN to reproduce root:root
+    # ownership) - see the equivalent comment in home/esphome/ks.yaml.
+    - target:
+        kind: Restore
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: Restore
+        metadata:
+          name: qui
+        spec:
+          mover:
+            privilegedMode: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/download/qui/app
+  postBuild:
+    substitute:
+      APP: qui
+      PVC: qui-config
   prune: true
   retryInterval: 2m
   sourceRef:

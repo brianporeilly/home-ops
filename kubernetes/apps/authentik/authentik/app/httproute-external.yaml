@@ -1,0 +1,67 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# The authentik chart's own route.main (helmrelease.yaml) only supports one
+# named HTTPRoute with one hostnames/parentRefs list, unlike bjw-s
+# app-template's arbitrary-named route keys (see grocy's helmrelease.yaml
+# for that pattern: separate route.app/route.internal blocks). Kept
+# route.main internal-only and added this as a plain second HTTPRoute for
+# the external hostname instead, backed by the same authentik-server
+# Service the chart creates (name/port confirmed live via `kubectl get
+# httproute authentik-server -n authentik -o yaml`).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authentik-server-external
+  annotations:
+    # gatus-sidecar's HTTPRoute auto-discovery (firstHTTPRoutePath) skips
+    # bare "/" on purpose (isProbablePath treats root as "no explicit path"
+    # and keeps scanning) and picks the next PathPrefix it finds instead -
+    # with only these two rules that's always /if/admin, the blocked one,
+    # regardless of which rule is listed first. A prior fix here tried
+    # reordering the rules based on a wrong read of that logic (confirmed
+    # live: restarting gatus-sidecar re-derived the same wrong URL after the
+    # reorder was already in place) - this annotation bypasses the
+    # auto-derivation entirely instead, so it can't regress the same way.
+    gatus.home-operations.com/endpoint: |-
+      path: /
+spec:
+  hostnames:
+    - auth.oreillys.io
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+    # The admin UI has zero legitimate external use case (it's for actually
+    # administering the instance, not the OIDC/login surface apps depend
+    # on) - named so the BackendTrafficPolicy below
+    # (backendtrafficpolicy-admin-block.yaml) can target just this rule via
+    # sectionName.
+    - name: admin-blocked
+      matches:
+        - path:
+            type: PathPrefix
+            value: /if/admin
+      backendRefs:
+        - name: authentik-server
+          port: 80
+    # Flow executor handles every login/MFA/recovery step for both
+    # Authentik's own login and every other app's SSO redirect through this
+    # host - named so the BackendTrafficPolicy below
+    # (backendtrafficpolicy-login-ratelimit.yaml) can target just this rule
+    # via sectionName.
+    - name: login-rate-limited
+      matches:
+        - path:
+            type: PathPrefix
+            value: /api/v3/flows/executor/
+      backendRefs:
+        - name: authentik-server
+          port: 80

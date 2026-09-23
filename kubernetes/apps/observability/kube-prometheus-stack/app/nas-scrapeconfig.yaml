@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/scrapeconfig_v1alpha1.json
+# NB: verify `kubectl get crd scrapeconfigs.monitoring.coreos.com -o jsonpath='{.spec.versions[*].name}'`
+# still lists v1alpha1 for the prometheus-operator version kube-prometheus-stack
+# 88.1.5 ships - this CRD hasn't been checked against a live cluster yet.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: nas-ultan
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: monitoring
+spec:
+  staticConfigs:
+    - targets:
+        - "10.20.30.11:9100"
+      labels:
+        job: node-exporter
+        instance: nas-ultan
+    - targets:
+        - "10.20.30.11:9633"
+      labels:
+        job: smartctl-exporter
+        instance: nas-ultan
+    - targets:
+        - "10.20.30.11:9134"
+      labels:
+        job: zfs-exporter
+        instance: nas-ultan

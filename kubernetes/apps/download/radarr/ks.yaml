@@ -9,11 +9,19 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
+    - ../../../../components/authentik/protect
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: kopiur-repository
+      namespace: kopiur-system
+    # Reflector-mirror race - see lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
   healthChecks:
     - apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
@@ -21,6 +29,13 @@ spec:
       namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/download/radarr/app
+  postBuild:
+    substitute:
+      APP: radarr
+      PVC: radarr-config
+      HTTPROUTE_NAME: radarr-app
+      HOSTNAME: radarr.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
   prune: true
   retryInterval: 2m
   sourceRef:

@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
+    - ../../../../components/rgw-nas-sync
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -16,8 +19,15 @@ spec:
       namespace: rook-ceph
     - name: postgres-operator
       namespace: database
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/home/home-assistant/app
+  postBuild:
+    substitute:
+      APP: home-assistant
+      PVC: home-assistant-config
+      OBC_NAME: home-assistant-postgres-backup
   prune: true
   retryInterval: 2m
   sourceRef:

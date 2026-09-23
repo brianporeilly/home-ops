@@ -21,7 +21,28 @@ spec:
     deploymentStrategy:
       type: Recreate
     admin:
+      # Stays wired up as a break-glass fallback alongside SSO below -
+      # deliberately not removed.
       existingSecret: grafana-admin-secret
+    # grafana-oidc-secret (oidc-secret.yaml, this dir) is a Reflector pull
+    # mirror of the canonical grafana-oidc-credentials Secret ESO generates
+    # in the authentik namespace - see components/authentik/protect for the
+    # same pattern on SecurityPolicy-wrapped apps. Referenced below via
+    # grafana.ini's $__env{} interpolation rather than envRenderSecret
+    # (which bakes the value into a chart-templated Secret) - the chart's
+    # own assertNoLeakedSecrets check actively fails the render if
+    # auth.generic_oauth.client_secret is a raw value instead of that
+    # pattern. client_id isn't sensitive but is sourced the same way for
+    # consistency, since it's no longer a fixed value we control.
+    envValueFrom:
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+        secretKeyRef:
+          name: grafana-oidc-secret
+          key: client-id
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: grafana-oidc-secret
+          key: client-secret
     env:
       GF_DATE_FORMATS_USE_BROWSER_LOCALE: true
       GF_EXPLORE_ENABLED: true
@@ -38,6 +59,23 @@ spec:
         org_id: 1
         org_name: Main Org.
         org_role: Viewer
+      # client_id/client_secret both come from envValueFrom above via
+      # $__env{} - see that comment. groups claim comes from Authentik's
+      # default profile scope mapping, no custom scope needed (confirmed
+      # against authentik's own shipped
+      # blueprints/system/providers-oauth2.yaml).
+      auth.generic_oauth:
+        enabled: true
+        name: Authentik
+        client_id: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_ID}"
+        client_secret: "$__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}"
+        scopes: "openid profile email"
+        auth_url: https://auth.internal.oreillys.io/application/o/authorize/
+        token_url: https://auth.internal.oreillys.io/application/o/token/
+        api_url: https://auth.internal.oreillys.io/application/o/userinfo/
+        role_attribute_path: "contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'"
+        role_attribute_strict: false
+        allow_sign_up: true
       news:
         news_feed_enabled: false
     datasources:
@@ -161,16 +199,11 @@ spec:
           gnetId: 11169
           revision: 1
           datasource: Prometheus
-        zfs:
-          # renovate: depName="ZFS"
-          gnetId: 7845
-          revision: 4
-          datasource: Prometheus
     sidecar:
       image:
         registry: ghcr.io
         repository: home-operations/k8s-sidecar
-        tag: 2.10.1@sha256:9d9338eba4dbf0ae8151e772ef96d3806d56115acf5521d615e31694e046fe47
+        tag: 2.11.2@sha256:2e18fa6af75c94fb9aff610fba3386e7d518b0d639ecf0948aecaa071b126be0
       dashboards:
         enabled: true
         searchNamespace: ALL

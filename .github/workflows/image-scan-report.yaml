@@ -1,0 +1,126 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Image Scan Report
+
+on:
+  schedule:
+    # 06:17 UTC daily - offset from the hour to avoid the scheduled-job
+    # pile-up GitHub warns about.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  # For add-pr-comment's artifact-upload truncation mode (see the "Post
+  # scan report" step) - it falls back to a plain truncation notice
+  # without this, so not strictly required, but the downloadable full
+  # report is worth the extra scope on an internal-only scheduled job.
+  actions: write
+
+jobs:
+  report:
+    name: Scan all pinned images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          # renovate: datasource=github-releases depName=aquasecurity/trivy
+          version: v0.74.0
+          cache: true
+
+      - name: Cache Trivy DB
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+
+      - name: Scan every pinned image
+        run: |
+          mkdir -p /tmp/results
+          python3 scripts/extract-images.py $(find kubernetes/apps -name helmrelease.yaml) > /tmp/images.txt
+          echo "Scanning $(wc -l < /tmp/images.txt) images"
+
+          n=0
+          while read -r image; do
+            n=$((n + 1))
+            # One run's worth of scan results per image, named by index so
+            # slashes/colons/@ in the image ref don't need sanitizing.
+            trivy image \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --format json \
+              --output "/tmp/results/${n}.json" \
+              "$image" || echo "::warning::Trivy failed on $image, skipping"
+          done < /tmp/images.txt
+
+      - name: Build report
+        id: report
+        run: |
+          # Summary (per-image severity counts) is what gets posted as the
+          # comment; full (every CVE/package pair) is only worth reading
+          # occasionally, so it's attached as a downloadable artifact
+          # instead of dumped inline - a 60-image scan produces a wall of
+          # findings that buries the actually-actionable per-image counts.
+          python3 scripts/aggregate-scan-results.py /tmp/results > /tmp/summary.md
+          python3 scripts/aggregate-scan-results.py /tmp/results --full > /tmp/full.md
+
+          for f in summary full; do
+            {
+              echo "## Image Scan Report"
+              echo ""
+              echo "_$(date -u +'%Y-%m-%d %H:%M UTC')_"
+              echo ""
+              cat "/tmp/${f}.md"
+            } > "/tmp/${f}-report.md"
+          done
+          cat /tmp/full-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ensure tracking issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create image-scan-report --color FF6B6B --description "Scheduled HIGH/CRITICAL image vulnerability report" --force
+
+          # Issue body stays static - the report itself goes in a sticky
+          # comment below (bodies have the same 65536-char GraphQL cap the
+          # comment action already handles for us; a 60-image scan
+          # regularly blows past that as a body, but a comment can be
+          # truncated).
+          ISSUE_NUMBER=$(gh issue list --label image-scan-report --state open --json number --jq '.[0].number')
+          if [ -z "$ISSUE_NUMBER" ]; then
+            # gh issue create has no --json/--jq output mode - it just
+            # prints the created issue's URL, so pull the number off the end.
+            ISSUE_URL=$(gh issue create \
+              --title "Image Scan Report" \
+              --label image-scan-report \
+              --body "Daily Trivy scan of every pinned image in the repo. Latest results are in the comment below.")
+            ISSUE_NUMBER=${ISSUE_URL##*/}
+          fi
+          echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Post scan report
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue: ${{ steps.issue.outputs.number }}
+          message-id: image-scan-report
+          message-path: /tmp/summary-report.md
+          attach-path: /tmp/full-report.md
+          attach-name: image-scan-full-report
+          attach-text: "Full per-CVE breakdown: %ARTIFACT_URL%"
+          truncate: artifact

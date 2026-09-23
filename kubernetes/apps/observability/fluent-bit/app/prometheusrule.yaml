@@ -14,7 +14,7 @@ spec:
           for: 15m
           annotations:
             summary: >-
-              Container log shipping (kubernetes.* -> Loki) has stopped on {{ $labels.instance }}
+              Container log shipping (kubernetes.* -> Loki) has stopped on {{ $labels.node }} ({{ $labels.instance }})
           labels:
             severity: warning
 
@@ -24,7 +24,7 @@ spec:
           for: 5m
           annotations:
             summary: >-
-              fluent-bit output {{ $labels.name }} on {{ $labels.instance }} is erroring
+              fluent-bit output {{ $labels.name }} on {{ $labels.node }} ({{ $labels.instance }}) is erroring
           labels:
             severity: warning
 
@@ -34,6 +34,6 @@ spec:
           for: 5m
           annotations:
             summary: >-
-              fluent-bit output {{ $labels.name }} on {{ $labels.instance }} is dropping records
+              fluent-bit output {{ $labels.name }} on {{ $labels.node }} ({{ $labels.instance }}) is dropping records
           labels:
             severity: warning

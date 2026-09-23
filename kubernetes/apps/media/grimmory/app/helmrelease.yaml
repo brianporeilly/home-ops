@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/grimmory-tools/grimmory
-              tag: v3.2.4@sha256:87873dd5419eb99e45a0f27e13398e1aeacba9edd37dfa3276b96ce384469604
+              tag: v3.5.0@sha256:83597bf02da48a8ec4042fd4d4f58b9631f5b131d6dee7d2fcc5cf3f2eec2526
             env:
               USER_ID: "1000"
               GROUP_ID: "1000"
@@ -39,6 +39,14 @@ spec:
                     key: password
               API_DOCS_ENABLED: "false"
               DISK_TYPE: local
+              # BookLore's outbound SSRF filter (application.yaml,
+              # outbound.restricted-ranges) blocks the OIDC token
+              # exchange's own discovery-document fetch by default -
+              # auth.oreillys.io resolves to a cluster-private IP, so
+              # every login failed with FilteredHostException (confirmed
+              # live). This is the app's own documented escape hatch for
+              # exactly that.
+              OIDC_ALLOW_UNSAFE_HOSTS: "true"
             probes:
               liveness: &probes
                 enabled: true
@@ -75,6 +83,159 @@ spec:
               limits:
                 memory: 1Gi
 
+      # Grimmory (BookLore) has real, first-class OIDC support - unlike
+      # audiobookshelf/jellyfin this isn't an admin-API workaround for a
+      # missing config path, it's the app's own documented settings
+      # schema (PUT /api/v1/settings, AppSettingKey.OIDC_* - confirmed
+      # against the shipped app.jar's compiled classes, no source access
+      # needed). Idempotent - PUTting the same settings every run is a
+      # no-op after the first.
+      oidc-bootstrap:
+        type: cronjob
+        cronjob:
+          schedule: "*/15 * * * *"
+          concurrencyPolicy: Forbid
+          backoffLimit: 2
+          successfulJobsHistory: 1
+          failedJobsHistory: 3
+        pod:
+          # defaultPodOptions below runs the main app as root (0:0) for
+          # its own file-permission handling - this container needs none
+          # of that, override back to the repo's normal non-root default.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
+            command:
+              - python3
+              - -c
+              - |
+                import json, os, urllib.request
+
+                GRIMMORY_URL = "http://grimmory.media.svc.cluster.local:6060"
+                AUTH_HOSTNAME = "auth.oreillys.io"
+                SLUG = "grimmory"
+
+                def call(method, path, body=None, token=None):
+                    data = json.dumps(body).encode() if body is not None else None
+                    headers = {"Content-Type": "application/json"}
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                    req = urllib.request.Request(f"{GRIMMORY_URL}{path}", data=data, headers=headers, method=method)
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        # PUT /api/v1/settings returns 200 with an empty
+                        # body on success (confirmed live) - login returns
+                        # a real JSON body, so this can't just always parse.
+                        raw = r.read()
+                        return json.loads(raw) if raw else None
+
+                login = call("POST", "/api/v1/auth/login", {
+                    "username": os.environ["ADMIN_USERNAME"],
+                    "password": os.environ["ADMIN_PASSWORD"],
+                })
+                token = login["accessToken"]
+
+                issuer = f"https://{AUTH_HOSTNAME}/application/o/{SLUG}/"
+                settings = [
+                    {"name": "OIDC_ENABLED", "value": True},
+                    {
+                        "name": "OIDC_PROVIDER_DETAILS",
+                        "value": {
+                            "providerName": "Authentik",
+                            "clientId": os.environ["OIDC_CLIENT_ID"],
+                            "clientSecret": os.environ["OIDC_CLIENT_SECRET"],
+                            "issuerUri": issuer,
+                            "scopes": "openid profile email groups",
+                            "claimMapping": {
+                                "username": "preferred_username",
+                                "name": "name",
+                                "email": "email",
+                                "groups": "groups",
+                            },
+                        },
+                    },
+                    # OIDC_REDIRECT_URIS deliberately omitted - confirmed
+                    # live it's for mobile app deep links only (rejects
+                    # anything without a custom non-http scheme: "Redirect
+                    # URI must use a custom mobile scheme", 400). The web
+                    # flow doesn't use it at all - the frontend builds its
+                    # own redirect_uri client-side from window.location
+                    # .origin (confirmed in the shipped JS bundle), which
+                    # is what actually gets registered with Authentik (see
+                    # blueprints-native-apps.yaml).
+                    {
+                        "name": "OIDC_AUTO_PROVISION_DETAILS",
+                        "value": {
+                            "enableAutoProvisioning": True,
+                            # Links an existing local account by username
+                            # first, same as every other app here -
+                            # preserves history instead of creating a
+                            # duplicate account.
+                            "allowLocalAccountLinking": True,
+                            # No admin grant here - that's the
+                            # grimmory-admins group mapping below instead.
+                            "defaultPermissions": [],
+                            "defaultLibraryIds": [],
+                        },
+                    },
+                ]
+                call("PUT", "/api/v1/settings", settings, token=token)
+                print("OIDC settings updated")
+
+                # Idempotent create-or-update, not a blind POST -
+                # /admin/oidc-group-mappings has no upsert-by-claim
+                # behavior of its own, and this runs every 15m.
+                mappings = call("GET", "/api/v1/admin/oidc-group-mappings", token=token) or []
+                existing = next((m for m in mappings if m["oidcGroupClaim"] == "grimmory-admins"), None)
+                group_mapping = {
+                    "oidcGroupClaim": "grimmory-admins",
+                    "isAdmin": True,
+                    "permissions": [],
+                    "libraryIds": [],
+                    "description": "Authentik grimmory-admins group",
+                }
+                if existing:
+                    call("PUT", f"/api/v1/admin/oidc-group-mappings/{existing['id']}", {**group_mapping, "id": existing["id"]}, token=token)
+                else:
+                    call("POST", "/api/v1/admin/oidc-group-mappings", group_mapping, token=token)
+                print("OIDC group mapping updated")
+            env:
+              ADMIN_USERNAME:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-admin-secret
+                    key: ADMIN_USERNAME
+              ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-admin-secret
+                    key: ADMIN_PASSWORD
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-oidc-secret
+                    key: client-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+
     defaultPodOptions:
       securityContext:
         runAsNonRoot: false
@@ -94,35 +255,96 @@ spec:
     route:
       app:
         hostnames:
-          - grimmory.internal.oreillys.io
+          - books.internal.oreillys.io
         parentRefs:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      external:
+        annotations:
+          # gatus-sidecar's PathPrefix auto-discovery gotcha - see the
+          # home-assistant/jellyfin/audiobookshelf route comments for the
+          # same issue.
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - books.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        # Explicit now that there's a named sub-rule - chart's implicit
+        # catch-all is gone once rules: is set at all.
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /api/v1/auth/login
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
 
     persistence:
       tmp:
         type: emptyDir
-        globalMounts:
-          - path: /tmp
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /tmp
       data:
         suffix: data
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "10Gi"
-        globalMounts:
-          - path: /app/data
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Sparse content here is expected - the real
+        # library catalog lives in storage-grimmory-mariadb-0, untouched by
+        # this.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: grimmory
+        # advancedMounts, not globalMounts - oidc-bootstrap only calls the
+        # admin HTTP API and must not mount these RWO PVCs: they're already
+        # attached to the grimmory controller's pod, so a bootstrap pod
+        # landing on a different node would hang in ContainerCreating
+        # forever waiting for an attach that can never happen (same bug
+        # already hit and fixed for audiobookshelf).
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /app/data
+      # NAS static NFS mount - dedicated comics export subdirectory.
+      comics:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/comics
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /comics
+      # NAS static NFS mount - dedicated ebooks export subdirectory.
       books:
-        suffix: books
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "50Gi"
-        globalMounts:
-          - path: /books
+        type: nfs
+        server: 10.20.30.11
+        path: /media/books
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /books
+      # NAS static NFS mount - BookLore's own auto-detect/tag/organize ingest
+      # folder. NFS rather than a PVC so LazyLibrarian (or you, directly) can
+      # drop files in from outside grimmory's own pod - a ceph-block RWO PVC
+      # can only ever be attached to one pod at a time.
       bookdrop:
-        suffix: bookdrop
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "10Gi"
-        globalMounts:
-          - path: /bookdrop
+        type: nfs
+        server: 10.20.30.11
+        path: /media/unsorted/bookdrop
+        advancedMounts:
+          grimmory:
+            app:
+              - path: /bookdrop

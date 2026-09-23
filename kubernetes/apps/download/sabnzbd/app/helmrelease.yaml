@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: sabnzbd
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -23,7 +24,7 @@ spec:
           init-config:
             image:
               repository: docker.io/library/busybox
-              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+              tag: 1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
             command:
               - sh
               - -c
@@ -39,7 +40,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sabnzbd
-              tag: 5.0.4@sha256:24538bc1f583f9a81f49b7373878b5f7180adbf49b4bdf5641be36c9f4e0dd0e
+              tag: 5.1.3@sha256:870e1a37ab1d224f5d71a23014987e9379451a24a783dc6456503419161f92da
             env:
               SABNZBD__PORT: &port 8080
               SABNZBD__HOST_WHITELIST_ENTRIES: >-
@@ -54,7 +55,12 @@ spec:
               - secretRef:
                   name: sabnzbd-creds
             probes:
-              liveness: &probes
+              # unrar runs synchronously and can starve the web server thread
+              # for minutes on large archives; liveness needs a long grace
+              # period so kubelet doesn't SIGTERM mid-extraction (which just
+              # restarts the same extraction and loops forever). Readiness
+              # stays tighter so the Service still stops routing to it.
+              liveness:
                 enabled: true
                 custom: true
                 spec:
@@ -63,9 +69,19 @@ spec:
                     port: *port
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
-                  failureThreshold: 3
-              readiness: *probes
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
@@ -105,6 +121,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: sabnzbd
         globalMounts:
           - path: /config
       config-seed:
@@ -116,13 +138,21 @@ spec:
               - path: /seed/sabnzbd.ini
                 subPath: sabnzbd.ini
                 readOnly: true
-#      media:
-#        type: nfs
-#        server: nfs.oreillys.lan
-#        path: /hecate/media
-#        globalMounts:
-#          - path: /media/Downloads/sabnzbd
-#            subPath: Downloads/sabnzbd
+      # NAS static NFS mount - usenet downloads only (incomplete/complete
+      # share this mount so a finished download is an atomic rename, and
+      # Sonarr/Radarr can hardlink out of complete/ into the library).
+      # Mounted at the same absolute path Sonarr/Radarr see it at (via their
+      # own whole-/media mount) so no Remote Path Mapping is needed - both
+      # sides agree on the literal path string for the same files.
+      # In sabnzbd's own Folders settings, set:
+      #   Temporary Download Folder = /media/downloads/usenet/incomplete
+      #   Completed Download Folder = /media/downloads/usenet/complete
+      downloads:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/downloads/usenet
+        globalMounts:
+          - path: /media/downloads/usenet
       tmpfs:
         type: emptyDir
         advancedMounts:

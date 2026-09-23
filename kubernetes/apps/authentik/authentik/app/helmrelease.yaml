@@ -1,0 +1,386 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: authentik
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Own CNPG cluster (cluster.yaml, this dir) instead of the chart's
+    # bundled Bitnami postgresql subchart - matches every other stateful
+    # app in this repo. host/name/user are non-secret so they're set
+    # directly here; the password comes from CNPG's own auto-generated
+    # `authentik-postgres-app` Secret via global.env below (no
+    # bootstrap.initdb.secret override in cluster.yaml, so CNPG generates
+    # it - same pattern as paperless-ngx, not linkwarden's hand-rolled
+    # duplicate-password approach).
+    postgresql:
+      enabled: false
+    # Chart-native blueprint mounting (confirmed against templates/worker/deployment.yaml -
+    # only the worker mounts these, since blueprint discovery/apply is a background
+    # task, not something the request-serving server process needs). Each name here
+    # is just the ConfigMap's name - the chart handles the volume/mount itself,
+    # auto-discovered under /blueprints/mounted/cm-<name>/.
+    blueprints:
+      configMaps:
+        - authentik-blueprints-oauth-sources
+        - authentik-blueprints-groups
+        - authentik-blueprints-brute-force
+        - authentik-blueprints-mfa-required
+        - authentik-blueprints-sso-enrollment-allowlist
+        - authentik-blueprints-password-policy
+        - authentik-blueprints-notification-destinations
+        - authentik-blueprints-protected-apps
+        - authentik-blueprints-native-apps
+    authentik:
+      postgresql:
+        host: authentik-postgres-rw
+        name: authentik
+        user: authentik
+        port: 5432
+      # In-cluster no-auth relay (see maddy-smtp-relay memory) - same
+      # host:port, no username/password, as forgejo's FORGEJO__mailer__*
+      # config. Not previously configured at all (confirmed live - empty
+      # host/password, `email.host: localhost` default), so nothing sent:
+      # not password-recovery (moot now, only akadmin has a local password),
+      # not the four shipped NotificationRules (config-error/warning,
+      # update-available, exception) that already point at
+      # default-email-transport but were silently going nowhere.
+      email:
+        host: maddy.misc.svc.cluster.local
+        port: 25
+        from: authentik@oreillys.io
+        use_tls: false
+        use_ssl: false
+      # secret_key intentionally left empty here - the chart's own
+      # env-generation helper skips empty values, so AUTHENTIK_SECRET_KEY
+      # comes solely from global.env below (sourced from our sops secret)
+      # rather than being set in this plaintext values: block.
+    global:
+      env:
+        - name: AUTHENTIK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: secret_key
+        - name: AUTHENTIK_POSTGRESQL__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-postgres-app
+              key: password
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_EMAIL
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_PASSWORD
+        - name: AUTHENTIK_BOOTSTRAP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: AUTHENTIK_BOOTSTRAP_TOKEN
+        # Dedicated valkey release (../valkey), not the chart's own bundled
+        # redis - it doesn't ship one (confirmed against its values.yaml).
+        - name: AUTHENTIK_REDIS__HOST
+          value: authentik-valkey
+        - name: AUTHENTIK_REDIS__PORT
+          value: "6379"
+        # Consumed by the oauth-sources.yaml blueprint (blueprints-configmap.yaml)
+        # via !Env - keeps OAuth client secrets out of the ConfigMap itself.
+        - name: GOOGLE_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GOOGLE_OAUTH_CLIENT_ID
+        - name: GOOGLE_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GOOGLE_OAUTH_CLIENT_SECRET
+        - name: GITHUB_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GITHUB_OAUTH_CLIENT_ID
+        - name: GITHUB_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: authentik-oauth-sources-secret
+              key: GITHUB_OAUTH_CLIENT_SECRET
+        # Consumed by the provider-echo.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from echo-oidc-credentials.yaml (ExternalSecret, generated
+        # in-cluster by External Secrets Operator) instead of a git-declared
+        # sops secret - first app migrated to this pattern, see
+        # oidc-generators.yaml for the shared generators.
+        - name: ECHO_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: echo-oidc-credentials
+              key: client-id
+        - name: ECHO_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: echo-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-kopiur-ui.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from kopiur-ui-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: KOPIUR_UI_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: kopiur-ui-oidc-credentials
+              key: client-id
+        - name: KOPIUR_UI_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: kopiur-ui-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-openhands.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from openhands-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: OPENHANDS_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: openhands-oidc-credentials
+              key: client-id
+        - name: OPENHANDS_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: openhands-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-whisker.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from whisker-oidc-credentials.yaml (ExternalSecret) - see
+        # echo-oidc-credentials.yaml for the pattern rationale.
+        - name: WHISKER_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-id
+        - name: WHISKER_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-jellyfin.yaml key in blueprints-native-apps.yaml.
+        - name: JELLYFIN_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-id
+        - name: JELLYFIN_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-audiobookshelf.yaml key in blueprints-native-apps.yaml.
+        # Sourced from audiobookshelf-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-id
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-grimmory.yaml key in blueprints-native-apps.yaml.
+        - name: GRIMMORY_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
+              key: client-id
+        - name: GRIMMORY_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
+        - name: CHANGEDETECTION_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: changedetection-oidc-credentials
+              key: client-id
+        - name: CHANGEDETECTION_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: changedetection-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-sonarr.yaml key in blueprints-protected-apps.yaml.
+        - name: SONARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: sonarr-oidc-credentials
+              key: client-id
+        - name: SONARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: sonarr-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-radarr.yaml key in blueprints-protected-apps.yaml.
+        - name: RADARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: radarr-oidc-credentials
+              key: client-id
+        - name: RADARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: radarr-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-prowlarr.yaml key in blueprints-protected-apps.yaml.
+        - name: PROWLARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: prowlarr-oidc-credentials
+              key: client-id
+        - name: PROWLARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: prowlarr-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-lidarr.yaml key in blueprints-protected-apps.yaml.
+        - name: LIDARR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: lidarr-oidc-credentials
+              key: client-id
+        - name: LIDARR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: lidarr-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-grafana.yaml key in blueprints-native-apps.yaml.
+        - name: GRAFANA_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: grafana-oidc-credentials
+              key: client-id
+        - name: GRAFANA_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: grafana-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-paperless-ngx.yaml key in blueprints-native-apps.yaml.
+        - name: PAPERLESS_NGX_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: paperless-ngx-oidc-credentials
+              key: client-id
+        - name: PAPERLESS_NGX_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: paperless-ngx-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-linkwarden.yaml key in blueprints-native-apps.yaml.
+        - name: LINKWARDEN_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: linkwarden-oidc-credentials
+              key: client-id
+        - name: LINKWARDEN_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: linkwarden-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-forgejo.yaml key in blueprints-native-apps.yaml.
+        - name: FORGEJO_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-oidc-credentials
+              key: client-id
+        - name: FORGEJO_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-immich.yaml key in blueprints-native-apps.yaml.
+        - name: IMMICH_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: immich-oidc-credentials
+              key: client-id
+        - name: IMMICH_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: immich-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-navidrome.yaml key in blueprints-protected-apps.yaml.
+        - name: NAVIDROME_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: navidrome-oidc-credentials
+              key: client-id
+        - name: NAVIDROME_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: navidrome-oidc-credentials
+              key: client-secret
+    server:
+      replicas: 1
+      route:
+        main:
+          enabled: true
+          # Internal only for Phase 1 - the IdP itself doesn't need external
+          # exposure yet; some apps it protects might, in a later phase.
+          # auth.internal.oreillys.io is the short/canonical hostname - it's
+          # what every protected app's SecurityPolicy issuer now points at
+          # (components/authentik/protect/securitypolicy.yaml). The original
+          # authentik.internal.oreillys.io stays too, for direct human/
+          # bookmark access, but no longer backs any OIDC issuer URL.
+          hostnames:
+            - auth.internal.oreillys.io
+            - authentik.internal.oreillys.io
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+              sectionName: https
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+    worker:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        # blueprint-reapply-cronjob execs `ak apply_blueprint` into this
+        # pod, spawning a full second Django bootstrap on top of the
+        # resident worker process (~440-860Mi observed) - too little
+        # headroom manifests as SIGBUS (cgroup memory limit hit during an
+        # mmap page fault) rather than a clean OOM kill, confirmed live
+        # twice now: first at 1Gi with 14 blueprint files (#712), again at
+        # 1.5Gi once the mounted blueprint count grew to 26. Bumped with
+        # real margin since this count only grows as more apps get added -
+        # if it recurs, check `ls /blueprints/mounted/*/*.yaml | wc -l`
+        # against this headroom rather than just re-bumping blindly.
+        limits:
+          memory: 3Gi

@@ -9,8 +9,13 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/rgw-nas-sync
   interval: 1h
   path: ./kubernetes/apps/kube-system/etcd-backup/app
+  postBuild:
+    substitute:
+      OBC_NAME: etcd-backup
   prune: true
   retryInterval: 2m
   sourceRef:

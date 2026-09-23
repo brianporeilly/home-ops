@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: tuwunel
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/matrix-construct/tuwunel
-              tag: v1.8.3@sha256:699fa9971c174e01c884abad8d1a3cfb2fe518e1a71f1fa16ea9dedf11873d74
+              tag: v1.9.2@sha256:a354976db35cb6e3f8c0b801f266592571af898554d78fc6e2137f14e02a7d3e
             env:
               TUWUNEL_SERVER_NAME: oreillys.io
               TUWUNEL_ADDRESS: "0.0.0.0"

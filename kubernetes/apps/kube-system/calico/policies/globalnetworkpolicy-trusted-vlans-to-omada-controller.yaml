@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Same shape as allow-trusted-vlans-to-akvorado: LAN gear talking directly to
+# a LoadBalancer-exposed port, bypassing Envoy entirely. Omada-controller's
+# `controller` Service (kube-vip 10.21.0.3) is the AP inform/adopt endpoint -
+# EAPs hit it directly on the ports below, not through envoy-internal. Missed
+# when the default-deny baseline went enforcing (2026-08-23); found because a
+# factory-reset AP (10.20.0.3) imported into the controller but stayed stuck
+# at "Pending (Preconfigured)" - adoption traffic to these ports was being
+# dropped with no explicit allow.
+#
+# Scoped to 10.10.0.0/16 and 10.20.0.0/16, matching allow-trusted-vlans-to-akvorado's
+# rationale: 10.20.0.0/16 is the servers VLAN, 10.10.0.0/16 is where the
+# switch/AP management plane lives.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-trusted-vlans-to-omada-controller
+spec:
+  selector: app.kubernetes.io/name == 'omada-controller'
+  namespaceSelector: kubernetes.io/metadata.name == 'network'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+      destination:
+        ports: [8088, 8043, 8843, 29811, 29812, 29813, 29814, 29815, 29816, 29817, 27002, 27017, 27217]
+    - action: Allow
+      protocol: UDP
+      source:
+        nets:
+          - 10.10.0.0/16
+          - 10.20.0.0/16
+      destination:
+        ports: [29810, 27001]

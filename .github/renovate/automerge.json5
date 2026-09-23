@@ -1,0 +1,35 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Extracted out of the top-level packageRules array and extended as a
+  // local preset instead, positioned last in renovate.json's `extends`.
+  //
+  // Why: confirmed via a live Renovate debug log (Repository config dump)
+  // that this exact rule loads correctly - right manager (flux), right
+  // updateType (patch), right automerge:true - yet PRs matching it still
+  // showed "Automerge: Disabled by config". Traced to a known, maintainer-
+  // acknowledged Renovate bug (renovatebot/renovate#31182): packageRules
+  // pulled in via `extends` can end up merged AFTER the repo's own local
+  // packageRules array, reversing the documented "local overrides presets"
+  // precedence and "last matching rule wins" semantics - so something deep
+  // in the home-operations/renovate-presets -> config:recommended chain
+  // was silently winning over our local rule regardless of array position.
+  //
+  // Workaround: since the bug makes stuff pulled in LATER via `extends`
+  // win, put our rule in the extends chain too, last, so it wins by the
+  // same (buggy) mechanics instead of fighting them.
+  packageRules: [
+    {
+      description: "Auto-merge patch updates for non-critical dependencies. matchManagers covers four managers: 'helm-values' is the one that actually matches the vast majority of this repo's PRs - bjw-s app-template's `values.controllers.*.containers.*.image.{repository,tag}` fields (confirmed missing live: PR #516, a plain searxng patch bump, showed 'Automerge: Disabled by config' with this manager absent from the list - every recent patch/fix container-image PR had to be merged by hand for the same reason). 'flux' covers Flux-native resources (HelmRelease chartRef, OCIRepository, Kustomization). 'regex' covers the customManagers (our kubeconform CI-version manager and the cnpg.json5 preset's CNPG imageName/extension manager are customType:regex). 'kubernetes' does its own generic line-scan for `image:` fields in any file that looks like a k8s manifest (apiVersion+kind present) - it's what catches images embedded in raw CRDs neither flux nor helm-values parse (e.g. the ClickHouseInstallation CR, PR #421). Without all four, matching deps get detected but never auto-merged, unlike everything else at this update level.",
+      matchUpdateTypes: ["patch", "pin", "digest"],
+      matchManagers: ["flux", "helm-values", "regex", "kubernetes"],
+      automerge: true,
+      // Branch protection on main requires a PR - branch-mode automerge (the
+      // upstream preset's default) tries a direct push, which that rule
+      // blocks outright. "pr" opens a real PR instead, so `pull_request`
+      // triggers CI normally and GitHub's native PR automerge (confirmed
+      // already enabling itself on manually-opened PRs) does the merge once
+      // required checks pass.
+      automergeType: "pr",
+    },
+  ],
+}

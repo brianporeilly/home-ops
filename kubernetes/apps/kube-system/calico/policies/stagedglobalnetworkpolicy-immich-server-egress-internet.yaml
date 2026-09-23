@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31).
+#
+# immich-server makes outbound tcp/443 calls (reverse-geocoding/metadata
+# lookups) - scoped to the server controller specifically, not all of
+# `immich`: immich-ml and immich-valkey showed no such need in the data.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-immich-server-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/controller == 'server' && app.kubernetes.io/instance == 'immich'
+  namespaceSelector: kubernetes.io/metadata.name == 'immich'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

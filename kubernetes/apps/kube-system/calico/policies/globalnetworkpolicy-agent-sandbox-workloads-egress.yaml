@@ -1,0 +1,57 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Enforcing from day one - see globalnetworkpolicy-agent-sandbox-controller-egress.yaml
+# for the full rationale (new namespace, no legacy traffic, deliberately
+# ahead of the fleet-wide staged rollout).
+#
+# Selector matches the label set explicitly in podTemplate.metadata.labels
+# of kubernetes/apps/agent-sandbox/agent-sandbox/workloads/sandboxtemplate-coding-agent.yaml
+# (chosen deliberately so this policy has a stable target regardless of
+# whatever labels the agent-sandbox controller itself stamps on spawned
+# pods). DNS + HTTPS-to-the-internet only - no rule here reaches rook-ceph,
+# any other app namespace, or the rest of the internal service graph. If a
+# future task needs the apiserver (e.g. running kubectl from inside a
+# sandbox), that's a deliberate, separate addition - not implied by this.
+#
+# Unlike the fleet's existing staged internet-egress rules (e.g.
+# allow-navidrome-egress-internet.yaml), which allow a bare 0.0.0.0/0 - that
+# CIDR also covers this cluster's own private ranges, so an unqualified
+# version would defeat the whole point of isolating agent workloads from
+# rook-ceph/other namespaces. The explicit Deny below closes that gap:
+# Calico evaluates egress rules in order, first match wins, so RFC1918
+# destinations hit Deny before ever reaching the final Allow.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-agent-sandbox-workloads-egress
+spec:
+  selector: app.kubernetes.io/name == 'agent-sandbox-workload'
+  namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Deny
+      protocol: TCP
+      destination:
+        nets:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: esphome
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/esphome/esphome
-              tag: 2026.7.4@sha256:40362a75781229a363ed4a09ef5812cff7217022fbf8b46e8ec7ecd639fc6a7c
+              tag: 2026.9.0@sha256:a7b3e24b3c21e7c59c8ad379276e817bd5123e807803f38dc2f09857dad80fdf
             env:
               PLATFORMIO_CORE_DIR: /config/.platformio
               ESPHOME_DASHBOARD_USE_PING: "true"
@@ -91,6 +92,15 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator: only takes effect when this PVC is first
+        # created (a fresh deploy or a rebuilt cluster) - silently ignored
+        # on an already-bound PVC, so this is a no-op today. Populated from
+        # kopiur's Restore CR (components/kopiur/backup), which resolves
+        # the latest snapshot via this app's own SnapshotPolicy identity.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: esphome
         globalMounts:
           - path: /config
       tmp:

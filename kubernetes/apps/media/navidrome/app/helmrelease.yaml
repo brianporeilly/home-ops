@@ -1,0 +1,303 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: navidrome
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: navidrome
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      navidrome:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/navidrome/navidrome
+              tag: 0.64.1@sha256:8fd1493497384585e8cdf80a61d14281129088a8bd3523be83686b6e527cbc61
+            env:
+              ND_MUSICFOLDER: /music
+              ND_DATAFOLDER: /data
+              # lastfm before deezer, reversing navidrome's default order -
+              # see the comment further down by ND_LASTFM_APIKEY for why.
+              ND_AGENTS: lastfm,deezer,listenbrainz
+              # Trusts the Remote-User header the shared authentik/protect
+              # component injects (components/authentik/protect/securitypolicy.yaml)
+              # after verifying the caller's Authentik-issued JWT - lets
+              # anyone who passes the Authentik gate auto-provision/log
+              # into a matching navidrome account by email, no separate
+              # navidrome-side account creation needed. Only ever applies
+              # to the navidrome-app route (the /rest Subsonic API route
+              # in this same file is deliberately NOT behind this gate -
+              # Symfonium etc. keep using navidrome's own local-account
+              # Subsonic auth there instead).
+              ND_EXTAUTH_USERHEADER: Remote-User
+              # Not the pod CIDR (10.246.0.0/16) alone - confirmed live
+              # (debug logs + Envoy access logs cross-referenced by
+              # timestamp/request path) that traffic reaching this
+              # container, including Envoy-proxied browser requests, shows
+              # up with a *node* address, not a pod address - specifically
+              # one node's second NIC (`eno1`, distinct from the
+              # Kubernetes-registered `enp1s0f0`/InternalIP), not the
+              # node's InternalIP either. Since navidrome's pod can be
+              # scheduled onto any node, and other nodes may have their own
+              # secondary-NIC addresses on this or other 10.20.x.x
+              # subnets, trusting the whole 10.20.0.0/16 physical/VLAN
+              # range is the only reliable option here - the pod CIDR is
+              # kept too in case routing ever does show a real pod IP.
+              # Comma-separated list, confirmed via navidrome's own docs.
+              #
+              # This CIDR is broad and not a tight scope on its own -
+              # Calico doesn't give a narrower stable CIDR to pin to either
+              # (single flat pod-IP pool, confirmed via `kubectl get
+              # ippool`). The real restriction on who can reach this
+              # container at all is the cluster-wide Calico
+              # GlobalNetworkPolicy (allow-network-ingress +
+              # allow-same-namespace) - namespace-scoped to `media` and
+              # `network` today, not narrowed to Envoy specifically yet.
+              # This CIDR is defense-in-depth on top of that, not the
+              # primary control - don't rely on it alone.
+              ND_EXTAUTH_TRUSTEDSOURCES: 10.20.0.0/16,10.246.0.0/16
+              # Without this, navidrome hides its own Logout button
+              # entirely while ExtAuth is active (by design - logging out
+              # of navidrome alone would do nothing useful, since the very
+              # next request would just get silently re-authenticated via
+              # the still-valid Remote-User header). Pointed at navidrome's
+              # own /logout path, not Authentik's raw end-session endpoint
+              # directly - that path is what the protect-external
+              # SecurityPolicy's own logoutPath is wired to
+              # (components/authentik/protect-external/securitypolicy.yaml),
+              # so Envoy intercepts it, clears its own OIDC session
+              # cookies, and redirects on to Authentik's end-session
+              # endpoint in one shot. Pinned to the EXTERNAL hostname, not
+              # internal - external is this user's actual primary route
+              # (confirmed live), and by definition it's reachable from
+              # wherever they're currently connecting since that's what
+              # they used to get here in the first place, unlike internal
+              # which is guaranteed unreachable off-LAN. Not verified
+              # whether internal-route users get a working redirect back
+              # from this external URL (depends on LAN client DNS/router
+              # behavior we haven't checked, unlike in-cluster resolution
+              # which we did confirm elsewhere) - revisit if that's
+              # actually hit and broken.
+              ND_EXTAUTH_LOGOUTURL: https://music.oreillys.io/logout
+              # lastfm is already in navidrome's default ND_AGENTS list
+              # (deezer,lastfm,listenbrainz). Fixes two things: artists with
+              # no local folder image (nothing to show at all before this)
+              # get one fetched, and the Subsonic API's getArtistInfo2 -
+              # what Symfonium and other real clients call, confirmed via
+              # navidrome's own docs to require an external agent -
+              # actually returns image/bio data instead of coming back
+              # empty even for artists that DO have a local image the
+              # native web UI can already show another way.
+              #
+              # ND_AGENTS now set explicitly (2026-09-03) to put lastfm
+              # before deezer, reversing the default order - found live
+              # that David Bowie/Nine Inch Nails had no real image despite
+              # this config: Deezer's API returns a picture URL with an
+              # empty image id even when it has no real photo for an
+              # artist (.../images/artist/d41d8cd98f00b204e9800998ecf8427e/...
+              # - that hash is literally md5("")), which serves a generic
+              # gray silhouette, and navidrome accepts any URL Deezer
+              # returns as a successful result without checking whether
+              # it's a real photo or Deezer's placeholder - confirmed
+              # directly in navidrome.db, both artists had exactly that
+              # degenerate URL stored. Since deezer is tried first by
+              # default, its blank placeholder wins and lastfm's (real)
+              # image is never tried. This is a known upstream bug -
+              # navidrome's own creator (deluan) wrote the real fix
+              # (detect and reject provider placeholder images before
+              # accepting them), but it was closed without merging
+              # (navidrome/navidrome#5837), absorbed into a larger
+              # artwork-pipeline redesign that itself got closed without
+              # landing. No released fix exists, so trying lastfm first is
+              # the practical workaround: it already filters its own
+              # placeholder (the gray star) on fresh lookups, so it either
+              # returns a real image or nothing - never Deezer's silhouette.
+            envFrom:
+              - secretRef:
+                  name: navidrome-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 4533
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 1Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: navidrome
+        ports:
+          http:
+            port: 4533
+
+    route:
+      app:
+        hostnames:
+          - music.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+      # Unauthenticated (at the Gateway level) path for direct Subsonic API
+      # clients (Symfonium etc.) that can't complete an OIDC redirect -
+      # Gateway API's cross-route precedence (longest path match wins)
+      # sends /rest traffic here instead of through the
+      # SecurityPolicy-protected app route above. Adding this second route
+      # key renames that one from `navidrome` to `navidrome-app` (see
+      # ks.yaml's HTTPROUTE_NAME) - same pattern as sonarr, see
+      # download/sonarr/app/helmrelease.yaml for the fuller rationale.
+      # Still gated by navidrome's own per-request Subsonic auth (username
+      # + salted token) - not a net new exposure versus the pre-SSO
+      # baseline, and this route is internal-only today anyway.
+      #
+      # /share is also carved out here, not just /rest - confirmed live
+      # (2026-09-01) that navidrome serves artist images (getArtistInfo2's
+      # image URLs, unlike album art which stays on /rest/getCoverArt) via
+      # a separate /share/img/<signed-jwt> path. That JWT is
+      # self-authenticating (same idea as Subsonic's own signed auth
+      # params), so exempting it from the SSO gate doesn't open anything
+      # up - but without this, Symfonium (or any non-browser client) got a
+      # silent 302 to Authentik's login page instead of the image, with no
+      # visible error anywhere - it just showed the default placeholder
+      # forever.
+      api:
+        annotations:
+          # No 401-expecting UI check for this one - not meaningful to
+          # monitor and Gatus would otherwise flag it as always-down.
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - music.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /rest
+              - path:
+                  type: PathPrefix
+                  value: /share
+            backendRefs:
+              - identifier: app
+                port: *port
+      # External twin of app - gated by components/authentik/protect-external
+      # (ks.yaml). Pinning the gatus check path explicitly, matching every
+      # other external route in this repo - see jellyfin/audiobookshelf
+      # route comments for the PathPrefix auto-discovery gotcha this
+      # avoids.
+      external:
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - music.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+      # External twin of api - same /rest carve-out, now genuinely
+      # internet-facing (not just LAN), so rate-limited via
+      # backendtrafficpolicy-login-ratelimit.yaml the same way the
+      # existing external-only apps protect their auth-adjacent paths.
+      # Still gated only by navidrome's own Subsonic auth, same as the
+      # internal api route - no Authentik brute-force protection sits in
+      # front of this path by design (Symfonium can't do OIDC).
+      external-api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - music.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          # /share carved out alongside /rest - see the internal api
+          # route's comment above for why (artist images route through
+          # /share/img/<signed-jwt>, not /rest/getCoverArt).
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /rest
+              - path:
+                  type: PathPrefix
+                  value: /share
+            backendRefs:
+              - identifier: app
+                port: *port
+
+    persistence:
+      data:
+        suffix: data
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Re-added (was dropped in #815 during
+        # the stuck-populator incident): root cause was the shared
+        # restore.yaml component's mover.inheritSecurityContextFrom.snapshot
+        # setting, which needs a real prior snapshot to resolve - fixed at
+        # the component level, see kubernetes/components/kopiur/backup/restore.yaml.
+        # dataSourceRef only fires at PVC creation, so re-adding it here has
+        # no effect on this already-bound PVC until a future recreation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: navidrome
+        globalMounts:
+          - path: /data
+      # NAS static NFS mount, dedicated music subdirectory - navidrome only
+      # scans, never writes here.
+      music:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/music
+        globalMounts:
+          - path: /music
+            readOnly: true
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

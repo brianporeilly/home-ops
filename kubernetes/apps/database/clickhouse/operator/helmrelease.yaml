@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: altinity-clickhouse-operator
-      version: 0.27.2
+      version: 0.27.3
       sourceRef:
         kind: HelmRepository
         name: altinity
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

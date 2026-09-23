@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: lidarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/lidarr
-              tag: 3.1.3.4987@sha256:7ad5061bcf71c7b07e6096a65586ea195b7afc87efe06d8f1d202816514fe144
+              tag: 3.1.6.5078@sha256:544631ec29f6ff21887135ea084a602d5ca3f2206b096b04fa0f14c77159da18
             env:
               LIDARR__APP__INSTANCENAME: Lidarr
               LIDARR__APP__THEME: dark
@@ -85,6 +86,28 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # See sonarr/app/helmrelease.yaml for the full rationale - same
+      # pattern, unauthenticated-at-the-Gateway /api path for direct API
+      # clients, still gated by Lidarr's own API key. Adding this second
+      # route key renames the one above from `lidarr` to `lidarr-app`
+      # (see ks.yaml's HTTPROUTE_NAME).
+      api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - lidarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
 
     persistence:
       config:
@@ -92,8 +115,24 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: lidarr
         globalMounts:
           - path: /config
+      # NAS static NFS mount - whole export. Needed (not just /media/music)
+      # so hardlink-import from downloads/complete/ into music/ works:
+      # hardlinks only work within a single mount, so both sides must be
+      # visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmpfs:
         type: emptyDir
         advancedMounts:

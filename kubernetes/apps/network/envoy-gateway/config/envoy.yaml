@@ -14,7 +14,7 @@ spec:
       envoyDeployment:
         replicas: 2
         container:
-          image: mirror.gcr.io/envoyproxy/envoy:v1.35.3
+          image: mirror.gcr.io/envoyproxy/envoy:v1.39.1
           resources:
             requests:
               cpu: 100m
@@ -44,6 +44,17 @@ spec:
               bytes_sent: "%BYTES_SENT%"
               duration_ms: "%DURATION%"
               upstream_host: "%UPSTREAM_HOST%"
+              # The real client IP. externalTrafficPolicy: Local (above) only
+              # fixes the in-cluster kube-proxy SNAT hop - OPNsense sits in
+              # front of envoy-external and NATs internet-sourced
+              # connections separately, replacing the real client with its
+              # own transit address. OPNsense already sets X-Forwarded-For to
+              # the real client (single entry) before forwarding, so the
+              # envoy-external ClientTrafficPolicy's
+              # clientIPDetection.xForwardedFor.numTrustedHops: 1 (below)
+              # makes DOWNSTREAM_REMOTE_ADDRESS resolve through that one
+              # trusted hop correctly, instead of showing OPNsense itself.
+              client_ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
               x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
               user_agent: "%REQ(USER-AGENT)%"
               request_id: "%REQ(X-REQUEST-ID)%"
@@ -81,7 +92,12 @@ spec:
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: *hostname
-      kube-vip.io/loadbalancerIPs: "10.20.250.1"
+      # Was 10.20.250.1 - migrated to the routed 10.21.0.0/16 pool (see
+      # kube-vip-cloud-provider HelmRelease). external-dns keeps
+      # external.oreillys.io pointed at whatever this resolves to, but if
+      # OPNsense has a WAN port-forward pinned to the old literal IP rather
+      # than the hostname, that needs updating before this merges.
+      kube-vip.io/loadbalancerIPs: "10.21.0.1"
   listeners:
     - name: http
       protocol: HTTP
@@ -115,7 +131,10 @@ spec:
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: *hostname
-      kube-vip.io/loadbalancerIPs: "10.20.250.2"
+      # Was 10.20.250.2 - migrated to the routed 10.21.0.0/16 pool (see
+      # kube-vip-cloud-provider HelmRelease). LAN-only + external-dns-managed
+      # (internal.oreillys.io), lower risk than envoy-external.
+      kube-vip.io/loadbalancerIPs: "10.21.0.2"
   listeners:
     - name: http
       protocol: HTTP
@@ -133,6 +152,19 @@ spec:
         certificateRefs:
           - kind: Secret
             name: oreillys.io-tls
+    # Raw TCP, no SNI/Host header to route on - TCPRoute only matches by
+    # listener (port), not hostname. Fine here since there's only one raw-TCP
+    # backend (forgejo SSH clone); a second one would need its own port. The
+    # TCPRoute itself lives with forgejo (misc/tcproute.yaml), not here - this
+    # Kustomization has targetNamespace: network, which would silently force
+    # a TCPRoute defined here into namespace network and break its
+    # same-namespace backendRef to the forgejo-ssh Service in misc.
+    - name: ssh
+      protocol: TCP
+      port: 22
+      allowedRoutes:
+        namespaces:
+          from: All
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -149,6 +181,80 @@ spec:
   timeout:
     http:
       requestTimeout: 10m
+  # Styled error pages (tarampampam/error-pages, kubernetes/apps/network/error-pages)
+  # via responseOverride/redirect are DISABLED as of 2026-09-22, cluster-wide,
+  # for every status code - not just excluding the ones we've caught being
+  # broken by it one at a time. The underlying defect (a known Envoy Gateway
+  # bug: the client-visible status is always reported as 302 for anything
+  # responseOverride redirects to error-pages, regardless of the real code)
+  # applies to every code routed through this mechanism, including the ones
+  # still configured below (429/500/502/503/504) - we just hadn't hit an app
+  # that cared about distinguishing those yet. 400/401 broke Whisker's OIDC
+  # error display, 403 broke tube-archivist's login, 404 broke OpenHands's
+  # Settings screen - three different apps, one bug, found one code at a
+  # time. Re-enable once the upstream bug is fixed (or confirmed
+  # not-a-bug) and reported - no tracking issue filed yet.
+  #
+  # Kept as a comment, not deleted outright: this is a real, wanted feature
+  # (styled pages instead of Envoy's blank-body errors) disabled pending an
+  # external fix, not dead config.
+  #
+  # responseOverride:
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 429
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /429
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 500
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /500
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 502
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /502
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 503
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /503
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 504
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -164,6 +270,11 @@ spec:
   # Listener-level (sectionName) policies fully replace, rather than merge
   # with, the Gateway-level "envoy" policy below for that listener - so
   # compression/timeout are repeated here to avoid losing them on https.
+  # Same reason responseOverride (styled error pages) is repeated below too -
+  # without it, external traffic would silently keep Envoy's blank-body
+  # errors while internal traffic got the styled ones - now moot, disabled
+  # here too. See the "envoy" policy's comment above for the full rationale
+  # (cluster-wide, all codes, pending an upstream Envoy Gateway bug report).
   compression:
     - type: Brotli
     - type: Gzip
@@ -177,6 +288,62 @@ spec:
         - limit:
             requests: 100
             unit: Second
+  # responseOverride:
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 429
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /429
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 500
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /500
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 502
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /502
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 503
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /503
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 504
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -185,9 +352,19 @@ metadata:
   name: envoy
 spec:
   # http3: {}
-  targetSelectors:
+  # Narrowed from a broad targetSelectors (all Gateways) to envoy-internal
+  # only - Envoy Gateway resolves multiple ClientTrafficPolicies targeting
+  # the same Gateway by creation time (oldest wins, others fully rejected
+  # with status Conflicted), NOT by targetRefs-vs-targetSelectors
+  # specificity as might be assumed. The envoy-external ClientTrafficPolicy
+  # below needs sole ownership of that Gateway for its
+  # clientIPDetection.xForwardedFor.numTrustedHops to actually apply - it's
+  # silently rejected while this policy is still broad enough to cover
+  # both Gateways.
+  targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
+      name: envoy-internal
   tls:
     minVersion: "1.2"
     alpnProtocols:
@@ -200,10 +377,82 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+      # frame-ancestors replaces X-Frame-Options (the modern, more
+      # flexible CSP directive - same "who can frame this" job, but a
+      # value list instead of DENY/SAMEORIGIN/single-origin). addIfAbsent,
+      # not set: Jellyfin's LG webOS app needs a looser value
+      # ('self' file:) than every other app - well-documented upstream
+      # issue, jellyfin.org's own nginx/Traefik guides call it out. Its
+      # own HTTPRoute (route.app.rules[].filters, helmrelease.yaml) sets
+      # Content-Security-Policy itself; addIfAbsent backs off for any app
+      # that already has the header by the time this late-stage check
+      # runs (confirmed via Envoy Gateway's HTTPHeaderFilter source -
+      # AddIfAbsent is "a no-op if the header is already present"),
+      # unlike set here which would win regardless and stomp jellyfin's
+      # own value (confirmed via the same source + docs: lateResponseHeaders
+      # runs after route-level filters and normally overwrites them).
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: envoy-external
+spec:
+  # Needs sole ownership of this Gateway (see the "envoy" policy above,
+  # narrowed to envoy-internal only for this exact reason) - Envoy Gateway
+  # doesn't merge multiple ClientTrafficPolicies targeting the same
+  # Gateway, so tls/headers are repeated here rather than relying on the
+  # broader policy (same reason envoy-external-ratelimit repeats
+  # compression/timeout above).
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-external
+  tls:
+    minVersion: "1.2"
+    alpnProtocols:
+      - h2
+      - http/1.1
+  headers:
+    lateResponseHeaders:
+      set:
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: Referrer-Policy
+          value: strict-origin-when-cross-origin
+      # See the matching comment on the "envoy" (envoy-internal) policy
+      # above - same frame-ancestors-replaces-X-Frame-Options reasoning.
+      # Jellyfin's external route (media.oreillys.io) overrides this the
+      # same way its internal route does.
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
+  # Deliberately NOT on the shared "envoy" policy above - envoy-internal is
+  # direct LAN traffic with no NAT/proxy hop in front of it, so trusting an
+  # XFF hop there would let any LAN client spoof its own source IP.
+  # envoy-external sits behind exactly one trusted hop (OPNsense, which NATs
+  # internet traffic and already sets X-Forwarded-For to the real client).
+  #
+  # trustedCIDRs, not numTrustedHops: Envoy Gateway v1.8.3 silently drops
+  # numTrustedHops - it never makes it into the XffConfig proto at all
+  # (confirmed via the rendered config at admin :19000/config_dump), so
+  # client_ip stayed OPNsense's own address no matter what. trustedCIDRs
+  # pinned to OPNsense's actual transit address renders correctly and is
+  # arguably the better fit anyway: it explicitly trusts the one known
+  # proxy IP rather than a generic hop-count, and correctly falls back to
+  # the raw peer address (rejecting any injected XFF) for traffic that
+  # didn't actually come from OPNsense.
+  clientIPDetection:
+    xForwardedFor:
+      trustedCIDRs:
+        - 10.2.0.1/32
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1

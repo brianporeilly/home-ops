@@ -9,6 +9,44 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
+    - ../../../../components/rgw-nas-sync
+  # linkwarden's root UID only comes from its image's own USER line, not a
+  # pinned pod/container securityContext - invisible to the component's
+  # inheritSecurityContextFrom.pvcConsumer, so it needs an explicit override.
+  # misc namespace carries the privileged-movers opt-in for this. DAC_OVERRIDE:
+  # see the equivalent comment in download/qui/ks.yaml.
+  patches:
+    - target:
+        kind: SnapshotPolicy
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: SnapshotPolicy
+        metadata:
+          name: linkwarden
+        spec:
+          mover:
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+              runAsNonRoot: false
+              capabilities:
+                add:
+                  - DAC_OVERRIDE
+    # Restoring needs mover.privilegedMode: true too, for the same reason
+    # as the backup-side override above (CAP_CHOWN to reproduce root:root
+    # ownership) - see the equivalent comment in home/esphome/ks.yaml.
+    - target:
+        kind: Restore
+      patch: |
+        apiVersion: kopiur.home-operations.com/v1alpha1
+        kind: Restore
+        metadata:
+          name: linkwarden
+        spec:
+          mover:
+            privilegedMode: true
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
@@ -16,8 +54,15 @@ spec:
       namespace: rook-ceph
     - name: postgres-operator
       namespace: database
+    - name: kopiur-repository
+      namespace: kopiur-system
   interval: 1h
   path: ./kubernetes/apps/misc/linkwarden/app
+  postBuild:
+    substitute:
+      APP: linkwarden
+      PVC: linkwarden-data
+      OBC_NAME: linkwarden-postgres-backup
   prune: true
   retryInterval: 2m
   sourceRef:

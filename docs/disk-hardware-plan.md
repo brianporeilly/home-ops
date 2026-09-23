@@ -1,12 +1,20 @@
 # Disk / Storage Hardware Plan
 
-Status: **in progress** (updated 2026-07-30). Source inventory: `disk-inventory` (root of repo).
+Status: **in progress** (updated 2026-08-15). Source inventory: `disk-inventory` (root of repo).
 
-**Done:** 5 OSDs deployed and auto-classed (3× HDD, 2× SSD); Ceph split into device-class
-tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block` (see `ceph-device-class-tiering` memory);
-CephObjectStore/RGW being added as the backup S3 target (`backup-dr-plan.md`).
-**Pending:** WD Blue 3rd SSD OSD (→ bump SSD pool size 2→3), block.db SSDs (roche/eata), etcd
-S3610 PLP swap, `wk-eata` 10GbE NIC, NAS build. Backups (`backup-dr-plan.md`) not yet implemented.
+**Done:** 6 OSDs deployed and auto-classed (3× HDD, 3× SSD); WD Blue landed on `wk-drotte` as
+the 3rd SSD OSD, so `ceph-blockpool-ssd` is back to `size: 3` (no longer running degraded at
+`size: 2`); Ceph split into device-class tiers — DBs on `ceph-block-ssd`, bulk on `ceph-block`
+(see `ceph-device-class-tiering` memory); CephObjectStore/RGW being added as the backup S3
+target (`backup-dr-plan.md`). **etcd S3610 PLP swap done (2026-08-15)** — all 3 CP nodes
+(`cp-gurloes`/`cp-malrubius`/`cp-palaemon`) rebuilt one-at-a-time onto Intel DC S3610 200GB via
+kubeadm etcd-member replacement (drain → remove etcd member → swap disk → reprovision → rejoin);
+freed the 3 interim disks (Patriot P210 128GB, Intel 520 240GB, Samsung 870 EVO 500GB) for the
+§2 block.db cascade.
+**Pending:** block.db SSDs (roche/eata), `wk-eata` 10GbE NIC.
+**NAS build is done** — `nas-ultan` has been re-laid to the §1 plan (3 mirror vdevs + cold
+spare) and is live, serving NFS to the cluster (confirmed 2026-08-11; see `migration-inventory.md`).
+Backups (`backup-dr-plan.md`) not yet implemented.
 
 Goal: assign every usable disk to a role during the cluster + NAS rebuild, fix the
 known pain (etcd fsync latency, Ceph HDD slow-ops), and keep spend near-zero given
@@ -27,6 +35,9 @@ current HDD prices. See related: `etcd-slow-commits-patriot-ssd`, `ceph-hdd-slow
 ---
 
 ## 1. NAS node (`nas-ultan`) — ZFS, bulk data, primary copy
+
+**Status: done (confirmed 2026-08-11)** — disks re-laid to this plan, pool live, serving NFS
+to the cluster at `10.20.30.11`. Layout below is as-built, not aspirational.
 
 **Pool: 3 × mirror vdevs = ~18 TB usable.** Mirrors (NOT RAIDZ) are the correct SMR
 mitigation — mirror resilver is sequential, which DM-SMR tolerates; RAIDZ resilver is
@@ -67,13 +78,13 @@ assign as you rack them.
 | hostname | was | RAM | OS disk | Ceph OSDs |
 |----------|-----|-----|---------|-----------|
 | `wk-severian` | cp-01 | 32G, 2-bay | Patriot P210 128GB | **SSD** — 850 EVO 1TB (**placed**) |
-| `wk-drotte`   | cp-02 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** HGST 2TB (placed) **+ SSD** WD Blue (pending); HGST block.db **colocated** |
+| `wk-drotte`   | cp-02 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** HGST 2TB (placed) **+ SSD** WD Blue (**placed**); HGST block.db **colocated** |
 | `wk-roche`    | cp-03 | 32G, 3+ conn | SanDisk X400 128GB | **HDD** WD20EARX 2TB (placed) **+ block.db SSD** (spare conn) |
 | `wk-eata`     | wk-03 | 32G, 3+ conn | Patriot P210 128GB | **HDD** WD20EARX 2TB (placed) **+ block.db SSD** (spare conn) |
 | `wk-jonas`    | wk-01 | 16G (MFF, M.2)  | Patriot P210 128GB | **SSD** SN770M NVMe (placed) |
 
-*Current physical state above.* Required moves are **done** (HGST → drotte, 1× EARX → eata).
-SSD-reclaim from desktop (850) / NAS (WD Blue) not yet pulled.
+*Current physical state above.* Required moves are **done** (HGST → drotte, 1× EARX → eata,
+WD Blue → drotte).
 
 > **Bay constraint (resolved):** these ex-CP boxes are tight but each has **≥1 spare data
 > connector** beyond OS + one OSD. Final placement:
@@ -85,29 +96,20 @@ SSD-reclaim from desktop (850) / NAS (WD Blue) not yet pulled.
 > Net: tiers overlap only on drotte; block.db-on-SSD lands on the EARX drives (where it matters),
 > HGST runs colocated.
 
-### SSD OSD tier — 3 OSDs, **no buy needed**
+### SSD OSD tier — 3 OSDs, **complete**
 | drive | host | status |
 |-------|------|--------|
 | WD_BLACK SN770M 1TB NVMe | `wk-jonas` (MFF, only NVMe-capable worker) | **placed** |
 | Samsung 850 EVO 1TB (SATA) | `wk-severian` | **placed** |
-| WD Blue 1TB SATA SSD (WDBNCE0010P) | `wk-drotte` (3rd connector, alongside HGST) | **blocked** — still live (see below) |
+| WD Blue 1TB SATA SSD (WDBNCE0010P) | `wk-drotte` (3rd connector, alongside HGST) | **placed** |
 
 3 SSD hosts = `jonas` + `severian` + `drotte`. SN770M is NVMe → jonas only; the two SATA SSDs
 (850, WD Blue) go on the SATA-only workers. Because drotte spends its 3rd connector on the SSD
 OSD, its HGST runs block.db colocated (fine — healthiest drive; see block.db below).
 
-**WD Blue reclaim (last SSD-tier piece) — wait for teardown; do NOT reclaim early.** It's live
-as **Longhorn `/data` on the old-cluster remnant**, which still serves a couple tightly-coupled
-services pending migration. Reclaiming early (EARX-swap) would disturb the very Longhorn those
-services need. Instead, break the dependency loop (new SSD pool wants WD Blue ← teardown ←
-service migration ← new-cluster storage) by **migrating the coupled services onto the healthy
-HDD pool** (3 OSDs) and letting the **SSD pool run degraded / `size=2` until teardown**. At
-teardown the WD Blue frees itself → add to drotte → SSD pool heals to `size=3`; optionally
-rebalance select PVCs HDD→SSD after.
-
-**Coupled-service cutover (short window):** pre-stage services on new cluster (scaled 0, PVCs on
-HDD pool) → bulk-copy data while old still serves → one window: quiesce old, final delta sync,
-bring up on new, flip DNS. Migrate the coupled set **together** (half-migrated = broken).
+**WD Blue reclaimed.** The old-cluster Longhorn remnant it served has been migrated/torn down;
+the drive is now the 3rd SSD OSD on `wk-drotte`. `ceph-blockpool-ssd` is back to `size: 3`
+(was temporarily `size: 2` while only 2 SSD hosts existed).
 
 ### HDD OSD tier — 3 OSDs, **placed** — block.db (see gap below)
 | drive | host | status |
@@ -137,29 +139,48 @@ if pulled.
 
 ## 3. Control plane / etcd (3 nodes) — low-latency, ideally PLP
 
-**Target etcd disk = Intel DC S3610 200GB (SSDSC2BX200G4R) — ORDERED, ETA ~1–2 weeks** (3×).
-MLC + PLP + ~3 DWPD: the correct etcd disk, and small is fine (etcd DB is a few GB). Until
-they arrive, spin up on the interim disks below to shake out the hardware. All three CP nodes
-are the **8GB machines** → the intentional lean/dedicated control plane.
+**Status: DONE (2026-08-15).** All 3 CP nodes now run etcd on Intel DC S3610 200GB
+(SSDSC2BX200G4R) — MLC + PLP + ~3 DWPD, the correct etcd disk (small is fine, etcd DB is a few
+GB). All three CP nodes are the **8GB machines** → the intentional lean/dedicated control plane.
 
 Naming: Gene Wolfe *Book of the New Sun*, guild-masters faction = control plane
 (continues the Wi-Fi SSID theme).
 
-| hostname | machine | target etcd disk | interim disk (testing now) |
-|----------|---------|------------------|----------------------------|
-| `cp-palaemon` | Lenovo (8GB) | S3610 200GB | Intel 520 240GB (2.5" SATA) |
-| `cp-gurloes` | Dell 7050 (was test-01) | S3610 200GB | **Patriot P210 128GB** (slow — Toshiba NVMe removed) |
-| `cp-malrubius` | Dell 7050 (was wk-02) | S3610 200GB | Samsung 870 EVO 500GB |
+| hostname | machine | etcd disk | freed interim disk |
+|----------|---------|-----------|---------------------|
+| `cp-palaemon` | Lenovo (8GB) | **S3610 200GB (placed)** | Intel 520 240GB (2.5" SATA) |
+| `cp-gurloes` | Dell 7050 (was test-01) | **S3610 200GB (placed)** | Patriot P210 128GB |
+| `cp-malrubius` | Dell 7050 (was wk-02) | **S3610 200GB (placed)** | Samsung 870 EVO 500GB |
 
-All CP-only, **tainted NoSchedule**. Keeps every Patriot out of etcd. **CP tier is
-hardware-complete (interim disks installed)** — only the S3610 swap remains.
+All CP-only, **tainted NoSchedule**. Every Patriot is now out of etcd.
 
-**Disk cascade once S3610s are installed:** Intel 520 / Toshiba NVMe / 870 EVO free up. Best
-use would be HDD-OSD block.db (§2), but that's currently **bay-blocked** — so they may end up
-as worker-root upgrades or spares until a bay opens up.
+**Swap procedure used:** rolling, one node at a time (etcd is a 3-node quorum — never touch two
+at once). Per node: drain → `etcdctl member remove` → power off → swap disk → PXE-boot fresh
+Flatcar → `kubeadm join --control-plane` (fresh join+cert, not a disk clone — see reasoning
+below) → verify etcd/apiserver/kube-vip-cp healthy → next node. Surfaced and fixed along the way:
+a missing `controlPlaneEndpoint` in the live `kubeadm-config` ConfigMap (nodes were discovering
+via a single hardcoded node IP baked into the `cluster-info` ConfigMap at original bootstrap,
+not the VIP), a resulting apiserver cert/`--service-cluster-ip-range` mismatch on the
+first-rejoined node, and etcd/controller-manager/scheduler metrics bound to `127.0.0.1` instead
+of `0.0.0.0` (silently broke Prometheus scraping — `etcdInsufficientMembers` alerts, not an
+actual outage). All fixed live and closed permanently in the `kubernetes-cluster` ansible repo
+(the `ClusterConfiguration` re-upload task now runs on every playbook execution instead of only
+a from-scratch bootstrap, so it self-heals instead of silently drifting again).
 
-**Form factor: RESOLVED** — Lenovo (`cp-palaemon`) has a 2.5" SATA bay (Intel 520 installed
-now); the S3610 (2.5" SATA) drops straight in when it arrives.
+**Why reprovision instead of disk-cloning:** two of the three interim disks (240GB, 500GB) were
+*larger* than the 200GB S3610, so a block-level clone wasn't even mechanically straightforward.
+More fundamentally, these nodes run Flatcar (immutable, Ignition-provisioned) and etcd is
+designed for member replacement (remove/rejoin, raft resync) — fighting either of those with a
+disk clone would have been working against the grain for no benefit, especially with the
+etcd+PKI backup CronJob already in place as the safety net (`backup-dr-plan.md`).
+
+**Disk cascade — freed interim disks now available:** Intel 520 240GB / Patriot P210 128GB /
+Samsung 870 EVO 500GB. Best use is HDD-OSD block.db (§2 — Intel Pro 1500 180GB + one of
+870 EVO/Intel 520 for roche/eata), still **bay-blocked** until eata/roche's spare connector is
+used; Patriot P210 is low-endurance, keep off anything stateful.
+
+**Form factor:** confirmed resolved — Lenovo (`cp-palaemon`) 2.5" SATA bay took the S3610
+directly, same as the other two Dell 7050s.
 
 ---
 
@@ -190,7 +211,7 @@ valuable as HDD block.db devices (§2), so leave workers on X400/Patriot.
 
 ## 6. Buy list (prioritized, budget-aware)
 
-1. ~~3 × enterprise PLP SATA SSD for etcd~~ → **ORDERED: 3× Intel DC S3610 200GB (SSDSC2BX200G4R), ETA ~1–2 wk.**
+1. ~~3 × enterprise PLP SATA SSD for etcd~~ → **DONE: 3× Intel DC S3610 200GB (SSDSC2BX200G4R) installed 2026-08-15.**
 2. **block.db** — **covered, no buy.** roche/eata EARX get SATA block.db (Intel Pro 1500 180GB
    on hand + one cascade SATA — 870 EVO or Intel 520); drotte's HGST runs colocated. See §2.
 3. ~~1–2 TLC 1TB SSD for the Ceph SSD tier~~ — **not needed** (SN770M + 850 EVO 1TB + WD Blue 1TB = 3 OSDs).
@@ -210,30 +231,30 @@ valuable as HDD block.db devices (§2), so leave workers on X400/Patriot.
   (WD Blue) + colocated HGST block.db; roche/eata = block.db SSD alongside their EARX.
 - **EFAX: RESOLVED** — 6 drives → 5 in the pool + 1 cold spare.
 
-**All open decisions closed.** Remaining work is execution: reclaim the 850/WD Blue SSDs,
-S3610 swap, attach block.db at OSD-create time, build the NAS.
+**All open decisions closed.** Remaining work is execution: attach block.db at OSD-create time
+(§2); everything else (850/WD Blue reclaim, S3610 swap, NAS build) is done.
 
 ---
 
 ## 7. Future upgrades (post-build, prioritized)
 
-Finish the baseline first (S3610 swap + block.db SSDs). After that, in value order:
+Finish the baseline first (block.db SSDs — the S3610 swap is done). After that, in value order:
 
 1. **Backups — highest value, now planned in detail.** See **`backup-dr-plan.md`** for the
    full architecture (DB-native PITR + file-level PVC + off-site, with a Ceph RGW S3 target).
    Still the biggest remaining risk-reducer; blocked only on standing up the S3 target + NAS.
-2. **GPU / AI — the blocker was etcd contention, and this rebuild fixes it.** `ollama` is
-   GPU-wired correctly (`runtimeClassName: nvidia` + `nvidia.com/gpu: 1`) but sits at
-   **`replicas: 0`** — parked because booting it (loading a multi-GB model) produced an I/O
-   burst that **starved etcd's fsync and took the control plane down**, on the OLD co-located
-   CP nodes with Patriot SSDs. The new topology resolves this by design: CP nodes are dedicated
-   + **tainted NoSchedule** (ollama can't land there) and etcd is on **PLP S3610s**. So
-   post-rebuild, un-park it (`replicas: 1`) and test — it should run without threatening etcd.
-   (`immich-ml` separately runs the **CPU** image — no `-cuda`, no GPU request.) **Caveat:**
-   Maxwell runs LLMs *stably but slowly*. If you want good perf, a used **RTX 3060 12GB / 3090
-   24GB** is then a pure capability upgrade (decoupled from cluster stability) and also dodges
-   Maxwell's deprecated-in-CUDA driver pain. Free win: immich-ml → `-cuda` image + GPU request
-   once the GPU path is proven.
+2. **GPU / AI — done, proven working (2026-08-16).** The original blocker was etcd
+   contention: `ollama` (GPU-wired, `runtimeClassName: nvidia` + `nvidia.com/gpu: 1`) sat
+   parked at `replicas: 0` because booting it starved etcd's fsync on the OLD co-located CP
+   nodes with Patriot SSDs. The new topology fixed that by design (dedicated + tainted CP
+   nodes, etcd on PLP S3610s) — but `ollama` itself has since been **replaced by `llama-cpp`**
+   (declarative model management, no `kubectl exec` required; see `kubernetes/apps/ai/llama-cpp`).
+   Confirmed live on the GTX 745: model loads onto the GPU, inference works
+   (`Phi-4-mini` Q4_K_M, ~5.8 tok/s generation). Maxwell runs LLMs *stably but slowly*, as
+   expected. Free win now unblocked: `immich-ml` → `-cuda` image + GPU request, same as
+   `llama-cpp`. A used **RTX 3060 12GB / 3090 24GB** remains a pure capability upgrade if
+   better perf is wanted later (decoupled from cluster stability, also dodges Maxwell's
+   deprecated-in-CUDA driver pain).
 3. **Ceph 4th-host headroom — resilience.** Both OSD tiers are exactly size=3 → if an OSD host
    dies, Ceph runs degraded (can't re-replicate) until repaired. A 4th host per tier restores
    self-healing. Medium priority for a homelab (degraded ≠ data loss).

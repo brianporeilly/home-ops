@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Egress mirror of globalnetworkpolicy-database-to-observability.yaml,
+# added after reviewing real pending-diff data (2026-08-31) confirmed the
+# gap: clickhouse-operator (runs in `database`, chart name
+# altinity-clickhouse-operator) manages Akvorado's ClickHouse instance
+# (`chi-akvorado-clickhouse`, lives in `observability`) - the ingress side
+# of this pair has existed and been enforcing since the original
+# network-policy-plan.md rollout, but nothing ever granted the matching
+# egress.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-database-to-observability-egress
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'altinity-clickhouse-operator'
+  namespaceSelector: kubernetes.io/metadata.name == 'database'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: clickhouse.altinity.com/chi == 'akvorado-clickhouse'
+        namespaceSelector: kubernetes.io/metadata.name == 'observability'
+        ports: [8123]

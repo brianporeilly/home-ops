@@ -5,7 +5,11 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml
   - ./cluster.yaml
+  - ./oidc-secret.yaml
+  - ./oidc-admin-api-key-secret.yaml
+  - ./oidc-system-config-cronjob.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml

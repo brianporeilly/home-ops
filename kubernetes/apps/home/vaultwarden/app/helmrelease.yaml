@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: vaultwarden
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: vaultwarden/server
-              tag: 1.37.1@sha256:e9efdf001bf0d68c21f2cbfb8e1d9b5961a7ca9c85e0a7e58bf51a13b997d744
+              tag: 1.37.3@sha256:4ecafc9049c7d878c7717d1ce4f9059d706758c78b8fa42e5ead21f4b2dfc770
             env:
               DOMAIN: https://vaultwarden.internal.oreillys.io
               SIGNUPS_ALLOWED: "false"
@@ -95,6 +96,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: vaultwarden
         globalMounts:
           - path: /data
       tmp:

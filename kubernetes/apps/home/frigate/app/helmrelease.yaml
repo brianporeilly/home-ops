@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: frigate
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
               repository: ghcr.io/blakeblackshear/frigate
               tag: "0.18.0-beta1@sha256:6c3b9c55c35f06a174aeb0254d7953c001bb85b66e3357334f62eec0ddc9b1e7"
             env:
-              TZ: America/Anchorage
+              TZ: UTC
             probes:
               liveness: &probes
                 enabled: true
@@ -51,7 +52,12 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.11"
+          # Was 10.20.250.11 - migrated to the routed 10.21.0.0/16 pool
+          # (see kube-vip-cloud-provider HelmRelease). Check before merging
+          # for anything pointed at this IP directly rather than through a
+          # hostname/route (e.g. camera go2rtc restream URLs, a Home
+          # Assistant integration configured with the raw IP).
+          kube-vip.io/loadbalancerIPs: "10.21.0.11"
         ports:
           http:
             appProtocol: kubernetes.io/wss
@@ -85,9 +91,12 @@ spec:
         size: "1Gi"
         globalMounts:
           - path: /config
+      # Dynamically-provisioned NFS PVC (nfs-csi-driver) - lets Kubernetes own the
+      # recordings volume's lifecycle instead of a hand-managed static export;
+      # space is capped via a quota on the NAS-side parent dataset, not per-PVC.
       media:
         suffix: media
-        storageClass: "ceph-block"
+        storageClass: "nfs-slow"
         accessMode: ReadWriteOnce
         size: "100Gi"
         globalMounts:

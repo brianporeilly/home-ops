@@ -11,6 +11,7 @@ spec:
   maxHistory: 2
   interval: 1h
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -67,6 +68,23 @@ spec:
           tag syslog.mikrotik
           storage.type filesystem
 
+        # Scoped to _TRANSPORT=kernel only - this is what SELinux AVC
+        # denials come through as (kernel printk, not a container's own
+        # stdout), needed to assess whether it's safe to flip Flatcar's
+        # currently-Permissive SELinux to Enforcing (see intel-gpu-plugin's
+        # seLinuxOptions fix, PR #776/778, for the incident this came from).
+        # Ships unfiltered rather than grepping for "avc" here - general
+        # kernel-level visibility (NIC drops, disk/mount errors) is useful
+        # beyond just this one soak, and it's cheap: read_from_tail avoids
+        # replaying the full multi-GB persistent journal on every restart.
+        [INPUT]
+          name systemd
+          alias kernel
+          tag journal.kernel
+          systemd_filter _TRANSPORT=kernel
+          read_from_tail on
+          storage.type filesystem
+
       filters: |-
         [FILTER]
           name kubernetes
@@ -97,6 +115,22 @@ spec:
           nested_under k_labels
           add_prefix k_labels_
 
+        # The kubernetes filter above (merge_log on) already parses a
+        # container's stdout line as JSON when it validly is one (e.g.
+        # Envoy's JSON access logs) into a nested log_processed object -
+        # correct, but still nested, so Loki still needs a `| json` unwrap
+        # to reach e.g. log_processed.path. Same lift technique as
+        # kubernetes/k_labels above, so JSON-emitting apps' own fields land
+        # as flat top-level msg_* keys instead. No-ops harmlessly for every
+        # pod that just logs plain text (log_processed never gets created
+        # for those).
+        [FILTER]
+          name nest
+          match kubernetes.*
+          operation lift
+          nested_under log_processed
+          add_prefix msg_
+
         [FILTER]
           name modify
           match kubernetes.*
@@ -116,6 +150,11 @@ spec:
           structured_metadata container=$k_container_name, pod=$k_pod_name, host=$k_host
           compress gzip
           storage.total_limit_size 2G
+          # Default retry_limit (1) gives up after one retry ~5-10s later -
+          # too short for Loki's internal ingester blips (observed up to
+          # ~4m). 6 retries with the default exponential backoff covers a
+          # ~5m worst-case window before a chunk is dropped.
+          retry_limit 6
 
         [OUTPUT]
           name loki
@@ -127,6 +166,7 @@ spec:
           labels job=syslog, device=opnsense
           compress gzip
           storage.total_limit_size 512M
+          retry_limit 6
 
         [OUTPUT]
           name loki
@@ -138,22 +178,67 @@ spec:
           labels job=syslog, device=mikrotik
           compress gzip
           storage.total_limit_size 512M
+          retry_limit 6
+
+        [OUTPUT]
+          name loki
+          match journal.kernel
+          host loki-headless.observability.svc.cluster.local
+          port 3100
+          uri /loki/api/v1/push
+          line_format json
+          # ${NODE_NAME} - see env below. Each fluent-bit pod only ever
+          # sees its own node's journal, so without this every node's
+          # kernel log would collapse into one indistinguishable job=kernel
+          # stream in Loki.
+          labels job=kernel, node=${NODE_NAME}
+          compress gzip
+          storage.total_limit_size 512M
+          retry_limit 6
     dashboards:
       enabled: true
     serviceMonitor:
       enabled: true
+      # fluent-bit is a per-node DaemonSet - instance is a pod IP, not the
+      # host. Relabel the node name (already exposed by pod-role service
+      # discovery) onto a real `node` label for alerts/dashboards.
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
     extraVolumes:
       - name: flb-storage
         hostPath:
           path: /var/log/flb-storage
           type: DirectoryOrCreate
+      # Flatcar persists the journal here (confirmed live via `journalctl
+      # --disk-usage` reporting real on-disk archives, not just the
+      # volatile /run tmpfs default) - needed for the systemd/kernel INPUT
+      # above.
+      - name: host-journal
+        hostPath:
+          path: /var/log/journal
+          type: Directory
     extraVolumeMounts:
       - name: flb-storage
         mountPath: /var/log/flb-storage
+      - name: host-journal
+        mountPath: /var/log/journal
+        readOnly: true
     service:
       type: LoadBalancer
       annotations:
-        kube-vip.io/loadbalancerIPs: "10.20.250.4"
+        # Was 10.20.250.4 - migrated to the routed 10.21.0.0/16 pool (see
+        # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
+        # risk: this is a syslog RECEIVER - OPNsense and the Mikrotik are
+        # both configured to actively push syslog to this exact IP
+        # (extraPorts syslog-opnsense/syslog-mikrotik below). Repoint both
+        # senders to 10.21.0.4 BEFORE merging, or logs silently stop.
+        kube-vip.io/loadbalancerIPs: "10.21.0.4"
     extraPorts:
       - port: 5514
         containerPort: 5514

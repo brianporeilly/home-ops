@@ -1,0 +1,100 @@
+---
+# Immich has no env-var/config-file OIDC mechanism (unlike every other
+# native-OIDC app in this repo except forgejo) - OAuth settings live in
+# Immich's own system config, readable/writable only via its admin REST
+# API (GET/PUT /api/system-config, confirmed against the shipped OpenAPI
+# spec - x-immich-admin-only, api_key auth accepted). Same rationale as
+# forgejo's CronJob: get-merge-put hourly, self-healing on drift
+# instead of a one-time manual step, using the admin API key from
+# oidc-admin-api-key-secret.yaml (that one genuinely can't be automated -
+# API keys can only be created through an authenticated admin session).
+#
+# PUT replaces the *entire* SystemConfigDto, not just the oauth section -
+# GET the current full config first and only mutate .oauth in place
+# (via jq) so every other setting (storage template, ML, notifications,
+# etc) round-trips untouched.
+#
+# issuerUrl deliberately uses the EXTERNAL hostname (auth.oreillys.io),
+# not auth.internal.oreillys.io, even though this app has both an
+# internal and external route - Immich only supports one fixed issuer
+# (unlike SecurityPolicy-wrapped apps, which get a per-route issuer via
+# issuer_mode: per_provider), and auth.internal.oreillys.io has no
+# HTTPRoute on envoy-external at all, so it's simply unreachable for
+# anyone logging in from outside the LAN. auth.oreillys.io works
+# universally instead - confirmed live via NAT hairpin from inside the
+# immich pod (curl to auth.oreillys.io's discovery doc: 200 in ~80ms),
+# so internal/cluster-side calls (discovery, token exchange) work too.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-oidc-system-config-sync
+spec:
+  # Real key is in place (oidc-admin-api-key-secret.yaml) - live-verified
+  # end-to-end: manual job run succeeded, system-config's oauth section
+  # confirmed correct via the API, and the real /oauth/authorize redirect
+  # chain resolves to Authentik with the right client_id.
+  schedule: "23 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 60
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: sync
+              image: docker.io/alpine/k8s:1.37.0@sha256:32c5765a0d1772b8620e96796bd171b925c0ddb0acbbf9a11dcdc81083e8d025
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  BASE="http://immich-app:2283/api"
+                  CURRENT=$(curl -sf -H "x-api-key: $IMMICH_API_KEY" "$BASE/system-config")
+                  UPDATED=$(printf '%s' "$CURRENT" | jq \
+                    --arg issuer "https://auth.oreillys.io/application/o/immich/" \
+                    --arg clientId "$OIDC_CLIENT_ID" \
+                    --arg clientSecret "$OIDC_CLIENT_SECRET" \
+                    '.oauth.enabled = true
+                     | .oauth.issuerUrl = $issuer
+                     | .oauth.clientId = $clientId
+                     | .oauth.clientSecret = $clientSecret
+                     | .oauth.autoRegister = true
+                     | .oauth.scope = "openid email profile"
+                     | .oauth.buttonText = "Login with Authentik"')
+                  curl -sf -X PUT -H "x-api-key: $IMMICH_API_KEY" -H "Content-Type: application/json" \
+                    -d "$UPDATED" "$BASE/system-config" -o /dev/null
+                  echo "system-config oauth section synced"
+              env:
+                - name: IMMICH_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-oidc-admin-api-key
+                      key: IMMICH_API_KEY
+                - name: OIDC_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-oidc-secret
+                      key: client-id
+                - name: OIDC_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-oidc-secret
+                      key: client-secret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi

@@ -1,0 +1,46 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31): found via the
+# calico-deny-log-shipper fix, not the original flow-data review - the
+# original review only checked rook-ceph's own daemons, not every CNPG
+# postgres cluster's need to reach RGW.
+#
+# Every CNPG-managed postgres instance archives WAL / pushes backups to
+# rook-ceph-rgw over its S3 API (tcp/80, plain HTTP - see the
+# ceph-objectstore's connections.encryption.enabled: false). rook-ceph-rgw
+# runs hostNetwork: true (confirmed via `kubectl -n rook-ceph get pods -o
+# ...HOSTNETWORK`), so this traffic shows as an external "PRIVATE NETWORK"
+# destination, not a normal Service ClusterIP - real data showed 7
+# different CNPG clusters (authentik, immich, home-assistant, paperless,
+# linkwarden, forgejo, nebraska) all hitting this same gap, one underlying
+# need rather than 7 separate ones.
+#
+# Staged now rather than deferred - this affects every database-backed app
+# in the cluster's ability to archive WAL/take backups, not a minor edge
+# case.
+#
+# Source scoped by the cnpg.io/cluster label (present on every CNPG
+# instance pod, confirmed via `kubectl get pod ... --show-labels`), not a
+# per-namespace list - new CNPG clusters get this automatically.
+#
+# Destination is 10.20.0.0/16 (the servers VLAN, not rgw's current single
+# node IP 10.20.20.15) deliberately: rgw is a plain Deployment, not pinned
+# to a node - scoping to its current IP would silently break the moment it
+# reschedules to a different worker.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-cnpg-egress-rgw
+spec:
+  stagedAction: Set
+  selector: has(cnpg.io/cluster)
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.0.0/16
+        ports: [80]

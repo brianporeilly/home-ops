@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run flux-local test
         uses: docker://ghcr.io/allenporter/flux-local:v8.4.0
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download kubeconform
         env:
@@ -49,6 +49,35 @@ jobs:
             > /tmp/rendered.yaml
           kubeconform -summary -ignore-missing-schemas /tmp/rendered.yaml
 
+  flux-build:
+    # flux-local doesn't run Flux's postBuild.substitute step (confirmed:
+    # it passed a PR where a literal ${VAR} in a comment broke every
+    # child Kustomization's real reconcile). This uses the real flux CLI
+    # in --dry-run mode instead, which does.
+    name: Flux Build (strict substitute)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download flux CLI
+        env:
+          # renovate: datasource=github-releases depName=fluxcd/flux2
+          FLUX_VERSION: v2.9.5
+        run: |
+          curl -sL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_amd64.tar.gz" | sudo tar xz -C /usr/local/bin flux
+
+      - name: Build with strict postBuild substitution
+        run: |
+          flux build kustomization cluster-apps \
+            --path ./kubernetes/apps \
+            --kustomization-file ./kubernetes/flux/ks.yaml \
+            --dry-run \
+            --recursive \
+            --strict-substitute \
+            --local-sources GitRepository/flux-system/flux-system=. \
+            > /dev/null
+
   diff:
     if: ${{ github.event_name == 'pull_request' }}
     name: Diff ${{ matrix.resource }}
@@ -63,12 +92,12 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout Pull Request
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: pull
 
       - name: Checkout Default Branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: default
@@ -112,7 +141,7 @@ jobs:
 
       - name: Post Comment
         if: ${{ steps.diff.outputs.diff != '' }}
-        uses: mshick/add-pr-comment@v3
+        uses: mshick/add-pr-comment@ec328af66588ab8f77cdeb2c264f14aba45bbf59 # v3.12.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           message-id: ${{ github.event.pull_request.number }}/${{ matrix.resource }}

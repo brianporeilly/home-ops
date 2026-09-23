@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# The echo chart's own httpRoute value only supports one combined
+# hostnames/parentRefs list (unlike bjw-s app-template's named route.<key>
+# blocks), so this is a second, hand-written HTTPRoute for the external
+# leg - same pattern as authentik's own httproute-external.yaml. Backed by
+# the same echo Service the chart creates.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-external
+spec:
+  hostnames:
+    - echo.oreillys.io
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: echo
+          port: 80
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: searxng
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/searxng/searxng
-              tag: 2026.7.1-c5d8d05f0@sha256:475186c014fa31dc90949b2609ba9d70205caa10e78a20641c04930cf6928b5c
+              tag: 2026.9.23-3cd69d30e@sha256:44924939f9b36580f6957e2c7f1ea8331ebccada9b2eeb9de7ea38f90740eeda
             env:
               SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
               SEARXNG_SERVER__LIMITER: "false"
@@ -83,6 +84,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: searxng
         globalMounts:
           - path: /etc/searxng
       tmpfs:

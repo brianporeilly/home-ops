@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_backendtrafficpolicies.yaml
+# Forces a flat 404 on the admin-blocked rule in httproute-external.yaml -
+# faultInjection.abort at 100% never reaches the authentik-server backend at
+# all, so this is a hard block, not reliant on Authentik's own RBAC (which
+# still denies non-admins server-side regardless, but the admin UI itself
+# has no reason to be internet-reachable in the first place). Scoped via
+# sectionName to just that one named rule - the rest of auth.oreillys.io
+# (OIDC endpoints, the flow executor, static assets) is untouched, since
+# every externally-exposed app's SSO login depends on those.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: authentik-admin-external-block
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: authentik-server-external
+      sectionName: admin-blocked
+  faultInjection:
+    abort:
+      httpStatus: 404
+      percentage: 100

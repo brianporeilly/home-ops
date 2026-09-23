@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: *app
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: mbentley/omada-controller
-              tag: 6.2.14.11@sha256:d281c115461bd5969e6e1864483e7bf57ca966bddde69d6a3b9a770f3289e273
+              tag: 6.3.0.45@sha256:40a8def53d76b94458fa5f82e13f60a3854e1478650633fae87639198029e331
             env:
               MANAGE_HTTP_PORT: "8088"
               MANAGE_HTTPS_PORT: "8043"
@@ -63,7 +64,12 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.3"
+          # Was 10.20.250.3 - migrated to the routed 10.21.0.0/16 pool (see
+          # kube-vip-cloud-provider HelmRelease). HIGH external-dependency
+          # risk: adopted Omada switches/APs have this controller's IP
+          # baked into their inform/adopt URL - they'll likely need
+          # re-pointing (or re-adoption) after this changes, not just DNS.
+          kube-vip.io/loadbalancerIPs: "10.21.0.3"
         ipFamilies: [ IPv4 ]
         ipFamilyPolicy: PreferDualStack
         ports:
@@ -147,6 +153,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: omada-controller
         globalMounts:
           - path: /opt/tplink/EAPController/data
       work:

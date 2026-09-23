@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: cloudnative-pg
-      version: 0.29.0
+      version: 0.29.1
       sourceRef:
         kind: HelmRepository
         name: cloudnative-pg
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

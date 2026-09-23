@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Egress mirror of globalnetworkpolicy-cluster-to-network-https.yaml, added
+# round 5 (2026-09-02). That rule generalized from a narrow misc-only pair
+# after forgejo/paperless-ngx/immich-server all separately showed the same
+# "cluster pod calls out through envoy-internal/envoy-external to reach a
+# hostname that resolves back to the Gateway VIP" shape - three independent
+# namespaces made the narrow-pair approach the wrong shape on the ingress
+# side, and misc/forgejo-oidc-source-sync's recurring egress need (confirmed
+# again in round 5's data, every CronJob run) is the same shape, just from
+# the source side. Generalizing straight to cluster-wide here rather than
+# waiting for a second and third namespace to repeat the ingress rule's
+# history.
+#
+# selector/namespaceSelector on the destination side match
+# allow-cluster-to-network-https exactly (shared app.kubernetes.io/name=envoy
+# label, both gateways, no reason to split). Source is selector: all() with
+# no namespaceSelector - deliberately cluster-wide, not scoped to misc.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-cluster-egress-network-https
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'envoy'
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+        ports: [10443]

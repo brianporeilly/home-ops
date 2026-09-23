@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: minecraft
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -23,7 +24,7 @@ spec:
           app:
             image:
               repository: itzg/minecraft-server
-              tag: latest@sha256:b996565e8dd0a58366ac33d58374a4d13576aaaca14d6a4de029ec341e0009cc
+              tag: latest@sha256:18a8f7a0948ef70b6f40fb0a80dd32e666382e5ea287f1f91b93b19e008e8fe6
             env:
               EULA: "TRUE"
               TYPE: PAPER
@@ -83,7 +84,13 @@ spec:
         type: LoadBalancer
         externalTrafficPolicy: Local
         annotations:
-          kube-vip.io/loadbalancerIPs: "10.20.250.10"
+          # Was 10.20.250.10 - migrated to the routed 10.21.0.0/16 pool
+          # (see kube-vip-cloud-provider HelmRelease). Check before merging:
+          # if this is exposed to friends outside the LAN, there's likely
+          # an OPNsense WAN port-forward (25565/tcp) pinned to the old IP,
+          # and/or people have the raw IP saved as their server address
+          # instead of a hostname.
+          kube-vip.io/loadbalancerIPs: "10.21.0.10"
         ports:
           minecraft:
             port: 25565

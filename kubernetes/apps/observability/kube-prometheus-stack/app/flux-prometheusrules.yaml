@@ -12,6 +12,15 @@ spec:
   groups:
     - name: flux
       rules:
+        # gotk_reconcile_condition (used below until this rewrite) was
+        # removed from Flux's own metrics in a release newer than these
+        # rules were written against - confirmed live, zero series despite
+        # a healthy scrape. Ready/Reconciling condition state now comes from
+        # kube-state-metrics customResourceState instead (see
+        # kube-prometheus-stack's helmrelease.yaml), covering Kustomization
+        # and HelmRelease. Source staleness (GitRepository/OCIRepository/
+        # HelmRepository) isn't instrumented that way yet, so there's no
+        # FluxSourceStale here - add it if that gap matters.
         - alert: FluxResourceNotReady
           annotations:
             summary: "Flux resource {{ $labels.name }} is not ready"
@@ -20,9 +29,15 @@ spec:
               namespace: {{ $labels.namespace }}) has been not ready for
               more than 15 minutes.
           expr: |
-            max by (name, namespace, kind) (
-              gotk_reconcile_condition{type="Ready", status="False"}
-            ) >= 1
+            label_replace(
+              max by (name, namespace) (flux_kustomization_status_condition{type="Ready", status="False"}) == 1,
+              "kind", "Kustomization", "", ""
+            )
+            or
+            label_replace(
+              max by (name, namespace) (flux_helmrelease_status_condition{type="Ready", status="False"}) == 1,
+              "kind", "HelmRelease", "", ""
+            )
           for: 15m
           labels:
             severity: critical
@@ -35,9 +50,15 @@ spec:
               namespace: {{ $labels.namespace }}) has been failing
               reconciliation for more than 5 minutes.
           expr: |
-            max by (name, namespace, kind) (
-              rate(gotk_reconcile_condition{type="Ready", status="False"}[5m])
-            ) > 0.01
+            label_replace(
+              max by (name, namespace) (flux_kustomization_status_condition{type="Ready", status="False"}) == 1,
+              "kind", "Kustomization", "", ""
+            )
+            or
+            label_replace(
+              max by (name, namespace) (flux_helmrelease_status_condition{type="Ready", status="False"}) == 1,
+              "kind", "HelmRelease", "", ""
+            )
           for: 5m
           labels:
             severity: warning
@@ -50,23 +71,15 @@ spec:
               namespace: {{ $labels.namespace }}) has been reconciling
               without completing for more than 2 hours.
           expr: |
-            max by (name, namespace, kind) (
-              gotk_reconcile_condition{type="Reconciling", status="True"}
-            ) >= 1
+            label_replace(
+              max by (name, namespace) (flux_kustomization_status_condition{type="Reconciling", status="True"}) == 1,
+              "kind", "Kustomization", "", ""
+            )
+            or
+            label_replace(
+              max by (name, namespace) (flux_helmrelease_status_condition{type="Reconciling", status="True"}) == 1,
+              "kind", "HelmRelease", "", ""
+            )
           for: 2h
-          labels:
-            severity: warning
-
-        - alert: FluxSourceStale
-          annotations:
-            summary: "Flux source {{ $labels.name }} has not been fetched"
-            description: >-
-              Source {{ $labels.name }} (kind: {{ $labels.kind }},
-              namespace: {{ $labels.namespace }}) has not been updated
-              for more than 2 times the configured interval.
-          expr: |
-            max by (name, kind, namespace) (
-              time() - gotk_reconcile_duration
-            ) > 7200
           labels:
             severity: warning

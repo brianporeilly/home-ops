@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: qbittorrent
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,13 +26,23 @@ spec:
           init-config:
             image:
               repository: docker.io/library/busybox
-              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+              tag: 1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
             command:
               - sh
               - -c
               - |
                 set -eu
                 mkdir -p /config/qBittorrent/config
+                # Kubernetes guarantees a single Pod against this RWO PVC, so any
+                # on-disk single-instance lock/IPC socket left by a prior container
+                # is always stale - clear it. Otherwise a container SIGKILLed
+                # mid-session (e.g. by the liveness probe) leaves ipc-socket bound
+                # on disk; the next start tries to bind that same path, fails
+                # because the stale socket is still there, concludes another
+                # instance owns it, and exits immediately (clean exit 0, nothing
+                # on stdout - the message only goes to the internal log file)
+                # forever.
+                rm -f /config/qBittorrent/config/lockfile /config/qBittorrent/config/qBittorrent-data.conf.lock /config/qBittorrent/config/ipc-socket
                 if [ ! -f /config/qBittorrent/config/qBittorrent.conf ]; then
                   echo "Seeding qBittorrent.conf (WebUI credentials pre-configured, first run)"
                   cp /seed/qBittorrent.conf /config/qBittorrent/config/qBittorrent.conf
@@ -61,12 +72,21 @@ spec:
                     port: &port 8080
                   initialDelaySeconds: 0
                   periodSeconds: 10
-                  timeoutSeconds: 1
+                  timeoutSeconds: 5
                   failureThreshold: 3
               readiness: *probes
+              # httpGet, not the app-template default tcp-socket - a bare TCP
+              # check passes as soon as the port is bound, before the WebUI
+              # can actually serve a request. Under a slow/busy session resume
+              # that let liveness (which does check the WebUI) kill the pod
+              # mid-resume and loop forever.
               startup:
                 enabled: true
+                custom: true
                 spec:
+                  httpGet:
+                    path: /
+                    port: *port
                   failureThreshold: 30
                   periodSeconds: 10
             securityContext:
@@ -113,6 +133,12 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "1Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: qbittorrent
         globalMounts:
           - path: /config
       config-seed:
@@ -124,17 +150,25 @@ spec:
               - path: /seed/qBittorrent.conf
                 subPath: qBittorrent.conf
                 readOnly: true
-      # TODO: Replace with NAS NFS mount when available.
-      # Ceph-backed PVC for download staging works but is expensive for
-      # transient torrent data.  Switch to NAS-backed NFS + hardlink
-      # completion once the NFS CSI driver is wired up.
+      # NAS static NFS mount - torrent downloads only (incomplete/complete
+      # share this mount so a finished torrent is an atomic rename, and
+      # Sonarr/Radarr can hardlink out of complete/ into the library).
+      # Mounted at the same absolute path Sonarr/Radarr see it at (via their
+      # own whole-/media mount) so no Remote Path Mapping is needed - both
+      # sides agree on the literal path string for the same files.
+      # In qBittorrent's own settings, set:
+      #   Default Save Path = /media/downloads/torrents/complete (with
+      #     categories enabled so per-category subfolders get created
+      #     automatically)
+      #   Keep incomplete torrents in = /media/downloads/torrents/incomplete
+      #   Disable "Copy .torrent files for finished downloads to" / any
+      #     move-on-completion so seeding continues from complete/ in place.
       downloads:
-        suffix: downloads
-        storageClass: "ceph-block"
-        accessMode: ReadWriteOnce
-        size: "100Gi"
+        type: nfs
+        server: 10.20.30.11
+        path: /media/downloads/torrents
         globalMounts:
-          - path: /downloads
+          - path: /media/downloads/torrents
       tmp:
         type: emptyDir
         globalMounts:

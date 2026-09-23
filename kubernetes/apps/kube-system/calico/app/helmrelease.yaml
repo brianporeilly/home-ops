@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: tigera-operator
-      version: v3.32.1
+      version: v3.32.2
       sourceRef:
         kind: HelmRepository
         name: tigera
       interval: 15m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

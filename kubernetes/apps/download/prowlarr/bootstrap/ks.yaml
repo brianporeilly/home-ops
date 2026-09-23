@@ -18,7 +18,7 @@ spec:
       namespace: download
     - name: lidarr
       namespace: download
-    - name: lazylibrarian
+    - name: mylar3
       namespace: download
   interval: 1h
   path: ./kubernetes/apps/download/prowlarr/bootstrap/app

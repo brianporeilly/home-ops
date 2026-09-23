@@ -9,13 +9,32 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/kopiur/backup
   dependsOn:
     - name: envoy-gateway-config
       namespace: network
     - name: rook-ceph-cluster
       namespace: rook-ceph
+    - name: kopiur-repository
+      namespace: kopiur-system
+    # oidc-secret.yaml's Reflector mirror can otherwise lose a race
+    # against authentik/app's own ExternalSecret and get stuck permanently
+    # rejected - see kubernetes/apps/download/lidarr/ks.yaml for the
+    # incident this was first found from.
+    - name: authentik
+      namespace: authentik
+    # gpu.intel.com/i915 resource request below needs the device plugin's
+    # DaemonSet already advertising the resource, or the pod just sits
+    # Pending with an unschedulable-resource event instead of scheduling.
+    - name: intel-gpu-plugin
+      namespace: intel-device-plugins
   interval: 1h
   path: ./kubernetes/apps/media/jellyfin/app
+  postBuild:
+    substitute:
+      APP: jellyfin
+      PVC: jellyfin-config
   prune: true
   retryInterval: 2m
   sourceRef:

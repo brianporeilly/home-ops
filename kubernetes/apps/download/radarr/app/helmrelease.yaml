@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: radarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/radarr
-              tag: 6.4.1.10545@sha256:260469d707617f4b5be1cd11a40be7e4889c63c5e7cdbc6a429626dc05863b6b
+              tag: 6.4.4.10685@sha256:be53998a2d39cfa3c3315b70c7509a6a1f2a10c3aee9337653efc9f4c970430e
             env:
               RADARR__APP__INSTANCENAME: Radarr
               RADARR__APP__THEME: dark
@@ -80,12 +81,40 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+      # See sonarr/app/helmrelease.yaml for the full rationale - same
+      # pattern, unauthenticated-at-the-Gateway /api path for direct API
+      # clients, still gated by Radarr's own API key. Adding this second
+      # route key renames the one above from `radarr` to `radarr-app`
+      # (see ks.yaml's HTTPROUTE_NAME).
+      api:
+        annotations:
+          gatus.home-operations.com/enabled: "false"
+        hostnames:
+          - radarr.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /api
+            backendRefs:
+              - identifier: app
+                port: *port
     persistence:
       config:
         suffix: config
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "5Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation.
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: radarr
         globalMounts:
           - path: /config
       config-cache:
@@ -95,11 +124,15 @@ spec:
         size: "10Gi"
         globalMounts:
           - path: /config/MediaCover
-      #      media:
-      #        type: nfs
-      #        server: nfs.oreillys.lan
-      #        path: /hecate/media
-      #        globalMounts:
-      #          - path: /media
+      # NAS static NFS mount - whole export. Needed (not just /media/movies)
+      # so hardlink-import from downloads/complete/ into movies/ works:
+      # hardlinks only work within a single mount, so both sides must be
+      # visible here.
+      media:
+        type: nfs
+        server: 10.20.30.11
+        path: /media
+        globalMounts:
+          - path: /media
       tmp:
         type: emptyDir
