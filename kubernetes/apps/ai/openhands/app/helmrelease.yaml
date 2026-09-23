@@ -32,82 +32,77 @@ spec:
             runAsNonRoot: true
             fsGroup: 42420
             fsGroupChangePolicy: OnRootMismatch
-        # The published image never installs tmux, but LocalRuntime hard-
-        # requires it (not just at this check - libtmux needs the real
-        # binary for every command the agent runs). Installs it fresh each
-        # boot into a shared emptyDir rather than a custom image - see
-        # docs/agent-sandbox-plan.md for the tradeoff and why.
-        initContainers:
-          install-tmux:
-            image:
-              repository: ghcr.io/all-hands-ai/openhands
-              tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
-            command: ["/bin/sh", "-c"]
-            args:
-              - |
-                set -eu
-                apt-get update
-                apt-get install -y --no-install-recommends tmux
-                tmux_bin="$(command -v tmux)"
-                cp -aL "$tmux_bin" /opt/tmux/bin/tmux
-                ldd "$tmux_bin" | awk '$2=="=>" && $3~/^\// {print $3} $1~/^\// && $2!="=>" {print $1}' | sort -u | while read -r lib; do
-                  cp -aL "$lib" /opt/tmux/lib/ 2>/dev/null || true
-                done
-            # Needs root for apt-get - same image as the main container, so
-            # no library/ABI mismatch risk in what gets copied to the
-            # shared volumes below.
-            securityContext:
-              runAsUser: 0
-              runAsGroup: 0
-              runAsNonRoot: false
+          # KubernetesRuntime (RUNTIME=kubernetes, see env below) needs the
+          # in-cluster k8s client's token - the chart disables automount by
+          # default. See openhands-runtime/rbac/app/rbac.yaml for what this
+          # identity is actually allowed to do.
+          automountServiceAccountToken: true
+        # Named identifier so RBAC (openhands-runtime/rbac/app/rbac.yaml)
+        # has a stable ServiceAccount name to bind - confirmed via `helm
+        # template` against this chart version that a single
+        # serviceAccount.openhands entry + this identifier renders the SA
+        # as plain "openhands" (the release name), not a suffixed variant.
+        serviceAccount:
+          identifier: openhands
         containers:
           app:
             image:
               repository: ghcr.io/all-hands-ai/openhands
               tag: 0.59.0@sha256:f5ff4fd19711fee82bdc91b4367d1e7986c88be754b82e2a946cc0a85434562a
             env:
-              # "local", not "process" - see docs/agent-sandbox-plan.md.
-              # No docker.sock, no nested containers - the Pod
-              # (securityContext + globalnetworkpolicy-openhands-egress.yaml)
-              # is the isolation boundary, not OpenHands itself.
-              RUNTIME: "local"
+              # Phase 2 (docs/agent-sandbox-plan.md): each conversation's
+              # shell/editor/browser tools now run in their own spawned Pod
+              # (openhands's own first-party KubernetesRuntime), not
+              # in-process in this container - that's what made the whole
+              # Phase 1 LocalRuntime scaffolding below (tmux initContainer,
+              # PATH/LD_LIBRARY_PATH, SU_TO_USER, SANDBOX_LOCAL_RUNTIME_URL,
+              # WORKSPACE_BASE, ENABLE_BROWSER) LocalRuntime-specific dead
+              # weight - removed, not carried forward. This container is
+              # now purely the orchestrator/API/UI; it talks to the
+              # Kubernetes API instead.
+              RUNTIME: "kubernetes"
               # Required for runAsUser: 42420 above to work - see
               # docs/agent-sandbox-plan.md.
               NO_SETUP: "true"
-              # The agent's bash tool otherwise runs `su openhands -` to
-              # start its shell (bash.py hardcodes 'openhands' as always
-              # worth su-ing to, regardless of --username) - redundant and
-              # unauthenticatable here, we're already that user via
-              # securityContext, not root. See docs/agent-sandbox-plan.md.
-              SU_TO_USER: "false"
-              # Image bakes this to http://host.docker.internal (for the
-              # docker-run --add-host deployment style upstream documents) -
-              # doesn't resolve at all here (no such DNS record in this
-              # pod), and the runtime subprocess runs in this same network
-              # namespace anyway. See docs/agent-sandbox-plan.md.
-              SANDBOX_LOCAL_RUNTIME_URL: "http://localhost"
-              WORKSPACE_BASE: "/.openhands-state/workspace"
               # Default (~/.openhands) resolves off this PVC - HOME isn't
               # meaningfully set for UID 42420 here, so it lands unwritable
               # on the root filesystem. See docs/agent-sandbox-plan.md.
               FILE_STORE_PATH: "/.openhands-state/filestore"
-              # Base value confirmed live against this exact pinned image -
-              # re-verify if the image tag/digest above ever changes. Only
-              # addition is /opt/tmux/bin (initContainers.install-tmux) -
-              # deliberately NOT /usr/local/bin: that already holds this
-              # image's real python3.13 (/app/.venv/bin/python3 resolves
-              # there), and mounting an emptyDir over it shadows the
-              # interpreter entirely, silently breaking every process in
-              # the container, not just tmux. See docs/agent-sandbox-plan.md.
-              PATH: "/opt/tmux/bin:/app/.venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-              LD_LIBRARY_PATH: "/opt/tmux/lib"
-              # Default true spawns an in-process Chromium at startup
-              # (playwright) that hung the whole app on boot - see
-              # docs/agent-sandbox-plan.md. Not chasing headless Chromium's
-              # system-library chain here; a dedicated sockpuppetbrowser CDP
-              # sidecar is the fallback if the browser tool turns out to
-              # matter for real usage - see docs/agent-sandbox-plan.md.
-              ENABLE_BROWSER: "false"
+              # Namespace the spawned per-conversation Pod/Service/PVC/
+              # Ingress land in - deliberately NOT this namespace (ai), so
+              # RBAC (openhands-runtime/rbac/app/rbac.yaml) and egress
+              # NetworkPolicy for those pods stay scoped away from
+              # llama-cpp/this app itself. See
+              # kubernetes/apps/openhands-runtime/.
+              KUBERNETES_NAMESPACE: "openhands-runtime"
+              KUBERNETES_PVC_STORAGE_CLASS: "ceph-block"
+              KUBERNETES_PVC_STORAGE_SIZE: "10Gi"
+              KUBERNETES_RESOURCE_CPU_REQUEST: "250m"
+              KUBERNETES_RESOURCE_MEMORY_REQUEST: "512Mi"
+              KUBERNETES_RESOURCE_MEMORY_LIMIT: "2Gi"
+              # KUBERNETES_INGRESS_DOMAIN deliberately left at its
+              # ("localhost") default rather than a real oreillys.io name:
+              # KubernetesRuntime always creates a VSCode Ingress
+              # (networking.k8s.io/v1) per conversation, but this cluster's
+              # only ingress controller is Envoy Gateway, which speaks
+              # Gateway API (HTTPRoute), not classic Ingress - it will never
+              # reconcile this object. Confirmed live (2026-09-22): no
+              # IngressClass, no admission webhook targets Ingress, so
+              # creation still succeeds (doesn't block the pod/conversation
+              # loop) - it just sits inert. VSCode-in-browser access is a
+              # known gap until/unless that's worth wiring up for real
+              # (e.g. an HTTPRoute-generating shim), not attempted here.
+              #
+              # SANDBOX_RUNTIME_CONTAINER_IMAGE: without this,
+              # KubernetesRuntime falls back to the bare
+              # nikolaik/python-nodejs base image (see sandbox_config.py) -
+              # fine for the Docker runtime, which builds the
+              # action_execution_server into it first, but KubernetesRuntime
+              # has no build step and uses pod_image as-is. Point it at
+              # upstream's own pre-built runtime image instead (same OpenHands
+              # version as the app image above) - confirmed to exist for
+              # amd64 via the ghcr.io v2 manifest API.
+              SANDBOX_RUNTIME_CONTAINER_IMAGE: "ghcr.io/all-hands-ai/runtime:0.59-nikolaik@sha256:a5541eb6512ad368e9637c94b89ff76d9282fd2598c01b5566d18b7731940f86"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
@@ -143,9 +138,9 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               # NOT readOnlyRootFilesystem yet - OpenHands almost certainly
-              # writes outside /.openhands-state (npm/asset caches, tmp
-              # files for tool execution under RUNTIME=local). Confirm
-              # what actually needs write access post-deploy (check for
+              # writes outside /.openhands-state (npm/asset caches, general
+              # tmp files for this orchestrator process). Confirm what
+              # actually needs write access post-deploy (check for
               # permission-denied errors) before locking this down.
               capabilities: { drop: ["ALL"] }
             resources:
@@ -162,6 +157,11 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+
+    # Named so controllers.openhands.serviceAccount.identifier (above) can
+    # reference it - see that key's comment for the naming guarantee.
+    serviceAccount:
+      openhands: {}
 
     service:
       app:
@@ -190,21 +190,3 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /tmp
-      # /opt/tmux didn't exist in the image at all before this - see the
-      # PATH env var comment above for why it's not /usr/local/bin.
-      tmux-bin:
-        type: emptyDir
-        advancedMounts:
-          openhands:
-            install-tmux:
-              - path: /opt/tmux/bin
-            app:
-              - path: /opt/tmux/bin
-      tmux-lib:
-        type: emptyDir
-        advancedMounts:
-          openhands:
-            install-tmux:
-              - path: /opt/tmux/lib
-            app:
-              - path: /opt/tmux/lib

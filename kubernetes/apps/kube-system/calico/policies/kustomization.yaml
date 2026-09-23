@@ -32,6 +32,10 @@ resources:
   - ./globalnetworkpolicy-agent-sandbox-controller-egress.yaml
   - ./globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
   - ./globalnetworkpolicy-openhands-egress.yaml
+  # Phase 2 (docs/agent-sandbox-plan.md) - openhands's own KubernetesRuntime
+  # spawning per-conversation sandbox pods into their own namespace
+  - ./globalnetworkpolicy-openhands-runtime-egress.yaml
+  - ./globalnetworkpolicy-openhands-to-runtime-sandbox.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml

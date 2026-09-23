@@ -22,6 +22,13 @@ spec:
     # the real runtime relationship.
     - name: llama-cpp
       namespace: *namespace
+    # RUNTIME=kubernetes (Phase 2, docs/agent-sandbox-plan.md) needs this
+    # namespace + RBAC to exist before a conversation can spawn its first
+    # sandbox pod - not a hard boot requirement (openhands itself starts
+    # fine either way, the k8s calls only happen lazily per-conversation),
+    # but avoids a race on first real use right after a fresh install.
+    - name: openhands-runtime-rbac
+      namespace: openhands-runtime
   interval: 1h
   path: ./kubernetes/apps/ai/openhands/app
   postBuild:
