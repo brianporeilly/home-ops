@@ -19,7 +19,7 @@ spec:
       namespace: authentik
     # Not a hard startup requirement (llama-cpp is only a selectable
     # secondary LLM provider here, Anthropic is the default) - documents
-    # the real runtime relationship, same as hermes-agent's llama-cpp dep.
+    # the real runtime relationship.
     - name: llama-cpp
       namespace: *namespace
     # RUNTIME=kubernetes (Phase 2, docs/agent-sandbox-plan.md) needs this

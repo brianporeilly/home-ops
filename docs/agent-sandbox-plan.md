@@ -18,7 +18,7 @@ node-level changes (gVisor) for a first pass.
 ## Architecture
 
 ```
-ai namespace (existing: llama-cpp, hermes-agent)
+ai namespace (existing: llama-cpp)
 └── openhands          interactive web UI + headless mode, RUNTIME=kubernetes
                         (Phase 2 - was RUNTIME=local in Phase 1), Anthropic
                         Claude as default LLM, llama-cpp selectable as a
@@ -194,11 +194,13 @@ Set `ENABLE_BROWSER: "false"` rather than chase this further - fixing the
 `/workspace` permission would likely only surface the next problem
 (headless Chromium's system-library chain, which this slim image almost
 certainly doesn't have), and this namespace already has a dedicated,
-working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar)
-rather than bundling a browser into the app itself. If the agent UI's
-`browser` tool turns out to matter for real usage, wiring OpenHands at a
-CDP endpoint (same shape as `hermes-agent`'s `browser.cdp_url`) is the
-follow-up, not re-enabling the bundled one.
+working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar,
+`browser.cdp_url`) rather than bundling a browser into the app itself. If
+the agent UI's `browser` tool turns out to matter for real usage, wiring
+OpenHands at a CDP endpoint the same way is the follow-up, not re-enabling
+the bundled one. (`hermes-agent` itself was later removed - see its own
+PR; a dedicated `sockpuppetbrowser` sidecar for `openhands`/`agent-sandbox`
+specifically is the resulting fallback plan, not a shared one.)
 
 ## Seventh fix: su openhands - fails, we're not root (2026-09-22)
 
@@ -417,16 +419,14 @@ off deliberately rather than chased further (see "Known gaps" below).
   does `kubectl logs` on the openhands pod show a successful `_init_k8s_
   resources`, and does `ENABLE_BROWSER` (now unset) cause the same
   startup hang Phase 1's sixth fix found.
-- **`hermes-agent` removal and its `sockpuppetbrowser` sidecar are
-  deliberately out of scope here** - planned as a separate PR (removing an
-  unrelated app shouldn't ride on this change). If Phase 2's browser tool
-  (now enabled, untested per above) turns out not to work reliably inside
-  the spawned runtime pod, the fallback is a dedicated `sockpuppetbrowser`
-  CDP sidecar for `openhands`/`agent-sandbox` specifically - not
-  hermes-agent's instance, which is going away, and not shared with
-  changedetection's either (see that instance's own capacity-isolation
-  rationale in `hermes-agent/app/helmrelease.yaml`). Not built yet;
-  contingent on what live testing actually shows.
+- **`hermes-agent` removal was kept out of the Phase 2 change** (a separate
+  PR handled it - removing an unrelated app shouldn't ride on this change).
+  If Phase 2's browser tool (now enabled, untested per above) turns out not
+  to work reliably inside the spawned runtime pod, the fallback is a
+  dedicated `sockpuppetbrowser` CDP sidecar for `openhands`/`agent-sandbox`
+  specifically - not shared with changedetection's own instance (see that
+  instance's capacity-isolation rationale in its own `helmrelease.yaml`).
+  Not built yet; contingent on what live testing actually shows.
 
 ## What was considered and not built (from the original Phase 2 writeup)
 

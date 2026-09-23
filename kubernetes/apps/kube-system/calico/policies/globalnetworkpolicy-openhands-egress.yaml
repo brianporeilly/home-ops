@@ -4,8 +4,8 @@
 # fleet-wide staged rollout - see
 # globalnetworkpolicy-agent-sandbox-controller-egress.yaml for the full
 # rationale. Scoped specifically to the openhands pod selector - does NOT
-# touch llama-cpp's or hermes-agent's existing (currently unrestricted)
-# egress in this same namespace.
+# touch llama-cpp's existing (currently unrestricted) egress in this same
+# namespace.
 #
 # Rule order matters here: the llama-cpp and apiserver Allows have to come
 # before the RFC1918 Deny below, since both destinations are themselves

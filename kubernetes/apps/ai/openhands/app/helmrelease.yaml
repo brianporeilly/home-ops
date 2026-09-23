@@ -141,8 +141,7 @@ spec:
               # writes outside /.openhands-state (npm/asset caches, general
               # tmp files for this orchestrator process). Confirm what
               # actually needs write access post-deploy (check for
-              # permission-denied errors, same approach hermes-agent's
-              # helmrelease.yaml used) before locking this down.
+              # permission-denied errors) before locking this down.
               capabilities: { drop: ["ALL"] }
             resources:
               requests:

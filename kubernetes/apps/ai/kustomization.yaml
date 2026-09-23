@@ -6,6 +6,5 @@ namespace: ai
 components:
   - ../../components/common
 resources:
-  - ./hermes-agent/ks.yaml
   - ./llama-cpp/ks.yaml
   - ./openhands/ks.yaml
