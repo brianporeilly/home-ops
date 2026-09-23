@@ -263,6 +263,19 @@ up after. Found two real gaps in what Phase 1 claimed worked:
   is the planned real replacement, once real usage shows what it actually
   needs to contain.
 
+## Known issue, not chased down: OpenHands git clone (2026-09-22)
+
+Cloning a GitHub repo through OpenHands's own UI didn't work - the agent
+reported it appeared to be in the OpenHands app directory instead of the
+workspace. Not investigated: plausibly `git` missing from the OpenHands
+image itself (same class of gap as `agent-sandbox`'s original base image),
+or a `WORKSPACE_BASE`-vs-actual-cwd mismatch given that env var's own
+deprecation warning (see the env block in
+`kubernetes/apps/ai/openhands/app/helmrelease.yaml`). Deliberately not
+chased tonight - agreed to move to Phase 2 instead once the core
+conversation loop worked. Worth a `which git` check inside a running
+`openhands` pod as the first step whenever this gets picked back up.
+
 ## What's NOT built yet (Phase 2)
 
 - **Dynamic per-session sandbox provisioning from OpenHands.** Today,
