@@ -63,7 +63,7 @@ sudo toolbox bash -c '
 
   echo
   echo "=== PCI devices (lspci -nn, for GPU / NIC / Thunderbolt controllers) ==="
-  lspci -nn 2>/dev/null | grep -Ei "vga|display|ethernet|network|thunderbolt|non-volatile"
+  lspci -nn 2>/dev/null | grep -Ei "vga|3d controller|display|ethernet|network|thunderbolt|non-volatile"
 '
 
 echo
