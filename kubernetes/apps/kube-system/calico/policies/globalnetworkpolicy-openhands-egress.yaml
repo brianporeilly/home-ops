@@ -7,10 +7,11 @@
 # touch llama-cpp's existing (currently unrestricted) egress in this same
 # namespace.
 #
-# Rule order matters here: the llama-cpp and apiserver Allows have to come
-# before the RFC1918 Deny below, since both destinations are themselves
-# inside those ranges - Calico evaluates egress rules in order, first match
-# wins.
+# Rule order matters here: the llama-cpp, apiserver, and runtime-sandbox
+# Allows have to come before the RFC1918 Deny below, since all three
+# destinations are themselves inside those ranges (pod IPs included -
+# this cluster's pod CIDR is inside 10.0.0.0/8) - Calico evaluates egress
+# rules in order, first match wins.
 #
 # apiserver access (Phase 2, docs/agent-sandbox-plan.md): openhands's own
 # KubernetesRuntime (RUNTIME=kubernetes) creates the per-conversation Pod/
@@ -19,6 +20,16 @@
 # globalnetworkpolicy-agent-sandbox-controller-egress.yaml - kubeadm's
 # stacked etcd/apiserver run as hostNetwork static pods, so their network
 # identity is the node IP, not a pod IP a label selector could match.
+#
+# runtime-sandbox access: found live (2026-09-23) - without this,
+# openhands's own POST to the spawned pod's execution-server
+# (`{pod}-svc.openhands-runtime.svc.cluster.local:8080`) hit the RFC1918
+# Deny below before ever reaching a matching Allow (pod IPs land inside
+# 10.0.0.0/8 same as any other in-cluster destination), silently
+# TCP-timing-out every conversation at `setup_initial_env` -
+# `globalnetworkpolicy-openhands-to-runtime-sandbox.yaml`'s ingress-side
+# Allow on the *runtime* namespace was never enough on its own; egress from
+# *this* pod has to independently permit it too.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
@@ -55,6 +66,12 @@ spec:
           - 10.20.10.12/32
           - 10.20.10.13/32
         ports: [6443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app == 'openhands-runtime'
+        namespaceSelector: kubernetes.io/metadata.name == 'openhands-runtime'
+        ports: [8080]
     - action: Deny
       protocol: TCP
       destination:
