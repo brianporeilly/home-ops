@@ -1,0 +1,54 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Enforcing from day one, same rationale as
+# globalnetworkpolicy-agent-sandbox-workloads-egress.yaml (brand-new
+# namespace, no legacy traffic, workload class that specifically warrants
+# default-deny-egress from the start) - see docs/agent-sandbox-plan.md
+# Phase 2.
+#
+# Selector matches the label openhands's own KubernetesRuntime hardcodes on
+# every pod it creates (`{'app': 'openhands-runtime'}` -
+# openhands/runtime/impl/kubernetes/kubernetes_runtime.py's POD_LABEL,
+# confirmed against the 0.59.0 source) - not something we control, so
+# there's no equivalent of sandboxtemplate-coding-agent.yaml's explicit
+# podTemplate.metadata.labels override here.
+#
+# DNS + HTTPS-to-the-internet only, same shape as the agent-sandbox-
+# workloads policy - the explicit Deny below closes the RFC1918 gap a bare
+# 0.0.0.0/0 would otherwise leave (Calico evaluates egress rules in order,
+# first match wins).
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-openhands-runtime-egress
+spec:
+  selector: app == 'openhands-runtime'
+  namespaceSelector: kubernetes.io/metadata.name == 'openhands-runtime'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Deny
+      protocol: TCP
+      destination:
+        nets:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

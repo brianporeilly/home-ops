@@ -7,13 +7,18 @@
 # touch llama-cpp's or hermes-agent's existing (currently unrestricted)
 # egress in this same namespace.
 #
-# Rule order matters here: the llama-cpp Allow has to come before the
-# RFC1918 Deny below, since llama-cpp's own pod IP is itself inside those
-# ranges - Calico evaluates egress rules in order, first match wins.
+# Rule order matters here: the llama-cpp and apiserver Allows have to come
+# before the RFC1918 Deny below, since both destinations are themselves
+# inside those ranges - Calico evaluates egress rules in order, first match
+# wins.
 #
-# Port 80 (alongside 443) is for initContainers.install-tmux's apt-get -
-# Calico enforces per-Pod, not per-container, so this also widens what the
-# main app container can reach. See docs/agent-sandbox-plan.md.
+# apiserver access (Phase 2, docs/agent-sandbox-plan.md): openhands's own
+# KubernetesRuntime (RUNTIME=kubernetes) creates the per-conversation Pod/
+# Service/PVC/Ingress directly via the in-cluster k8s client. Same static
+# CP node IPs as
+# globalnetworkpolicy-agent-sandbox-controller-egress.yaml - kubeadm's
+# stacked etcd/apiserver run as hostNetwork static pods, so their network
+# identity is the node IP, not a pod IP a label selector could match.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
@@ -42,6 +47,14 @@ spec:
         selector: app.kubernetes.io/name == 'llama-cpp'
         namespaceSelector: kubernetes.io/metadata.name == 'ai'
         ports: [8080]
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.10.11/32
+          - 10.20.10.12/32
+          - 10.20.10.13/32
+        ports: [6443]
     - action: Deny
       protocol: TCP
       destination:
@@ -54,4 +67,4 @@ spec:
       destination:
         nets:
           - 0.0.0.0/0
-        ports: [80, 443]
+        ports: [443]
