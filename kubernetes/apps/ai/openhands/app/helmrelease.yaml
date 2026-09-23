@@ -104,9 +104,9 @@ spec:
               # Default true spawns an in-process Chromium at startup
               # (playwright) that hung the whole app on boot - see
               # docs/agent-sandbox-plan.md. Not chasing headless Chromium's
-              # system-library chain for a bundled browser this namespace
-              # already has a dedicated pattern for (hermes-agent's
-              # sockpuppetbrowser CDP sidecar).
+              # system-library chain here; a dedicated sockpuppetbrowser CDP
+              # sidecar is the fallback if the browser tool turns out to
+              # matter for real usage - see docs/agent-sandbox-plan.md.
               ENABLE_BROWSER: "false"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
@@ -146,8 +146,7 @@ spec:
               # writes outside /.openhands-state (npm/asset caches, tmp
               # files for tool execution under RUNTIME=local). Confirm
               # what actually needs write access post-deploy (check for
-              # permission-denied errors, same approach hermes-agent's
-              # helmrelease.yaml used) before locking this down.
+              # permission-denied errors) before locking this down.
               capabilities: { drop: ["ALL"] }
             resources:
               requests:

@@ -14,7 +14,7 @@ node-level changes (gVisor) for a first pass.
 ## Architecture
 
 ```
-ai namespace (existing: llama-cpp, hermes-agent)
+ai namespace (existing: llama-cpp)
 └── openhands          interactive web UI + headless mode, RUNTIME=local,
                         own Pod is the isolation boundary, Anthropic Claude
                         as default LLM, llama-cpp selectable as a secondary
@@ -181,11 +181,13 @@ Set `ENABLE_BROWSER: "false"` rather than chase this further - fixing the
 `/workspace` permission would likely only surface the next problem
 (headless Chromium's system-library chain, which this slim image almost
 certainly doesn't have), and this namespace already has a dedicated,
-working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar)
-rather than bundling a browser into the app itself. If the agent UI's
-`browser` tool turns out to matter for real usage, wiring OpenHands at a
-CDP endpoint (same shape as `hermes-agent`'s `browser.cdp_url`) is the
-follow-up, not re-enabling the bundled one.
+working browser pattern (`hermes-agent`'s `sockpuppetbrowser` CDP sidecar,
+`browser.cdp_url`) rather than bundling a browser into the app itself. If
+the agent UI's `browser` tool turns out to matter for real usage, wiring
+OpenHands at a CDP endpoint the same way is the follow-up, not re-enabling
+the bundled one. (`hermes-agent` itself was later removed - see its own
+PR; a dedicated `sockpuppetbrowser` sidecar for `openhands`/`agent-sandbox`
+specifically is the resulting fallback plan, not a shared one.)
 
 ## Seventh fix: su openhands - fails, we're not root (2026-09-22)
 
