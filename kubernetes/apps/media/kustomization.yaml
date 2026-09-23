@@ -21,7 +21,6 @@ patches:
 resources:
   - ./audiobookshelf/ks.yaml
   - ./bookorbit/ks.yaml
-  - ./calibre-web-automated/ks.yaml
   - ./jellyfin/ks.yaml
   - ./jellyseerr/ks.yaml
   - ./navidrome/ks.yaml
