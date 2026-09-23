@@ -1,0 +1,106 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/cronjob-batch-v1.json
+# Phase 2 gap (docs/agent-sandbox-plan.md, "stale PVCs accumulate"):
+# openhands never deletes a conversation's Pod/Service/PVC on its own -
+# only an explicit DELETE /api/conversations/{id} does (confirmed against
+# manage_conversations.py - it calls KubernetesRuntime.delete(), which is
+# the only code path that removes the PVC). CONVERSATION_MAX_AGE_SECONDS
+# (raised in helmrelease.yaml) only ever filtered what GET /api/conversations
+# *returns* - it hides old conversations from the UI's sidebar history, it
+# never deletes anything. Past that age a conversation becomes invisible in
+# the UI (no way left to browse to it and click delete) while its
+# ceph-block PVC keeps existing indefinitely - that's the actual leak.
+#
+# Deliberately report-only, not a reaper: this logs one JSON line per
+# conversation whose last_updated_at (real inactivity - NOT created_at,
+# which is what the UI's own filter uses and would otherwise flag a
+# conversation you're still actively using) is older than THRESHOLD_SECONDS.
+# Nothing here ever calls DELETE. A conversation is still fully reachable
+# and resumable at its direct URL even once it's fallen out of the sidebar
+# (confirmed - only the /api/conversations *listing* endpoint age-filters,
+# GET /api/conversations/{id} does not), so the report's "url" field is a
+# real, working link - see grafana/app/openhands-conversation-report-
+# dashboard.yaml for the table view built on top of these logs (open =
+# rehydrate the conversation in the UI; stop/delete from there is a
+# deliberate human action, not something this job does for you).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openhands-conversation-report
+spec:
+  schedule: "17 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          # Fluent-bit labels every shipped log line `app=$app` from this
+          # pod label (app.kubernetes.io/name, then app, then k8s-app -
+          # confirmed against fluent-bit/app/helmrelease.yaml's [FILTER]
+          # rename rules) - set explicitly so the Grafana dashboard's Loki
+          # query has a stable selector, same reasoning as
+          # sandboxtemplate-coding-agent.yaml's podTemplate labels.
+          labels:
+            app.kubernetes.io/name: openhands-conversation-report
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: report
+              image: docker.io/alpine/k8s:1.37.0@sha256:32c5765a0d1772b8620e96796bd171b925c0ddb0acbbf9a11dcdc81083e8d025
+              env:
+                # Same number CONVERSATION_MAX_AGE_SECONDS defaults to
+                # upstream - see helmrelease.yaml's env comment for why
+                # this job doesn't just reuse that (now-raised) config
+                # value directly.
+                - name: THRESHOLD_SECONDS
+                  value: "864000"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  BASE="http://openhands:3000/api"
+                  UI_BASE="https://openhands.internal.oreillys.io"
+                  page_id=""
+                  while : ; do
+                    url="$BASE/conversations?limit=100"
+                    [ -n "$page_id" ] && url="$url&page_id=$page_id"
+                    resp=$(curl -sf "$url")
+                    stale=$(printf '%s' "$resp" | jq -c --argjson threshold "$THRESHOLD_SECONDS" --arg ui_base "$UI_BASE" '
+                      def to_epoch: .[0:19] + "Z" | fromdateiso8601;
+                      now as $now
+                      | .results[]
+                      | select((( .last_updated_at // .created_at ) | to_epoch) as $t | ($now - $t) > $threshold)
+                      | {
+                          conversation_id,
+                          title: (.title // "untitled"),
+                          created_at,
+                          last_updated_at: (.last_updated_at // .created_at),
+                          url: ($ui_base + "/conversations/" + .conversation_id)
+                        }
+                    ')
+                    printf '%s\n' "$stale" | while IFS= read -r line; do
+                      [ -n "$line" ] && echo "$line"
+                    done
+                    page_id=$(printf '%s' "$resp" | jq -r '.next_page_id // empty')
+                    [ -z "$page_id" ] && break
+                  done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi

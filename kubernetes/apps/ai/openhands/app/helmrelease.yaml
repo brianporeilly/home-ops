@@ -103,6 +103,18 @@ spec:
               # version as the app image above) - confirmed to exist for
               # amd64 via the ghcr.io v2 manifest API.
               SANDBOX_RUNTIME_CONTAINER_IMAGE: "ghcr.io/all-hands-ai/runtime:0.59-nikolaik@sha256:a5541eb6512ad368e9637c94b89ff76d9282fd2598c01b5566d18b7731940f86"
+              # Default 864000 (10d) - but this filters on created_at, not
+              # last_updated_at (confirmed against manage_conversations.py's
+              # _filter_conversations_by_age), so a conversation you're
+              # still actively using vanishes from the sidebar's history
+              # list once it's 10+ days old, same as a genuinely abandoned
+              # one. Raised to effectively "never hide" so the sidebar
+              # reflects real activity - openhands-conversation-report-
+              # cronjob.yaml does its own staleness check against
+              # last_updated_at instead, at that same 10-day number, and
+              # reports (never auto-deletes) what it finds. See "stale
+              # PVCs accumulate" in docs/agent-sandbox-plan.md.
+              CONVERSATION_MAX_AGE_SECONDS: "31536000"
               LLM_MODEL: "anthropic/claude-sonnet-5"
               # llama-cpp (this namespace) is reachable at
               # http://llama-cpp.ai.svc.cluster.local:8080/v1 as an optional
