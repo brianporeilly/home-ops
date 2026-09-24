@@ -15,7 +15,7 @@ at `.11`**. Keep static node IPs out of any DHCP dynamic pool. Blanks = not yet 
 | `10.20.10.0/24`  | Control plane |
 | `10.20.20.0/24`  | Workers (storage / compute) |
 | `10.20.30.0/24`  | NAS / storage appliances |
-| `10.20.40.0/24`  | GPU / accelerator nodes — **reserved (future)**; current GPU boxes are tier-20 workers |
+| `10.20.40.0/24`  | GPU / accelerator nodes — first host `gpu-typhon` (`.11`, dedicated GPU worker, currently testing/not yet joined); legacy GPU boxes (`wk-drotte`/`wk-roche`) stay tier-20 workers |
 | `10.20.50.0/24`  | **Onboard/management NICs on dual-NIC worker boxes** — see "Nodes with a separate mgmt NIC" below. Not a cluster-traffic tier; kubelet must **never** report an address here as its node IP. |
 | `10.20.100.0/24` | DHCP dynamic pool — shrink OPNsense scope to here; nodes stay static reservations in tiers |
 | `10.21.0.0/16`   | LoadBalancer pool (kube-vip-cloud-provider `cidr-global`); routed via OPNsense static route, deliberately off-link from `10.20.0.0/16` so it's not affected by the ARP/L2-adjacency issue the old, now-removed `10.20.250.0/24` pool had with kube-vip's BGP-only VIPs |
@@ -62,7 +62,9 @@ rationale).
 | `wk-roche`     | worker (Ceph HDD OSD, **GPU**)     | k8s-cp-03 | Dell OptiPlex 9020 | i7-4790 (Haswell) | 32 GB | 10.20.20.13 | 10GbE |
 | `wk-eata`      | worker (Ceph HDD OSD)      | k8s-wk-03 | Dell Precision Tower 3620 | Xeon E3-1270 v5 (Skylake, ECC-capable) | 32 GB | 10.20.20.14 | **1GbE ⚠** |
 | `wk-jonas`     | worker (Ceph SSD OSD / compute) | k8s-wk-01 | HP EliteDesk 800 G2 DM (65W) | i5-6500 (Skylake) | 16 GB | 10.20.20.15 | 1GbE |
+| `wk-talos`     | worker (compute — Jellyfin transcode, iGPU Quick Sync) | — (new) | Dell OptiPlex 7090 Ultra (UFF) | i5-1145G7 (Tiger Lake) | 8 GB stock — upgrade planned | 10.20.20.16 (planned) | 1GbE |
 | `nas-ultan`    | NAS (ZFS)                  | ubuntu-01 | whitebox (ASRock, DMI OEM-blank) | Xeon E3-1230 v3 (Haswell, ECC) | 32 GB (4×8 DDR3-1333, **maxed**) | 10.20.30.11 | 10GbE |
+| `gpu-typhon`   | worker (dedicated **GPU** — LLM/compute), testing — not yet joined to cluster | — | ASUS X99-DELUXE II (desktop) | i7-5820K (Haswell-E, 6c/12t) | 8 GB — upgrade planned | 10.20.40.11 | 1GbE |
 
 ## Nodes — MAC addresses & firmware (for DHCP static reservations)
 
@@ -80,6 +82,8 @@ not the 10GbE add-in card. 10GbE NICs are Intel dual-port; only port-0 (`f0`) is
 | `wk-roche`     | eno1      | `98:90:96:be:3a:ff` | enp5s0f0 | `a0:36:9f:b6:69:6c` | A10 |
 | `wk-eata`      | enp0s31f6 | `18:66:da:08:16:57` | ⚠ none detected | — | 2.22.0 |
 | `wk-jonas`     | eno1      | `ec:8e:b5:6e:71:17` | — | — | N21 v02.19 |
+| `wk-talos`     | eth0      | `70:b5:e8:59:ed:5a` | — | — | 1.43.0 |
+| `gpu-typhon`   | enp11s0   | `38:d5:47:ad:4f:e8` | — | — | 0801 |
 | `nas-ultan`    | enp0s25   | `bc:5f:f4:fd:ec:92` | enp2s0f0 (link down) | `a0:36:9f:e5:70:78` | P1.70 |
 
 ## Nodes with a separate mgmt NIC — kubelet `--node-ip` pinning required
@@ -131,6 +135,8 @@ max" is what SMBIOS type-16 reports (= the CPU/platform ceiling on these).
 | `wk-roche`     | 32 GB | 4 / 4 | 4×8 GB | DDR3-1600         | 32 GB | **maxed** — platform ceiling (DDR3) |
 | `wk-eata`      | 32 GB | 4 / 4 | 4×8 GB | DDR4-2133         | 64 GB | → 64 GB, but **no free slots** (4×16 swap) |
 | `wk-jonas`     | 16 GB | 2 / 2 | 2×8 GB | DDR4-2133 SODIMM  | 32 GB | → 32 GB, but **no free slots** (2×16 swap) |
+| `wk-talos`     | 8 GB  | 1 / 2 | 1×8 GB DIMM1 (DIMM2 empty) | DDR4-3200 UDIMM | 64 GB | **1 slot free** — cheapest add is a 2nd 8GB+ stick in DIMM2 (also picks up dual-channel) |
+| `gpu-typhon`   | 8 GB  | 1 / 8 | 1×8 GB DIMM_C1 (Corsair, single-channel — DIMM_A1/A2/B1/B2/C2/D1/D2 empty), rated 3000 MT/s but running at 2133 MT/s (BIOS/XMP not configured for it) | DDR4-2133 (configured), 3000 MT/s rated | 512 GB *(dmidecode board figure — see note)*, realistically 64 GB (Intel-spec CPU max) or up to 128 GB per board QVL, unverified | **7 slots free** — quad-channel X99 platform; **planned replacement**, not just an add — a matched quad kit with XMP enabled would pick up real memory bandwidth for GPU workloads |
 | `nas-ultan`    | 32 GB | 4 / 4 | 4×8 GB | DDR3-1333         | 32 GB | **maxed** — platform ceiling (DDR3) |
 
 **Takeaways:** (1) the three DDR3 Haswell workers + the NAS are at their hard ceiling — more
@@ -152,6 +158,8 @@ round if 16 GB ever proves tight again; `palaemon` is out of slots and would nee
 | `wk-roche`     | SanDisk X400 128GB (SD8SB8U) | **HDD:** WD20EARX 2TB · **GPU:** GTX 745 | SATA SSD (pending) | SATA-only; block.db SSD not yet present |
 | `wk-eata`      | Patriot P210 128GB | **HDD:** WD20EARX 2TB | SATA SSD (pending) | SATA-only; block.db SSD not yet present; ⚠ **10GbE NIC not detected** (only onboard 1GbE) |
 | `wk-jonas`     | Patriot P210 128GB | **SSD:** WD_BLACK SN770M 1TB NVMe | — | MFF, M.2 |
+| `wk-talos`     | Micron 2450 NVMe 256GB (M.2, serial `22363B3CD51F`, fw 24500007) | — (compute-only, no OSD) | — | UFF, single M.2 slot — boot/OS disk only |
+| `gpu-typhon`   | Samsung SSD 850 PRO 256GB (SATA, serial `S1SUNSAFC59418H`) | — (compute-only, no OSD) | — | desktop tower; **GPU:** GTX 1070 + Tesla P100-PCIE-16GB (confirmed via `nvidia-smi`/`lspci`) |
 | `nas-ultan`    | Crucial M4 64GB (boot) | **ZFS (planned):** 5× WD60EFAX 6TB + 1× HGST HUS726060ALE611 6TB (3 mirror vdevs) + 1× WD60EFAX cold spare | — | **disks to be re-laid to plan at teardown.** *Currently* (old cluster): 4× WD60EFAX + 1× HGST in ZFS; WD Blue 1TB SSD = `/data` (Longhorn — reclaim target); X400 128GB = `/var`; 6× iSCSI Longhorn PVCs mounted |
 
 ## Notes
@@ -169,12 +177,46 @@ round if 16 GB ever proves tight again; `palaemon` is out of slots and would nee
   boxes. Driver: Flatcar `nvidia.service`, pinned 580.105.08 (last Maxwell branch); see
   `gpu-nodes-flatcar-nvidia` memory. These were GPU-bearing **CP nodes** in the old cluster (why
   ollama-on-etcd hurt) → now pure workers, which resolves it. Re-IP `.20.11/.12` → `.20.12/.13`;
-  update ansible/SSH + the memory. `10.20.40.0/24` stays **reserved** for a *future* dedicated GPU node.
+  update ansible/SSH + the memory.
+- **`gpu-typhon` (10.20.40.11)** — new dedicated GPU worker, first host in the `10.20.40.0/24`
+  tier. Named for the two-headed tyrant (Typhon) — apt if it ends up dual-GPU (possible 2nd Tesla
+  P100 upgrade, TBD). Specs via `scripts/node-hw-report.sh`, captured 2026-09-21: ASUS X99-DELUXE
+  II desktop board (BIOS 0801, AMI, dated 2016-06-28), Intel i7-5820K (Haswell-E, 6c/12t @
+  3.30GHz), 8 GB RAM (1×8GB Corsair DIMM_C1, rated 3000 MT/s but running at 2133 MT/s since the
+  board isn't configured/XMP'd for it — 7 of 8 slots free, quad-channel X99 platform. `dmidecode`
+  reports "Maximum Capacity: 512 GiB" but that's a generic SMBIOS board figure (8 slots × a
+  blanket per-slot ceiling), **not** a real achievable limit — Intel's official spec for the
+  i7-5820K caps it at **64 GB**, and the X99-DELUXE II's own QVL lists up to 128 GB (8×16GB UDIMM,
+  since X99 boards double as Xeon E5 v3 boards) though that's above Intel's validated spec for
+  this consumer CPU and unconfirmed for this specific board/CPU pairing. Plan around 64 GB as the
+  safe ceiling. **Planned replacement**, not just an add — worth doing given only 8GB today). Boot
+  disk: Samsung SSD 850 PRO 256GB (`S1SUNSAFC59418H`). GPU: **NVIDIA GTX 1070 + Tesla
+  P100-PCIE-16GB**, both confirmed via `nvidia-smi`/`lspci` (driver 580.105.08, CUDA 13.0) — the
+  P100 didn't show up in the first `node-hw-report.sh` pass because it's a compute-only card with
+  no display output, so `lspci` classes it as `3D controller` rather than `VGA compatible
+  controller`/`Display controller`; the script's grep missed that class (fixed in the script).
+  Dual onboard NICs: Intel I218-V (`enp11s0`,
+  `38:d5:47:ad:4f:e8`, 1GbE, link up — use this MAC for the DHCP/PXE static reservation) and Intel
+  I211 (`eth0`, `38:d5:47:ad:4f:e9`, no link detected). Also carries a Broadcom BCM4360 802.11ac
+  wifi adapter, unused for cluster traffic. Running but **not yet joined to the cluster** — still
+  in standalone testing.
 - **DHCP (OPNsense):** dynamic scope currently spans the whole `/16`. Shrink it to a bounded block
   (`10.20.100.0/24`) and keep nodes/infra as **static MAC reservations in their tiers**, outside
   the pool. Reservations are honored during PXE, so each node PXE-boots straight onto its tier IP.
 - **Addressing:** third octet = tier; hosts from `.11` (`.1–.10` reserved per tier). Workers =
-  apprentice quartet `.20.11–.14` (severian/drotte/roche/eata, eata youngest → last) + jonas `.15`;
-  drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool `10.21.0.0/16` (the old
-  `10.20.250.0/24` pool has been fully retired - see addressing plan above).
+  apprentice quartet `.20.11–.14` (severian/drotte/roche/eata, eata youngest → last) + jonas `.15`
+  + talos `.16` (planned). drotte/roche also carry the GPUs. API VIP `10.20.254.100`, LB pool
+  `10.21.0.0/16` (the old `10.20.250.0/24` pool has been fully retired - see addressing plan above).
+- **`wk-talos`** (Dell OptiPlex 7090 UFF, i5-1145G7, service tag `6BJPDF3`) added as a dedicated
+  Jellyfin-transcode compute node — Tiger Lake iGPU (Iris Xe / Quick Sync), not a discrete-GPU
+  node like drotte/roche, so it's **not** managed by nvidia-gpu-operator. BIOS 1.43.0. Onboard NIC
+  is Intel I219-LM (`eth0`, 1GbE, confirmed link at 1000Mb/s) — no 10GbE add-in, no PCIe slot on
+  this chassis, and 10GbE isn't worth adding for a transcode-only workload (output bitrate is
+  reduced by design; source reads from Ceph/NAS stay well under 1GbE even for 4K HDR). Single M.2
+  NVMe (Micron 2450 256GB) as boot/OS disk only — compute node, not a Ceph
+  OSD host. RAM: 1×8GB DDR4-3200 UDIMM in DIMM1, DIMM2 empty (64GB board ceiling) — upgrade planned.
+  Powers via USB-C/Thunderbolt PD from a display (90W+ required, monitor must be on the
+  Thunderbolt input) or the native 90W barrel adapter. Gathered via `scripts/node-hw-report.sh`;
+  not yet joined to the cluster (`kubectl get nodes` doesn't show it yet) — IP `10.20.20.16` is
+  still just the planned static reservation.
 - Full rationale/history lives in `docs/disk-hardware-plan.md`; this file is the terse reference.

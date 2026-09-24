@@ -1,0 +1,11 @@
+---
+# Bucket + S3 credentials for this cluster's Barman backups (Ceph RGW).
+# Provisions bucket `cnpg-bookorbit` and a Secret/ConfigMap named
+# `bookorbit-postgres-backup` (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: bookorbit-postgres-backup
+spec:
+  bucketName: cnpg-bookorbit
+  storageClassName: ceph-bucket

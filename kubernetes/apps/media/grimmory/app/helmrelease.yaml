@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/grimmory-tools/grimmory
-              tag: v3.3.3@sha256:d658e472e0b6d4df8eb022453b9155076c97d2a01878739116e8b776c042dd66
+              tag: v3.5.0@sha256:83597bf02da48a8ec4042fd4d4f58b9631f5b131d6dee7d2fcc5cf3f2eec2526
             env:
               USER_ID: "1000"
               GROUP_ID: "1000"
@@ -110,7 +110,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
             command:
               - python3
               - -c

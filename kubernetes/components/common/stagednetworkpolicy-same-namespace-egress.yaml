@@ -1,0 +1,38 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagednetworkpolicies.yaml
+# Universal piece of docs/egress-policy-plan.md's proposed baseline, egress
+# mirror of networkpolicy-same-namespace.yaml's allow-same-namespace. Staged
+# (log-only, never enforces) on purpose, same as every policy in this
+# rollout - a selector: all() Egress-type GlobalNetworkPolicy going
+# enforcing ends the permissive kns.<ns> Profile fallback for egress too,
+# the moment any one of the wide-fan-out egress rules promotes, so this has
+# to exist first or ordinary same-namespace traffic (app -> its own DB,
+# sidecars, etc.) would go from allowed to denied.
+#
+# Kept as a SEPARATE object from allow-same-namespace rather than adding an
+# egress: block to it - that policy is already enforcing today, so editing
+# it directly would start enforcing egress immediately with zero
+# observation window, exactly what "staged first, always" exists to
+# prevent. Merge the two once this has soaked and is ready to promote.
+#
+# Namespaced, not Global, for the same reason as allow-same-namespace: only
+# a namespaced NetworkPolicy defaults an omitted destination namespace to
+# "same namespace as the policy" - GlobalNetworkPolicy has no home
+# namespace to default to, and there's no selector syntax for "same
+# namespace as the source endpoint" either. Already included in every app
+# namespace's kustomization.yaml via this component - no explicit
+# metadata.namespace, so Kustomize's namespace transformer injects the
+# right one per consumer automatically.
+apiVersion: projectcalico.org/v3
+kind: StagedNetworkPolicy
+metadata:
+  name: allow-same-namespace-egress
+spec:
+  stagedAction: Set
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      destination:
+        selector: all()

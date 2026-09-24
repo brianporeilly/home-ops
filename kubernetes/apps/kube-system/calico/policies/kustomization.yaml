@@ -16,7 +16,64 @@ resources:
   - ./globalnetworkpolicy-apiserver-webhooks.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-loki.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-akvorado.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-omada-controller.yaml
   - ./globalnetworkpolicy-trusted-vlans-to-fluent-bit.yaml
   - ./globalnetworkpolicy-postgres-operator-webhook.yaml
   - ./globalnetworkpolicy-changedetection-to-llama-cpp.yaml
+  - ./globalnetworkpolicy-paperless-to-llama-cpp.yaml
   - ./globalnetworkpolicy-download-to-jellyfin.yaml
+  - ./globalnetworkpolicy-internet-to-slskd.yaml
+  - ./globalnetworkpolicy-kured-to-observability.yaml
+  - ./globalnetworkpolicy-trusted-vlans-to-maddy.yaml
+  - ./globalnetworkpolicy-cluster-to-maddy.yaml
+  # docs/agent-sandbox-plan.md - enforcing egress from day one for these two
+  # brand-new namespaces, deliberately ahead of the fleet-wide staged
+  # rollout below (see each file for the full rationale)
+  - ./globalnetworkpolicy-agent-sandbox-controller-egress.yaml
+  - ./globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
+  - ./globalnetworkpolicy-openhands-egress.yaml
+  # Phase 2 (docs/agent-sandbox-plan.md) - openhands's own KubernetesRuntime
+  # spawning per-conversation sandbox pods into their own namespace
+  - ./globalnetworkpolicy-openhands-runtime-egress.yaml
+  - ./globalnetworkpolicy-openhands-to-runtime-sandbox.yaml
+  # docs/egress-policy-plan.md - staged only, none of these enforce yet
+  - ./stagedglobalnetworkpolicy-dns-egress.yaml
+  - ./stagedglobalnetworkpolicy-apiserver-egress.yaml
+  - ./stagedglobalnetworkpolicy-network-egress.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-cluster.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-private-network.yaml
+  - ./stagedglobalnetworkpolicy-download-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-flux-egress-git.yaml
+  # docs/egress-policy-plan.md round 2 - drafted from real pending-diff data
+  - ./stagedglobalnetworkpolicy-cnpg-egress-rgw.yaml
+  - ./stagedglobalnetworkpolicy-rook-ceph-egress-daemons.yaml
+  - ./stagedglobalnetworkpolicy-sockpuppetbrowser-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-media-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-immich-server-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-authentik-worker-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-observability-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-database-to-media-egress.yaml
+  - ./stagedglobalnetworkpolicy-database-to-observability-egress.yaml
+  # docs/egress-policy-plan.md round 3 - from post-merge pending-diff data
+  - ./stagedglobalnetworkpolicy-changedetection-to-llama-cpp-egress.yaml
+  - ./stagedglobalnetworkpolicy-postgres-operator-webhook-egress.yaml
+  - ./stagedglobalnetworkpolicy-metrics-server-egress-kubelet.yaml
+  # docs/egress-policy-plan.md round 4 - live pending-diff review 2026-09-01
+  - ./stagedglobalnetworkpolicy-navidrome-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-nebraska-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-kured-egress-prometheus.yaml
+  - ./stagedglobalnetworkpolicy-gatus-egress-dns-check.yaml
+  - ./stagedglobalnetworkpolicy-omada-controller-egress-internet.yaml
+  # docs/egress-policy-plan.md round 5 - live pending-diff review 2026-09-02
+  - ./stagedglobalnetworkpolicy-network-egress-private-network.yaml
+  - ./stagedglobalnetworkpolicy-home-assistant-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-home-egress-iot-vlan.yaml
+  - ./stagedglobalnetworkpolicy-cluster-egress-network-https.yaml
+  # docs/egress-policy-plan.md round 6 - live pending-diff review 2026-09-02
+  - ./stagedglobalnetworkpolicy-kopiur-egress-offsite.yaml
+  - ./stagedglobalnetworkpolicy-immich-ml-egress-internet.yaml
+  - ./stagedglobalnetworkpolicy-thelounge-egress-internet.yaml
+  # ai-suggestions/mail turn-up for paperless-ngx - anticipatory, not
+  # pending-diff-driven like the rounds above
+  - ./stagedglobalnetworkpolicy-paperless-to-llama-cpp-egress.yaml
+  - ./stagedglobalnetworkpolicy-paperless-egress-imap.yaml

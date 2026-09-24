@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: minecraft
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -23,7 +24,7 @@ spec:
           app:
             image:
               repository: itzg/minecraft-server
-              tag: latest@sha256:36ca518dab6b9934e504a63428cef385883abee75b3e667d96991e3b9dc1f2b9
+              tag: latest@sha256:18a8f7a0948ef70b6f40fb0a80dd32e666382e5ea287f1f91b93b19e008e8fe6
             env:
               EULA: "TRUE"
               TYPE: PAPER

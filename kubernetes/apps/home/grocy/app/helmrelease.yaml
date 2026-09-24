@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: grocy
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/grocy
-              tag: 4.7.0@sha256:deb07d373a21430de2bf0e41af591066d5c012072945a655478d2f1021b9b073
+              tag: 4.7.1@sha256:c54539a496ec3b53c88adb590311ee2104a2a509a1855ad95e4e27049d72c5af
             env:
               PUID: 1000
               GUID: 1000

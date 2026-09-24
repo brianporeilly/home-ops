@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: bookorbit-postgres
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+  storage:
+    size: 2Gi
+    storageClass: ceph-block-ssd
+  bootstrap:
+    initdb:
+      database: bookorbit
+      owner: bookorbit
+      secret:
+        name: bookorbit-postgres-creds
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector CASCADE
+        # vector isn't a "trusted" extension, so bookorbit can never CREATE
+        # it itself - flip ownership while still bootstrap-superuser so its
+        # own migrations can ALTER EXTENSION ... UPDATE later without ever
+        # needing superuser. Same pattern as immich's cluster.yaml.
+        - UPDATE pg_extension SET extowner = 'bookorbit'::regrole WHERE extname = 'vector'
+  monitoring:
+    enablePodMonitor: true
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: bookorbit-postgres-backup

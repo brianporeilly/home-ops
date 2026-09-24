@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: mariadb-operator-crds
-      version: 26.6.0
+      version: 26.10.1
       sourceRef:
         kind: HelmRepository
         name: mariadb-operator
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -33,12 +34,13 @@ spec:
   chart:
     spec:
       chart: mariadb-operator
-      version: 26.6.0
+      version: 26.10.1
       sourceRef:
         kind: HelmRepository
         name: mariadb-operator
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

@@ -6,7 +6,7 @@ homeassistant:
   latitude: !env_var HOME_LATITUDE
   longitude: !env_var HOME_LONGITUDE
   elevation: !env_var HOME_ELEVATION
-  unit_system: metric
+  unit_system: us_customary
   time_zone: America/Anchorage
   currency: USD
   country: US

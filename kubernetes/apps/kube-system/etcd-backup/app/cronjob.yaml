@@ -81,7 +81,7 @@ spec:
                 limits: { memory: 128Mi }
           containers:
             - name: upload
-              image: rclone/rclone:1.75.0
+              image: rclone/rclone:1.75.1
               env:
                 - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
                 - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }

@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: external-secrets
-      version: 2.10.0
+      version: 2.11.0
       sourceRef:
         kind: HelmRepository
         name: external-secrets
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

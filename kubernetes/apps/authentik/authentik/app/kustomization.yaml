@@ -28,12 +28,14 @@ resources:
   - ./grafana-oidc-credentials.yaml
   - ./paperless-ngx-oidc-credentials.yaml
   - ./linkwarden-oidc-credentials.yaml
+  - ./navidrome-oidc-credentials.yaml
   - ./forgejo-oidc-credentials.yaml
   - ./immich-oidc-credentials.yaml
   - ./whisker-oidc-credentials.yaml
   - ./jellyfin-oidc-credentials.yaml
   - ./audiobookshelf-oidc-credentials.yaml
   - ./grimmory-oidc-credentials.yaml
+  - ./openhands-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml

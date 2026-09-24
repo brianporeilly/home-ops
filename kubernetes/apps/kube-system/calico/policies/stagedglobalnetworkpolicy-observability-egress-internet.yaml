@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31).
+#
+# alertmanager -> tcp/443 is confirmed important, not just plausible: it's
+# the Slack webhook receiver ("observability/alertmanager/slack") every
+# alert in this cluster routes through - without this, promoting egress
+# default-deny would silently break all Slack alerting.
+#
+# grafana -> tcp/443 is plausible (plugin catalog / grafana.com check-in)
+# but not confirmed against one specific call the way alertmanager is -
+# staged now anyway since it's low-risk and the same shape, not worth a
+# separate deferred item.
+#
+# Grouped in one rule since both live in `observability` and need the
+# identical shape (tcp/443 to anywhere) - not because they're otherwise
+# related.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-observability-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name in {'alertmanager', 'grafana'}
+  namespaceSelector: kubernetes.io/metadata.name == 'observability'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

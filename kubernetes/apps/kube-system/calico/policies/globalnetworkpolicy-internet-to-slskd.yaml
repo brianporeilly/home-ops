@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Not part of the original network-policy-plan.md baseline - found live
+# (2026-09-01) that slskd's Soulseek port had no ingress allow-rule at
+# all, unlike every other externally-reachable service in this cluster
+# (which all go through envoy-external and are covered by
+# allow-opnsense-to-envoy-external / allow-trusted-vlans-to-envoy-external).
+# slskd is a raw Kubernetes LoadBalancer Service, not routed through
+# Envoy Gateway, so it was never covered by those rules - real Soulseek
+# peers connecting in from the internet were being silently dropped at
+# this layer regardless of whether the OPNsense port-forward itself was
+# configured correctly. Confirmed via a same-namespace TCP test
+# succeeding instantly while a cross-namespace one timed out completely,
+# even though the app itself was confirmed listening (`/proc/net/tcp`).
+#
+# 0.0.0.0/0 only, no trusted-VLANs rule - unlike envoy-external, actual
+# Soulseek peers are arbitrary internet hosts, not LAN clients, so there's
+# no equivalent internal-VLAN use case here worth adding.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-internet-to-slskd
+spec:
+  selector: app.kubernetes.io/name == 'slskd'
+  namespaceSelector: kubernetes.io/metadata.name == 'download'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - 0.0.0.0/0
+      destination:
+        ports: [50429]

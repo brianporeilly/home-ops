@@ -1,0 +1,267 @@
+---
+# Built on top of openhands/app/conversation-report-cronjob.yaml's daily
+# JSON-per-line log output (fluent-bit's generic kubernetes-log pipeline
+# auto-parses each stdout JSON line into msg_* fields - see that job's own
+# comment and fluent-bit/app/helmrelease.yaml's [FILTER] blocks). Report-
+# only, same as the job itself: this never deletes anything, it just makes
+# "conversations that fell out of the OpenHands sidebar but still hold a
+# PVC" browsable, with a working link back into the UI to rehydrate or
+# stop/delete each one by hand.
+#
+# Default time range (now-26h) deliberately just wider than the job's own
+# 24h schedule, not wider than that - the job re-logs every still-stale
+# conversation on every run, so a longer range would show duplicate rows
+# for anything stale across multiple days instead of one row per
+# conversation.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openhands-conversation-report-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "AI"
+data:
+  openhands-conversation-report.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "target": {
+              "limit": 100,
+              "matchAny": false,
+              "tags": [],
+              "type": "dashboard"
+            },
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Conversations openhands has hidden from its own sidebar (inactive past CONVERSATION_MAX_AGE_SECONDS) but never deleted - still fully resumable by URL. Never auto-deletes; use the link to rehydrate, or stop/delete from the UI once open.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "Count of stale conversations found in the most recent daily run.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 30
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "sum"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "sum(count_over_time({namespace=\"ai\", app=\"openhands-conversation-report\"} | json | msg_conversation_id != \"\" [$__range]))",
+              "queryType": "instant",
+              "refId": "A"
+            }
+          ],
+          "title": "Orphaned conversations",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "filterable": true,
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Open"
+                },
+                "properties": [
+                  {
+                    "id": "links",
+                    "value": [
+                      {
+                        "title": "Open conversation",
+                        "url": "${__value.raw}",
+                        "targetBlank": true
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 18,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "Last active"
+              }
+            ]
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "{namespace=\"ai\", app=\"openhands-conversation-report\"} | json",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Orphaned conversations - latest report",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Line": true,
+                  "id": true,
+                  "labels": true,
+                  "tsNs": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "msg_title": "Title",
+                  "msg_conversation_id": "Session ID",
+                  "msg_created_at": "Created",
+                  "msg_last_updated_at": "Last active",
+                  "msg_url": "Open"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        }
+      ],
+      "refresh": "",
+      "schemaVersion": 41,
+      "tags": [
+        "openhands",
+        "ai"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-26h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "OpenHands Orphaned Conversations",
+      "uid": "openhands-orphaned-conversations",
+      "version": 1,
+      "weekStart": ""
+    }

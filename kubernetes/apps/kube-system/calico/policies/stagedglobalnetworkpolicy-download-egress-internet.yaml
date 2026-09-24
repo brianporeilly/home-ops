@@ -1,0 +1,39 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline. Staged (log-only,
+# never enforces) on purpose, same as every policy in this rollout.
+#
+# `download` (the *arr stack + qBittorrent) is the namespace
+# docs/network-policy-plan.md's step 8 specifically called out as "the
+# obvious first case to think through" for egress. Real flow data: indexer
+# HTTPS calls (tcp/443) plus qBittorrent's DHT/peer traffic - hundreds of
+# distinct ephemeral UDP ports observed in a single 15-second sample, one
+# per swarm peer, unbounded and pointless to enumerate.
+#
+# Source is 0.0.0.0/0, deliberately - this namespace's entire job is
+# fetching from the public internet, same reasoning
+# allow-opnsense-to-envoy-external used for the opposite (ingress)
+# direction: narrowed by which pods it applies to (this namespace only),
+# not by destination, since the destination is genuinely "wherever the
+# indexer/tracker/peer happens to be."
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-download-egress-internet
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'download'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+    - action: Allow
+      protocol: UDP
+      destination:
+        nets:
+          - 0.0.0.0/0

@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: jellyfin
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -80,7 +81,7 @@ spec:
           install-oidc:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
             command: ["python3", "-c"]
             args:
               - |
@@ -109,9 +110,9 @@ spec:
                     f.write(version)
                 print(f"OIDC RBAC {version} installed")
             env:
-              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.8/oidc-rbac.zip"
-              COMPONENT_MD5: "d41a0b3792a51b50432c2a6710d10160"
-              COMPONENT_VERSION: "1.0.8"
+              COMPONENT_URL: "https://github.com/Ezeqielle/jellyfin-plugin-oidc/releases/download/v1.0.10/oidc-rbac.zip"
+              COMPONENT_MD5: "81249667a265a6757cf010c23196f020"
+              COMPONENT_VERSION: "1.0.10"
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -128,7 +129,7 @@ spec:
           patch-web-sso:
             image:
               repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+              tag: 12.1@sha256:008ec8024bdaaa6f0a3f0de468e185633eeba9d67c56936e8dbf5ef6b8d6200f
             command:
               - sh
               - -c
@@ -146,7 +147,7 @@ spec:
           app:
             image:
               repository: ghcr.io/jellyfin/jellyfin
-              tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+              tag: 12.1@sha256:008ec8024bdaaa6f0a3f0de468e185633eeba9d67c56936e8dbf5ef6b8d6200f
             # Native /metrics is enabled via <EnableMetrics>true</EnableMetrics>
             # in /config/config/system.xml directly, not an env var -
             # JELLYFIN_EnableMetrics/MetricsListenPort don't do anything
@@ -241,7 +242,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
             command:
               - python3
               - -c
@@ -338,10 +339,16 @@ spec:
                     "DefaultRoleName": "media-users",
                 }
 
+                # Jellyfin 12.0 dropped the legacy X-Emby-Token/X-MediaBrowser-Token
+                # headers entirely - confirmed live (401 on every request after the
+                # 12.0 upgrade). Authorization: MediaBrowser Token=... is now the
+                # only accepted form.
+                AUTH_HEADER = f'MediaBrowser Token="{os.environ["API_KEY"]}"'
+
                 req = urllib.request.Request(
                     f"{JELLYFIN_URL}/Plugins/{PLUGIN_ID}/Configuration",
                     data=json.dumps(payload).encode(),
-                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
                     method="POST",
                 )
                 with urllib.request.urlopen(req, timeout=15) as r:
@@ -363,7 +370,7 @@ spec:
                 # to their C# defaults.
                 net_get = urllib.request.Request(
                     f"{JELLYFIN_URL}/System/Configuration/network",
-                    headers={"X-Emby-Token": os.environ["API_KEY"]},
+                    headers={"Authorization": AUTH_HEADER},
                 )
                 with urllib.request.urlopen(net_get, timeout=15) as r:
                     net_config = json.loads(r.read())
@@ -380,7 +387,7 @@ spec:
                 net_req = urllib.request.Request(
                     f"{JELLYFIN_URL}/System/Configuration/network",
                     data=json.dumps(net_config).encode(),
-                    headers={"X-Emby-Token": os.environ["API_KEY"], "Content-Type": "application/json"},
+                    headers={"Authorization": AUTH_HEADER, "Content-Type": "application/json"},
                     method="POST",
                 )
                 with urllib.request.urlopen(net_req, timeout=15) as r:

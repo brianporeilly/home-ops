@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added round 5
+# (2026-09-02): home-assistant -> PUBLIC NETWORK:443, confirmed real and
+# high-volume (129 hits in a 2h pending-diff sample, ongoing) - almost
+# certainly Nabu Casa/cloud-integration traffic, same "per-app internet
+# access" shape as navidrome/authentik-worker in round 4. Separate from
+# this namespace's LAN-device egress
+# (stagedglobalnetworkpolicy-home-egress-iot-vlan.yaml) - that's a
+# different destination (10.60.0.0/16, not the public internet) with its
+# own VLAN-scoping question, not the same traffic.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-home-assistant-egress-internet
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'home-assistant'
+  namespaceSelector: kubernetes.io/metadata.name == 'home'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

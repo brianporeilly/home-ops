@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: home-assistant
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -34,7 +35,7 @@ spec:
           install-oidc:
             image:
               repository: python
-              tag: 3.14-alpine@sha256:0ad7f98a97b1b8fcc226f5cbe49f0b95cd6f624582cdc6fbf7e41312075cb401
+              tag: 3.14-alpine@sha256:4677924bcc0e94505a3270e87cb1601c2af54cd92d021b8dc306618a14333bbe
             command: ["python3", "-c"]
             args:
               - |
@@ -74,7 +75,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/home-assistant
-              tag: 2026.8.3@sha256:16ca445e58fa71d4f7ff287d4e9793ea690ccae932a5e200852371425cd7abb0
+              tag: 2026.9.3@sha256:638c4c8d62caad377e70bfa7beef75f70c9343a49aed64aad824f2cd06843c1c
             env:
               HASS_HTTP_TRUSTED_PROXY_1: 10.246.0.0/16
               DB_URL:

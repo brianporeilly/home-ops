@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: forgejo
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: codeberg.org/forgejo/forgejo
-              tag: 16.0.3-rootless@sha256:214f4ae63ee78be1e445e58573c88dc7215e72091210852e0df94eaac1a25685
+              tag: 16.0.5-rootless@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
             env:
               FORGEJO__database__DB_TYPE: postgres
               FORGEJO__database__HOST: forgejo-postgres-rw:5432
@@ -137,7 +138,7 @@ spec:
           app:
             image:
               repository: codeberg.org/forgejo/forgejo
-              tag: 16.0.3-rootless@sha256:214f4ae63ee78be1e445e58573c88dc7215e72091210852e0df94eaac1a25685
+              tag: 16.0.5-rootless@sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8
             # forgejo's FORGEJO__section__KEY env-var config only gets turned
             # into an app.ini by /usr/local/bin/docker-setup.sh, which runs as
             # part of the image's own ENTRYPOINT (confirmed by reading it

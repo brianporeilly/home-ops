@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: authentik-valkey
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -34,7 +35,7 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 9.1-alpine@sha256:7bf043f6ff25ea50b557e2f6da8f76fce62775d766d943f076d1e66838099315
+              tag: 9.2-alpine@sha256:48dc9d22ed984d9599e0d5823726053b0b426a86cff534f6bf1bd3dfb951f33e
             args:
               - valkey-server
               - --appendonly
