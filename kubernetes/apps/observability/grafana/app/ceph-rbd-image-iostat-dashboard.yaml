@@ -1,0 +1,389 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-rbd-image-iostat-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Storage"
+data:
+  ceph-rbd-image-iostat.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "target": {
+              "limit": 100,
+              "matchAny": false,
+              "tags": [],
+              "type": "dashboard"
+            },
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Per-OSD apply/commit latency and per-RBD-image IOPS/latency, sourced from mgr/prometheus/rbd_stats_pools. Use this to find which PVCs are actually driving load on the slow HDD OSDs before deciding what to move to ceph-block-ssd.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Ranked by apply latency - the two known-bad WD Green HDDs (osd.0, osd.2) should stand out here. SSD OSDs run 2-4ms; a healthy HDD like osd.4 runs ~90ms.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 20 },
+                  { "color": "red", "value": 100 }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "ceph_daemon" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "hostname" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "device_class" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": true, "displayName": "Apply Latency (ms)" }]
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "ceph_osd_apply_latency_ms * on(ceph_daemon) group_left(hostname, device_class) ceph_osd_metadata",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "ceph_osd_commit_latency_ms * on(ceph_daemon) group_left(hostname, device_class) ceph_osd_metadata",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            }
+          ],
+          "title": "OSD Apply/Commit Latency",
+          "transformations": [
+            { "id": "merge", "options": {} },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "cluster": true,
+                  "container": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "pod": true,
+                  "service": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "ceph_daemon": "OSD",
+                  "hostname": "Host",
+                  "device_class": "Class",
+                  "Value #A": "Apply Latency (ms)",
+                  "Value #B": "Commit Latency (ms)"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. image is the underlying Ceph RBD object (csi-vol-<uuid>) - PVC/Namespace columns come from a join against kube_persistentvolume_info on the CSI volume handle.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Total IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Write IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Read IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Avg Write Latency (ms)" },
+                "properties": [
+                  { "id": "unit", "value": "ms" },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "orange", "value": 20 },
+                        { "color": "red", "value": 100 }
+                      ]
+                    }
+                  },
+                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+          "id": 2,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": true, "displayName": "Total IOPS" }]
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]))",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "format": "table",
+              "instant": true,
+              "refId": "C"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (pool, image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
+              "format": "table",
+              "instant": true,
+              "refId": "D"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\")",
+              "format": "table",
+              "instant": true,
+              "refId": "E"
+            }
+          ],
+          "title": "Top RBD Images by IOPS",
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "image",
+                "mode": "outer"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Time 1": true,
+                  "Time 2": true,
+                  "Time 3": true,
+                  "Time 4": true,
+                  "Time 5": true,
+                  "__name__": true,
+                  "container": true,
+                  "csi_driver": true,
+                  "csi_volume_handle": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "kubernetes_node": true,
+                  "pod": true,
+                  "reclaim_policy": true,
+                  "service": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "persistentvolume": "PVC (PV name)",
+                  "storageclass": "StorageClass",
+                  "pool": "Pool",
+                  "image": "RBD Image",
+                  "Value #A": "Total IOPS",
+                  "Value #B": "Write IOPS",
+                  "Value #C": "Read IOPS",
+                  "Value #D": "Avg Write Latency (ms)"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "iops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
+          "id": 3,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "legendFormat": "{{pool}} / {{image}}",
+              "refId": "A"
+            }
+          ],
+          "title": "RBD IOPS by Image",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 20 },
+                  { "color": "red", "value": 100 }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
+          "id": 4,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (pool, image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
+              "legendFormat": "{{pool}} / {{image}}",
+              "refId": "A"
+            }
+          ],
+          "title": "RBD Avg Write Latency by Image",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 40,
+      "tags": ["ceph", "storage"],
+      "templating": { "list": [] },
+      "time": { "from": "now-6h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ceph RBD Image IOStat",
+      "uid": "ceph-rbd-image-iostat",
+      "version": 1,
+      "weekStart": ""
+    }
