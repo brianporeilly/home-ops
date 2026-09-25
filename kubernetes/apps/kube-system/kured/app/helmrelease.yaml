@@ -32,11 +32,16 @@ spec:
       alert-firing-only: "true"
       # Exclude mode: these names never block a reboot; everything else does.
       #   - Watchdog: dead-man's-switch, fires permanently by design.
+      #   - InfoInhibitor: kube-prometheus-stack's meta-alert that fires
+      #     whenever any severity="info" alert is active, purely so
+      #     Alertmanager's inhibit_rules have something to key off - not a
+      #     real problem, and kured reads Prometheus ALERTS directly so
+      #     Alertmanager-side silencing of it doesn't help here.
       #   - SmartDeviceTestFailed: TEMPORARY exclusion for a known failing
       #     drive pending replacement - remove once replaced.
       #   - NASRebootRequired / NodeFilesystemAlmostOutOfSpace: nas-ultan,
       #     unrelated to k8s node reboots.
-      alert-filter-regexp: "^(Watchdog|SmartDeviceTestFailed|NASRebootRequired|NodeFilesystemAlmostOutOfSpace)$"
+      alert-filter-regexp: "^(Watchdog|InfoInhibitor|SmartDeviceTestFailed|NASRebootRequired|NodeFilesystemAlmostOutOfSpace)$"
       # kured releases its lock on kubelet-Ready, before workloads (e.g. CNPG
       # standbys) actually finish recovering. Delay gives them real time
       # before the next node is cordoned.
