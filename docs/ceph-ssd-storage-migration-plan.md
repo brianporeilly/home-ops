@@ -89,52 +89,87 @@ and *that* triggers the StatefulSet to provision a real new PVC from the
 updated template. Always re-check `storageClassName` after the pod comes
 back, don't assume the first recreation used the new class.
 
-## Akvorado ClickHouse (data-preserving migration needed)
+## Akvorado ClickHouse - Done (2026-09-25)
 
 Single instance (`akvorado-clickhouse-storage-chi-akvorado-clickhouse-akvorado-0-0-0`,
 50Gi) - no replica, and it's the actual store of collected NetFlow history.
 The delete-PVC approach above would permanently lose all historical flow data
-instead of self-healing. Losing that data is acceptable if it comes to it, but
-a data-preserving migration is preferred. Options, not yet decided:
+instead of self-healing, so a data-preserving migration was used instead.
 
-1. **CSI VolumeSnapshot -> restore into `ceph-block-ssd`** (confirmed working
-   2026-09-25): tested by restoring an existing routine snapshot
-   (`thelounge-20260925064200-snap`, source pool `ceph-blockpool`/HDD, class
-   `csi-ceph-blockpool`) into a scratch PVC on `ceph-block-ssd` in the `misc`
-   namespace. Bound in ~7s; mounted it in a throwaway pod and confirmed the
-   real files came across intact (`thelounge/config.js`, `vapid.json`, with
-   their original August timestamps, not empty/corrupted). Cross-pool restore
-   through the same CSI driver (`rook-ceph.rbd.csi.ceph.com`) genuinely works
-   on this cluster/version - no rsync job needed. Scratch PVC + pod deleted
-   after verifying; underlying RBD image was reclaimed automatically
-   (`reclaimPolicy: Delete` on `ceph-block-ssd`).
+**Result:** migrated successfully to `ceph-block-ssd`, with a small, bounded,
+understood loss - not a clean zero-loss migration. `flows` table went from
+29,484,787 to 28,854,787 rows (-630,000, ~2.1%). ClickHouse itself came up
+healthy with no structural damage; Akvorado's outlet reconnected within
+seconds of the pod coming back and drained its Kafka backlog to a lag of 2
+messages almost immediately - ongoing ingestion was never at risk, this is
+purely a one-time gap in already-recorded history.
 
-   **ClickHouse procedure** (not yet executed):
-   - Take (or reuse the next scheduled) snapshot of
-     `akvorado-clickhouse-storage-chi-akvorado-clickhouse-akvorado-0-0-0`.
-   - Create a new PVC on `ceph-block-ssd` with `dataSource: {kind:
-     VolumeSnapshot, name: <snap>}` (same namespace, `observability`).
-   - Scale the ClickHouse StatefulSet/pod to 0 (brief downtime - Akvorado's
-     outlet will queue/retry rather than drop flows during this window, but
-     confirm that assumption before relying on it).
-   - Repoint the `CephInstallation`/CHI resource's `volumeClaimTemplate` (or
-     swap which PVC it binds, depending on how Altinity's operator manages
-     this) at the new PVC name, or delete the old PVC and let the CHI
-     recreate against the new one if the operator doesn't support a live
-     swap.
-   - Scale back up, confirm ClickHouse comes up healthy and query history
-     is intact (`SELECT count() FROM flows` or similar, compare against a
-     pre-migration count taken before scaling down).
-   - Delete the old `ceph-block` PVC once confirmed good.
-2. **rsync via a temporary job** (fallback, not needed given (1) works):
-   mount both the existing `ceph-block` PVC and a newly-created
-   `ceph-block-ssd` PVC into one throwaway pod and `rsync -a` the data
-   across instead of using a snapshot restore.
-3. **Accept data loss**: same delete-PVC-and-let-it-recreate approach as
-   Prometheus/Alertmanager. Not needed now that (1) is confirmed working,
-   kept here only as a last resort.
+**Root cause of the gap - order of operations matters:** the snapshot was
+taken *before* stopping the CHI, and a few minutes elapsed (spent validating
+the snapshot in a scratch PVC first) before `spec.stop` actually paused
+ingestion. ClickHouse kept ingesting live flows during that window; those
+Kafka offsets were already committed against the (since-deleted) old
+instance, so they don't replay. **For any future live-snapshot migration on
+a single-instance stateful app: stop the workload *first*, then snapshot the
+now-idle volume.** That gets a perfectly quiesced, zero-loss snapshot instead
+of a crash-consistent one - the validate-the-snapshot-before-cutover step is
+still worth doing, just do it after stopping, not before.
 
-Next step: work out the exact Altinity ClickHouse-operator mechanics for
-repointing an existing `CHI`'s volume at a different PVC (or whether it's
-simpler to delete the old PVC first and let the CHI reprovision against the
-new one directly), then execute against the real instance.
+A crash-consistent snapshot (the order actually used here) also produced 89
+detached "broken part" errors on ClickHouse startup, spread thinly across
+`akvorado.flows`/rollups (6 each) and ClickHouse's own internal system
+tables (asynchronous_insert_log, text_log, etc.) - this is normal MergeTree
+self-healing for parts caught mid-write, not corruption, and resolved itself
+automatically without intervention. Quiescing first (see above) would have
+avoided this too.
+
+**Procedure used** (mirrors the plan drafted before execution):
+
+1. Confirmed the cross-pool restore mechanism separately first (see the
+   `thelounge` scratch-PVC test earlier in this doc) - CSI VolumeSnapshot
+   restore across storage classes genuinely works on this cluster via the
+   same driver (`rook-ceph.rbd.csi.ceph.com`).
+2. Took a fresh `VolumeSnapshot` of the live ClickHouse PVC
+   (`akvorado-clickhouse-pre-ssd-migration`, class `csi-ceph-blockpool`) -
+   ready in ~9s. **This is the step that should have come after stopping the
+   CHI, not before** (see the gap explanation above).
+3. Restored that snapshot into a scratch `ceph-block-ssd` PVC in the
+   `observability` namespace and mounted it in a throwaway pod - confirmed
+   the full 19.2GB ClickHouse `store`/`metadata` directory came across
+   intact before touching the live resource. Deleted the scratch PVC/pod
+   after verifying.
+4. Paused ClickHouse cleanly via the CHI's built-in stop field:
+   `kubectl patch chi -n observability akvorado-clickhouse --type merge -p '{"spec":{"stop":"yes"}}'`
+   - this tells the Altinity operator to scale the StatefulSet to 0 while
+   explicitly keeping the PVC. Confirmed the pod terminated and the
+   StatefulSet's replica count dropped to 0 before proceeding.
+5. Deleted the old `ceph-block` PVC (data already safe in the verified
+   snapshot), then immediately recreated a PVC with the **exact same name**
+   (`akvorado-clickhouse-storage-chi-akvorado-clickhouse-akvorado-0-0-0`),
+   `storageClassName: ceph-block-ssd`, `dataSource` pointing at the snapshot.
+   This is the key trick for a CHI/StatefulSet-managed volume: since the
+   operator generates a deterministic PVC name
+   (`<dataVolumeClaimTemplate>-<statefulset>-<ordinal>`), you don't need to
+   "repoint" anything - just make sure a PVC with that exact name exists,
+   already correctly sourced, before the pod comes back.
+6. Un-paused via `spec.stop: "no"`. Pod came back healthy
+   (`1/1 Running`, readiness green) within ~3 minutes - most of that was
+   ClickHouse re-scanning/reattaching the 50GB of MergeTree parts on
+   startup, including detaching the 89 broken ones from the crash-consistent
+   snapshot (see above).
+7. Verified via `SELECT sum(rows) FROM system.parts WHERE active AND
+   database='akvorado' GROUP BY table` - all 4 flow tables present and
+   populated (see the row-count comparison above), confirmed Akvorado's
+   outlet reconnected and drained its Kafka backlog immediately.
+8. Also updated the git-managed `ClickHouseInstallation`
+   (`storageClassName: ceph-block-ssd` in
+   `kubernetes/apps/observability/akvorado/app/clickhouse.yaml`) so a
+   from-scratch disaster-recovery rebuild would match reality - this had no
+   live effect on its own (same immutable-field behavior as Prometheus, the
+   operator doesn't retroactively touch an already-bound PVC), it's purely
+   for consistency between git and the live cluster.
+
+The migration snapshot (`akvorado-clickhouse-pre-ssd-migration`) is being
+kept around temporarily as an extra rollback point rather than deleted
+immediately after cutover - safe to remove once the SSD-backed instance has
+been running cleanly for a while.
