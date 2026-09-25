@@ -148,7 +148,7 @@ data:
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "description": "Every RBD-backed PVC matching the $namespace/$storageclass filters above, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name), Namespace, and StorageClass are a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name/namespace/storage class (kube_persistentvolumeclaim_info.volumename). PVs are cluster-scoped, so these deliberately come only from the PVC-side query, not kube_persistentvolume_info (whose own \"namespace\" label is just Prometheus scrape-target metadata for kube-state-metrics, not the PVC's namespace). The namespace/storageclass filter is applied to that PVC-side query, then an inner join drops any RBD image whose PVC didn't match - so an image with no matching PVC at all (orphaned) won't appear here regardless of filter selection. In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
+          "description": "Every RBD-backed PVC matching the $namespace/$storageclass filters above, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name), Namespace, and StorageClass are resolved server-side in PromQL via vector matching (image -> the PV's generated name via kube_persistentvolume_info -> the real PVC name/namespace/storage class via kube_persistentvolumeclaim_info.volumename), so all 4 queries already carry identical labels and just need a straight merge, not a field join. The $namespace/$storageclass filter is a label matcher on the PVC-side series feeding that match, so an image whose PVC doesn't match - including one with no matching PVC at all (orphaned) - drops out of every query's result entirely. In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -208,7 +208,8 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "description": "PVC/namespace/storage-class enrichment is done server-side in PromQL (vector matching against kube_persistentvolume_info/kube_persistentvolumeclaim_info), not via a Grafana table join - a prior version relied on chained joinByField transforms and silently rendered with the enrichment columns missing.",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) ((rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval])) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
               "format": "table",
               "instant": true,
               "refId": "A"
@@ -216,7 +217,7 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (image) (rate(ceph_rbd_write_ops[$__rate_interval]))",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_ops[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
               "format": "table",
               "instant": true,
               "refId": "B"
@@ -224,7 +225,7 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (image) (rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_read_ops[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
               "format": "table",
               "instant": true,
               "refId": "C"
@@ -232,45 +233,17 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
+              "expr": "(sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_latency_sum[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))) / (sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_latency_count[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))) / 1e6",
               "format": "table",
               "instant": true,
               "refId": "D"
-            },
-            {
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "editorMode": "code",
-              "description": "PVs are cluster-scoped, so kube_persistentvolume_info has no real namespace of its own - only project image + the join key here, and take the real (correctly-scoped) namespace from kube_persistentvolumeclaim_info in query F instead.",
-              "expr": "sum by (image, persistentvolume) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\"))",
-              "format": "table",
-              "instant": true,
-              "refId": "E"
-            },
-            {
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "editorMode": "code",
-              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name, namespace, and storage class. $namespace/$storageclass filter here; the second join below is 'inner' mode so rows filtered out of this query drop out of the table entirely instead of just losing their App/Namespace columns.",
-              "expr": "sum by (persistentvolume, persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\"))",
-              "format": "table",
-              "instant": true,
-              "refId": "F"
             }
           ],
           "title": "Top RBD Images by IOPS",
           "transformations": [
             {
-              "id": "joinByField",
-              "options": {
-                "byField": "image",
-                "mode": "outer"
-              }
-            },
-            {
-              "id": "joinByField",
-              "options": {
-                "byField": "persistentvolume",
-                "mode": "inner"
-              }
+              "id": "merge",
+              "options": {}
             },
             {
               "id": "organize",
@@ -280,13 +253,7 @@ data:
                   "Time 1": true,
                   "Time 2": true,
                   "Time 3": true,
-                  "Time 4": true,
-                  "Time 5": true,
-                  "Time 6": true,
-                  "__name__": true,
-                  "persistentvolume": true,
-                  "Value #E": true,
-                  "Value #F": true
+                  "__name__": true
                 },
                 "indexByName": {},
                 "renameByName": {
