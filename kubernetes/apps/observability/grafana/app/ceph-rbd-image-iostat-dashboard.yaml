@@ -392,6 +392,7 @@ data:
       "templating": {
         "list": [
           {
+            "allValue": ".*",
             "current": { "selected": true, "text": "All", "value": "$__all" },
             "datasource": { "type": "prometheus", "uid": "prometheus" },
             "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, namespace)",
@@ -411,6 +412,7 @@ data:
             "type": "query"
           },
           {
+            "allValue": ".*",
             "current": { "selected": true, "text": "All", "value": "$__all" },
             "datasource": { "type": "prometheus", "uid": "prometheus" },
             "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, storageclass)",
