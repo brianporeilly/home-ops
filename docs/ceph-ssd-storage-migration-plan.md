@@ -18,11 +18,11 @@ Candidates identified so far (via the dashboard, 2026-09-25):
 | PVC | IOPS | Avg Write Latency | Status |
 |---|---|---|---|
 | `akvorado-clickhouse-storage-chi-...` | 48.2 | 435ms | Migration path confirmed working (snapshot restore, see below) - not yet executed against the real instance |
-| `prometheus-...-db-...-0` | 4.1 | 483ms | Planned - PR pending |
-| `prometheus-...-db-...-1` | 1.9 | 206ms | Planned - PR pending |
-| `alertmanager-...-db-...-0` | 0.02 | 686ms | Planned - PR pending |
-| `alertmanager-...-db-...-1` | 0.02 | 174ms | Planned - PR pending |
-| `alertmanager-...-db-...-2` | 0.02 | 101ms | Planned - PR pending |
+| `prometheus-...-db-...-0` | 4.1 | 483ms | **Done (2026-09-25)** - migrated via #1058 |
+| `prometheus-...-db-...-1` | 1.9 | 206ms | **Done (2026-09-25)** - migrated via #1058 |
+| `alertmanager-...-db-...-0` | 0.02 | 686ms | **Done (2026-09-25)** - migrated via #1058 |
+| `alertmanager-...-db-...-1` | 0.02 | 174ms | **Done (2026-09-25)** - migrated via #1058 |
+| `alertmanager-...-db-...-2` | 0.02 | 101ms | **Done (2026-09-25)** - migrated via #1058 |
 | `gatus-sidecar` | 0.83 | 205ms | Identified, not yet scheduled |
 
 Use the dashboard periodically to look for more candidates as usage patterns
@@ -72,6 +72,22 @@ two replicas' PVCs concurrently, or you lose HA during the migration):
 
 Alertmanager has 3 replicas (do `1`, `2`, then `0`); Prometheus has 2 (do `1`,
 then `0`).
+
+**Executed 2026-09-25 - done, all 5 PVCs on `ceph-block-ssd`, no fallout.**
+Confirmed cluster status `ready`/3 peers on Alertmanager and active scraping
+(120 targets) on Prometheus after each ordinal, before moving to the next.
+
+**Gotcha hit during execution:** deleting the pod and PVC together in one
+shot doesn't reliably avoid a race - the StatefulSet controller often
+recreates the pod fast enough that it remounts the *old* PVC (still present,
+pending its `pvc-protection` finalizer) before the delete actually finalizes.
+Symptom: the new pod comes back `Running` almost immediately, but
+`kubectl get pvc` still shows the old `storageClassName` and the PVC sits in
+`Terminating`. Fix is simple - just delete the pod a second time; once
+nothing is using the PVC, the finalizer clears, the PVC is actually removed,
+and *that* triggers the StatefulSet to provision a real new PVC from the
+updated template. Always re-check `storageClassName` after the pod comes
+back, don't assume the first recreation used the new class.
 
 ## Akvorado ClickHouse (data-preserving migration needed)
 
