@@ -17,7 +17,7 @@ Candidates identified so far (via the dashboard, 2026-09-25):
 
 | PVC | IOPS | Avg Write Latency | Status |
 |---|---|---|---|
-| `akvorado-clickhouse-storage-chi-...` | 48.2 | 435ms | Planned - see below, not yet migrated (single instance, holds real data) |
+| `akvorado-clickhouse-storage-chi-...` | 48.2 | 435ms | Migration path confirmed working (snapshot restore, see below) - not yet executed against the real instance |
 | `prometheus-...-db-...-0` | 4.1 | 483ms | Planned - PR pending |
 | `prometheus-...-db-...-1` | 1.9 | 206ms | Planned - PR pending |
 | `alertmanager-...-db-...-0` | 0.02 | 686ms | Planned - PR pending |
@@ -81,31 +81,44 @@ The delete-PVC approach above would permanently lose all historical flow data
 instead of self-healing. Losing that data is acceptable if it comes to it, but
 a data-preserving migration is preferred. Options, not yet decided:
 
-1. **CSI VolumeSnapshot -> restore into `ceph-block-ssd`** (try this first):
-   this cluster already snapshots PVCs routinely for backups (confirmed
-   2026-09-25 - `kubectl get volumesnapshot -A` shows active hourly-ish
-   snapshots for several apps' config PVCs), all via the single
-   `csi-ceph-blockpool` VolumeSnapshotClass (driver `rook-ceph.rbd.csi.ceph.com`
-   - the same driver that backs `ceph-block-ssd` too, just a different pool).
-   Restoring a snapshot into a PVC with a *different* storageClassName than
-   the source, but the *same* provisioner, is generally supported by RBD's
-   CSI driver. Not yet proven cross-pool on this exact cluster/version, so
-   the plan is: snapshot the ClickHouse PVC, create a new `ceph-block-ssd`
-   PVC with `dataSource: {kind: VolumeSnapshot, name: <snap>}`, and confirm
-   it actually populates with the real data before touching the live CHI
-   resource. If this works, no rsync job or app downtime needed beyond a
-   brief ClickHouse restart to repoint at the new PVC.
-2. **rsync via a temporary job** (fallback if (1) doesn't pan out): mount
-   both the existing `ceph-block` PVC and a newly-created `ceph-block-ssd`
-   PVC into one throwaway pod, stop (or accept a brief pause of) the
-   ClickHouse pod, `rsync -a` the ClickHouse data directory across, then
-   repoint the CHI resource at the new PVC and restart. Needs the CHI's
-   exact data path confirmed first.
-3. **Accept data loss**: same delete-PVC-and-let-it-recreate approach as
-   Prometheus/Alertmanager, just with the explicit understanding that
-   ClickHouse's flow history starts over from empty. Simplest fallback if
-   neither migration path above is worth the effort.
+1. **CSI VolumeSnapshot -> restore into `ceph-block-ssd`** (confirmed working
+   2026-09-25): tested by restoring an existing routine snapshot
+   (`thelounge-20260925064200-snap`, source pool `ceph-blockpool`/HDD, class
+   `csi-ceph-blockpool`) into a scratch PVC on `ceph-block-ssd` in the `misc`
+   namespace. Bound in ~7s; mounted it in a throwaway pod and confirmed the
+   real files came across intact (`thelounge/config.js`, `vapid.json`, with
+   their original August timestamps, not empty/corrupted). Cross-pool restore
+   through the same CSI driver (`rook-ceph.rbd.csi.ceph.com`) genuinely works
+   on this cluster/version - no rsync job needed. Scratch PVC + pod deleted
+   after verifying; underlying RBD image was reclaimed automatically
+   (`reclaimPolicy: Delete` on `ceph-block-ssd`).
 
-Next step: test (1) - snapshot the ClickHouse PVC and try restoring into a
-`ceph-block-ssd` PVC in a scratch namespace/name first, to confirm cross-pool
-restore actually works on this cluster before doing it against the real CHI.
+   **ClickHouse procedure** (not yet executed):
+   - Take (or reuse the next scheduled) snapshot of
+     `akvorado-clickhouse-storage-chi-akvorado-clickhouse-akvorado-0-0-0`.
+   - Create a new PVC on `ceph-block-ssd` with `dataSource: {kind:
+     VolumeSnapshot, name: <snap>}` (same namespace, `observability`).
+   - Scale the ClickHouse StatefulSet/pod to 0 (brief downtime - Akvorado's
+     outlet will queue/retry rather than drop flows during this window, but
+     confirm that assumption before relying on it).
+   - Repoint the `CephInstallation`/CHI resource's `volumeClaimTemplate` (or
+     swap which PVC it binds, depending on how Altinity's operator manages
+     this) at the new PVC name, or delete the old PVC and let the CHI
+     recreate against the new one if the operator doesn't support a live
+     swap.
+   - Scale back up, confirm ClickHouse comes up healthy and query history
+     is intact (`SELECT count() FROM flows` or similar, compare against a
+     pre-migration count taken before scaling down).
+   - Delete the old `ceph-block` PVC once confirmed good.
+2. **rsync via a temporary job** (fallback, not needed given (1) works):
+   mount both the existing `ceph-block` PVC and a newly-created
+   `ceph-block-ssd` PVC into one throwaway pod and `rsync -a` the data
+   across instead of using a snapshot restore.
+3. **Accept data loss**: same delete-PVC-and-let-it-recreate approach as
+   Prometheus/Alertmanager. Not needed now that (1) is confirmed working,
+   kept here only as a last resort.
+
+Next step: work out the exact Altinity ClickHouse-operator mechanics for
+repointing an existing `CHI`'s volume at a different PVC (or whether it's
+simpler to delete the old PVC first and let the CHI reprovision against the
+new one directly), then execute against the real instance.
