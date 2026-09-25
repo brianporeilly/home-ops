@@ -105,6 +105,13 @@ spec:
           # safeguard, so removing it (falls back to Ceph's unrestricted
           # 0-24 default) just gives scrubs the other ~14h/day back rather
           # than trading away any real protection.
+        mgr:
+          # Per-RBD-image IOPS/bytes/latency in the mgr's Prometheus exporter
+          # (ceph_rbd_read_ops etc.) - off by default because it polls every
+          # image in the listed pools each collection. Needed to rank which
+          # PVCs are actually driving load on the slow HDD OSDs; cheap at
+          # this cluster's image count (~20).
+          mgr/prometheus/rbd_stats_pools: "ceph-blockpool,ceph-blockpool-ssd"
       cleanupPolicy:
         wipeDevicesFromOtherClusters: true
       crashCollector:
