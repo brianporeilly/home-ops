@@ -74,7 +74,7 @@ spec:
                   while : ; do
                     url="$BASE/conversations?limit=100"
                     [ -n "$page_id" ] && url="$url&page_id=$page_id"
-                    resp=$(curl -sf "$url")
+                    resp=$(curl -sSf "$url")
                     stale=$(printf '%s' "$resp" | jq -c --argjson threshold "$THRESHOLD_SECONDS" --arg ui_base "$UI_BASE" '
                       def to_epoch: .[0:19] + "Z" | fromdateiso8601;
                       now as $now
@@ -88,9 +88,7 @@ spec:
                           url: ($ui_base + "/conversations/" + .conversation_id)
                         }
                     ')
-                    printf '%s\n' "$stale" | while IFS= read -r line; do
-                      [ -n "$line" ] && echo "$line"
-                    done
+                    [ -z "$stale" ] || printf '%s\n' "$stale"
                     page_id=$(printf '%s' "$resp" | jq -r '.next_page_id // empty')
                     [ -z "$page_id" ] && break
                   done
