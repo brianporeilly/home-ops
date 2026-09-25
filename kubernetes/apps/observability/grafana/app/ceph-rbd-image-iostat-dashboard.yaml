@@ -148,7 +148,7 @@ data:
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. image is the underlying Ceph RBD object (csi-vol-<uuid>) - PVC/Namespace columns come from a join against kube_persistentvolume_info on the CSI volume handle.",
+          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name) is a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name (kube_persistentvolumeclaim_info.volumename). In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so this column is usually enough to identify the app directly.",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -244,6 +244,15 @@ data:
               "format": "table",
               "instant": true,
               "refId": "E"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name.",
+              "expr": "label_replace(kube_persistentvolumeclaim_info, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")",
+              "format": "table",
+              "instant": true,
+              "refId": "F"
             }
           ],
           "title": "Top RBD Images by IOPS",
@@ -252,6 +261,13 @@ data:
               "id": "joinByField",
               "options": {
                 "byField": "image",
+                "mode": "outer"
+              }
+            },
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "persistentvolume",
                 "mode": "outer"
               }
             },
@@ -265,6 +281,7 @@ data:
                   "Time 3": true,
                   "Time 4": true,
                   "Time 5": true,
+                  "Time 6": true,
                   "__name__": true,
                   "container": true,
                   "csi_driver": true,
@@ -275,13 +292,18 @@ data:
                   "kubernetes_node": true,
                   "pod": true,
                   "reclaim_policy": true,
-                  "service": true
+                  "service": true,
+                  "storageclass": true,
+                  "volumemode": true,
+                  "volumename": true,
+                  "persistentvolume": true,
+                  "Value #E": true,
+                  "Value #F": true
                 },
                 "indexByName": {},
                 "renameByName": {
                   "namespace": "Namespace",
-                  "persistentvolume": "PVC (PV name)",
-                  "storageclass": "StorageClass",
+                  "persistentvolumeclaim": "App (PVC name)",
                   "pool": "Pool",
                   "image": "RBD Image",
                   "Value #A": "Total IOPS",
