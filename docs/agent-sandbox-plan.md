@@ -1,6 +1,7 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
-Status: **Phase 1 merged and deployed (2026-09-22).** Eight real issues hit
+Status: **Phase 3 (burst-harness as agent-sandbox's driver) written
+2026-09-25** - see "Phase 3" below. **Phase 1 merged and deployed (2026-09-22).** Eight real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
 **Phase 2 written and locally validated (2026-09-22)** - RUNTIME=kubernetes
 wired up, see "Phase 2: dynamic per-conversation sandboxes" below. Not yet
@@ -440,6 +441,78 @@ off deliberately rather than chased further (see "Known gaps" below).
   instance's capacity-isolation rationale in its own `helmrelease.yaml`).
   Not built yet; contingent on what live testing actually shows.
 
+## Phase 3: burst-harness drives agent-sandbox (2026-09-25)
+
+`agent-sandbox`'s warm pool had no client: claiming was a hand-written
+`kubectl create`, the sandbox held a git token in its env, and nothing ever
+released a claim. Phase 3 gives it one - burst-harness (a separate repo: a
+Strands-based task runner that works on a branch, records state in a
+size-capped task doc committed to that branch, and stops in a defined
+terminal state: PR, pause, or abandon). Both sides were reshaped to fit.
+
+**The split: the driver holds every secret; the sandbox is disposable
+compute that holds none.**
+
+- The harness claims a sandbox (`SandboxClaim` against the `coding-agent`
+  pool, labelled `burst-harness/task=<slug>`, with
+  `lifecycle.shutdownTime` = now + 4h and `shutdownPolicy: Delete`), waits
+  for Ready, checks the image provides its command contract (sh, git,
+  coreutils), clones into `/workspace/repo`, drives the pod over `kubectl
+  exec`, and deletes the claim at a terminal state. The deadline means a
+  claim whose driver died is reaped by the controller itself - the stale-PVC
+  problem OpenHands has (see Phase 2) can't build up here.
+- Exec, not agent-sandbox's router/`sandboxd` runtime API: works under runc
+  and gVisor alike, needs no daemon in the image, no router deployment.
+- Git credentials: the harness passes its token only on its own
+  clone/fetch/push (`git -c http.extraHeader`, never persisted, redacted
+  from anything the model sees) and opens PRs from the driver with `gh
+  --repo`. So `GIT_TOKEN` and `agent-sandbox-scratch-git-secret` were
+  **removed** from the SandboxTemplate - the agent's own `git push` has
+  nothing to authenticate with. Model keys never enter a sandbox either.
+- Because each burst commits and pushes, and the task doc on the branch is
+  the handoff, a sandbox is disposable between bursts: every burst can be a
+  fresh claim.
+
+**What changed here:**
+- `agent-sandbox/.../workloads/sandboxtemplate-coding-agent.yaml`: no
+  secret env; `automountServiceAccountToken: false` (confirmed live the
+  controller already leaves it unmounted - this pins it). Image unchanged:
+  `buildpack-deps:noble-scm` meets the contract (confirmed live by a
+  claim/clone/release run); burst-harness's Fedora
+  `images/sandbox/Containerfile` is its replacement once published.
+- `agent-sandbox/.../runner-rbac/` (new sibling Kustomization): Role in
+  `agent-sandbox-system` for `sandboxclaims` CRUD + `pods` get + `pods/exec`,
+  bound to `agent-runner`'s `burst-harness` ServiceAccount.
+- `kubernetes/apps/agent-runner/` (new namespace): the driver.
+  ServiceAccount, an RWX `ceph-filesystem` state PVC (conversation
+  snapshots, so a resume is verbatim and prompt-cache-warm; optional for
+  correctness), the driver secret (Anthropic key + scratch-scoped git
+  token), and a **suspended** example CronJob. `harness run` is idempotent
+  (start if the branch is new, else resume), so cron, `kubectl create job
+  --from=cronjob/...`, and any future web UI all launch the same Job.
+- Calico: `allow-agent-runner-egress` (DNS, apiserver, llama-cpp, public
+  443; enforcing) and `allow-agent-runner-to-llama-cpp`. The sandbox egress
+  policy is unchanged - model calls come from the driver, so sandboxes never
+  need llama-cpp.
+
+**Driving from a workstation** needs none of the in-cluster pieces - the
+laptop is just another driver, using its own kubeconfig and keys:
+`harness --target agent-sandbox --namespace agent-sandbox-system --pool
+coding-agent --repo-url ... chat <slug>`.
+
+**Known gaps:**
+- The harness images aren't published yet (the burst-harness repo isn't on
+  GitHub yet); the CronJob stays suspended until they are and are pinned
+  by digest.
+- Not yet run end to end in-cluster (Job → claim → model → push → PR).
+  Claim/clone/branch/list/release was run live from a workstation.
+- The vendored `upstream.yaml` CRDs are from v1.0.2 while Renovate has
+  bumped the controller image to v1.0.4 (#1020, #1047) - re-vendor the
+  release manifest so CRDs and controller match.
+- llama-cpp's current model/GPU (Qwen3-4B on a 4GB GTX 745) can't drive
+  this tool loop; revisit on gpu-typhon. Set HARNESS_CONTEXT_WINDOW_LIMIT
+  to llama-server's `--ctx-size` when switching.
+
 ## What was considered and not built (from the original Phase 2 writeup)
 
 - **A custom glue service translating OpenHands's remote-runtime HTTP
@@ -463,7 +536,9 @@ off deliberately rather than chased further (see "Known gaps" below).
 2. Have an `ANTHROPIC_API_KEY` ready.
 3. Fill in and `sops --encrypt --in-place` both:
    - `kubernetes/apps/ai/openhands/app/secret.yaml`
-   - `kubernetes/apps/agent-sandbox/agent-sandbox/workloads/secret.yaml`
+   - `kubernetes/apps/agent-runner/burst-harness/app/secret.yaml` (Phase 3 -
+     replaces the former `agent-sandbox/.../workloads/secret.yaml`; the git
+     token now lives with the driver, not the sandbox)
 
 ## Verification
 
