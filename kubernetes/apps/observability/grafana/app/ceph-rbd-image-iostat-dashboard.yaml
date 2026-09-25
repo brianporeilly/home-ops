@@ -148,7 +148,7 @@ data:
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name) and Namespace are a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name + namespace (kube_persistentvolumeclaim_info.volumename). PVs are cluster-scoped, so Namespace deliberately comes only from the PVC-side query, not kube_persistentvolume_info (whose own \"namespace\" label is just Prometheus scrape-target metadata for kube-state-metrics, not the PVC's namespace). In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
+          "description": "Every RBD-backed PVC matching the $namespace/$storageclass filters above, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name), Namespace, and StorageClass are a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name/namespace/storage class (kube_persistentvolumeclaim_info.volumename). PVs are cluster-scoped, so these deliberately come only from the PVC-side query, not kube_persistentvolume_info (whose own \"namespace\" label is just Prometheus scrape-target metadata for kube-state-metrics, not the PVC's namespace). The namespace/storageclass filter is applied to that PVC-side query, then an inner join drops any RBD image whose PVC didn't match - so an image with no matching PVC at all (orphaned) won't appear here regardless of filter selection. In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -249,8 +249,8 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name and its (correctly-scoped) namespace.",
-              "expr": "sum by (persistentvolume, persistentvolumeclaim, namespace) (label_replace(kube_persistentvolumeclaim_info, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\"))",
+              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name, namespace, and storage class. $namespace/$storageclass filter here; the second join below is 'inner' mode so rows filtered out of this query drop out of the table entirely instead of just losing their App/Namespace columns.",
+              "expr": "sum by (persistentvolume, persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\"))",
               "format": "table",
               "instant": true,
               "refId": "F"
@@ -269,7 +269,7 @@ data:
               "id": "joinByField",
               "options": {
                 "byField": "persistentvolume",
-                "mode": "outer"
+                "mode": "inner"
               }
             },
             {
@@ -292,6 +292,7 @@ data:
                 "renameByName": {
                   "namespace": "Namespace",
                   "persistentvolumeclaim": "App (PVC name)",
+                  "storageclass": "StorageClass",
                   "pool": "Pool",
                   "image": "RBD Image",
                   "Value #A": "Total IOPS",
@@ -388,7 +389,48 @@ data:
       "refresh": "1m",
       "schemaVersion": 40,
       "tags": ["ceph", "storage"],
-      "templating": { "list": [] },
+      "templating": {
+        "list": [
+          {
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, namespace)",
+            "hide": 0,
+            "includeAll": true,
+            "multi": true,
+            "name": "namespace",
+            "options": [],
+            "query": {
+              "query": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, namespace)",
+              "refId": "StandardVariableQuery"
+            },
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, storageclass)",
+            "hide": 0,
+            "includeAll": true,
+            "multi": true,
+            "name": "storageclass",
+            "options": [],
+            "query": {
+              "query": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, storageclass)",
+              "refId": "StandardVariableQuery"
+            },
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
       "time": { "from": "now-6h", "to": "now" },
       "timepicker": {},
       "timezone": "",
