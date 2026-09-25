@@ -148,7 +148,7 @@ data:
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name) is a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name (kube_persistentvolumeclaim_info.volumename). In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so this column is usually enough to identify the app directly.",
+          "description": "Every bound RBD-backed PVC, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name) and Namespace are a two-hop join: csi_volume_handle -> the PV's own generated name (kube_persistentvolume_info) -> the real PVC name + namespace (kube_persistentvolumeclaim_info.volumename). PVs are cluster-scoped, so Namespace deliberately comes only from the PVC-side query, not kube_persistentvolume_info (whose own \"namespace\" label is just Prometheus scrape-target metadata for kube-state-metrics, not the PVC's namespace). In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -216,7 +216,7 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]))",
+              "expr": "sum by (image) (rate(ceph_rbd_write_ops[$__rate_interval]))",
               "format": "table",
               "instant": true,
               "refId": "B"
@@ -224,7 +224,7 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (pool, image) (rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "expr": "sum by (image) (rate(ceph_rbd_read_ops[$__rate_interval]))",
               "format": "table",
               "instant": true,
               "refId": "C"
@@ -232,7 +232,7 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "sum by (pool, image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (pool, image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
+              "expr": "sum by (image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
               "format": "table",
               "instant": true,
               "refId": "D"
@@ -240,7 +240,8 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "expr": "label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\")",
+              "description": "PVs are cluster-scoped, so kube_persistentvolume_info has no real namespace of its own - only project image + the join key here, and take the real (correctly-scoped) namespace from kube_persistentvolumeclaim_info in query F instead.",
+              "expr": "sum by (image, persistentvolume) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\"))",
               "format": "table",
               "instant": true,
               "refId": "E"
@@ -248,8 +249,8 @@ data:
             {
               "datasource": { "type": "prometheus", "uid": "prometheus" },
               "editorMode": "code",
-              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name.",
-              "expr": "label_replace(kube_persistentvolumeclaim_info, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")",
+              "description": "kube_persistentvolume_info only carries the PV's own generated name (pvc-<uuid>), not the human PVC name - relabel kube_persistentvolumeclaim_info's volumename to the same field name so it can be joined a second time to pull in the real PVC name and its (correctly-scoped) namespace.",
+              "expr": "sum by (persistentvolume, persistentvolumeclaim, namespace) (label_replace(kube_persistentvolumeclaim_info, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\"))",
               "format": "table",
               "instant": true,
               "refId": "F"
@@ -283,19 +284,6 @@ data:
                   "Time 5": true,
                   "Time 6": true,
                   "__name__": true,
-                  "container": true,
-                  "csi_driver": true,
-                  "csi_volume_handle": true,
-                  "endpoint": true,
-                  "instance": true,
-                  "job": true,
-                  "kubernetes_node": true,
-                  "pod": true,
-                  "reclaim_policy": true,
-                  "service": true,
-                  "storageclass": true,
-                  "volumemode": true,
-                  "volumename": true,
                   "persistentvolume": true,
                   "Value #E": true,
                   "Value #F": true
