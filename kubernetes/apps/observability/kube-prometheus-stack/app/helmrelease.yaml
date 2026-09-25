@@ -41,7 +41,14 @@ spec:
         storage:
           volumeClaimTemplate:
             spec:
-              storageClassName: ceph-block
+              # ceph-block-ssd: alertmanager-db is nearly idle (~0.02 IOPS)
+              # but was still seeing 100-700ms write latency on the shared
+              # ceph-block HDD pool (size=3 across only 3 hosts, so every
+              # write already includes both known-slow WD Green OSDs). Safe
+              # to migrate PVC-by-PVC (delete PVC+pod, let it recreate empty)
+              # since replicas gossip silences/notification state between
+              # peers - see docs/ceph-ssd-storage-migration-plan.md.
+              storageClassName: ceph-block-ssd
               resources:
                 requests:
                   storage: 1Gi
@@ -81,7 +88,12 @@ spec:
         storageSpec:
           volumeClaimTemplate:
             spec:
-              storageClassName: ceph-block
+              # ceph-block-ssd: prometheus-db was seeing 200-500ms write
+              # latency on the shared ceph-block HDD pool. Migrate
+              # replica-by-replica (delete PVC+pod, let it recreate empty) -
+              # the other replica keeps scraping during the gap, see
+              # docs/ceph-ssd-storage-migration-plan.md.
+              storageClassName: ceph-block-ssd
               resources:
                 requests:
                   storage: 50Gi
