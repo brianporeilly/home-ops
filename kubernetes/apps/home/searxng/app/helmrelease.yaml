@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: searxng
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/searxng/searxng
-              tag: 2026.8.17-374939b88@sha256:06e631b1550df9da92de3a86b28025bed9ab2cdc640a166d0562c02a30e0408b
+              tag: 2026.9.25-12f8b6515@sha256:c5455a215b9da11146f594c0f2c9357d5657bc9a7f6e47aa3c2f3f167defb3c3
             env:
               SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
               SEARXNG_SERVER__LIMITER: "false"

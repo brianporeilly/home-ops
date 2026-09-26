@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing real pending-diff data (2026-08-31) - a real gap the original
+# flow review missed, not something deferred on purpose. That review
+# concluded rook-ceph's only non-hostNetwork pods (operator, CSI
+# ctrlplugin) only needed apiserver access; real data shows they also
+# reach Ceph's own mon (3300) and OSD (6800-6810 range observed: 6800,
+# 6802, 6804, 6808) ports directly for cluster management and volume
+# operations. mon/osd/mgr/mds themselves run hostNetwork: true (see
+# docs/egress-policy-plan.md's structural note) - egress FROM these real
+# pods TO those host-network daemons still needs an explicit nets: rule,
+# same reasoning as allow-observability-egress-private-network.
+#
+# Source scoped to the 4 real (non-hostNetwork) rook-ceph pods that
+# actually talk to Ceph daemons directly - operator, both CSI ctrlplugin
+# variants (rbd/cephfs - only rbd showed up in the sample, cephfs does the
+# same thing so included preemptively), and osd-prepare (needs to reach a
+# mon to bootstrap a new OSD).
+#
+# Port range as a string ("6800:6810") rather than every single port -
+# covers a few unobserved neighbors for headroom (OSD count can grow) at
+# no real cost since this only affects rook-ceph's own management traffic.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-rook-ceph-egress-daemons
+spec:
+  stagedAction: Set
+  selector: app in {'rook-ceph-operator', 'rook-ceph.rbd.csi.ceph.com-ctrlplugin', 'rook-ceph.cephfs.csi.ceph.com-ctrlplugin', 'rook-ceph-osd-prepare'}
+  namespaceSelector: kubernetes.io/metadata.name == 'rook-ceph'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.0.0/16
+        ports: [3300, "6800:6810"]

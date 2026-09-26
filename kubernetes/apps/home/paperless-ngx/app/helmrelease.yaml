@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: paperless-ngx
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/paperless-ngx/paperless-ngx
-              tag: 3.0.5@sha256:69a4e06ec9d17a662693341128cc6a4d717c48ac793d769bbf8748e83e37975c
+              tag: 3.2.1@sha256:2459d860e4e936c26c34a3ff58ede53487a9116202db78a1262c44f68f746196
             env:
               PAPERLESS_DBHOST: paperless-postgres-rw
               PAPERLESS_DBPORT: "5432"
@@ -47,6 +48,22 @@ spec:
               PAPERLESS_REDIS: "redis://{{ .Release.Name }}-valkey:6379"
               PAPERLESS_URL: https://paperless.internal.oreillys.io
               PAPERLESS_TIME_ZONE: UTC
+              # NFS doesn't reliably deliver inotify events for the consume
+              # folder - fall back to polling.
+              PAPERLESS_CONSUMER_POLLING: "60"
+              # Suggestions (tags/correspondent/type/title) via the in-cluster
+              # llama-cpp server (ai namespace), using its OpenAI-compatible
+              # API. ALLOW_INTERNAL_ENDPOINTS is required because the target
+              # is a cluster-internal address, which paperless's SSRF guard
+              # blocks by default. No embedding vars set - llama-cpp isn't
+              # running with --embedding, so AI-powered semantic search isn't
+              # available yet, only per-document suggestions.
+              PAPERLESS_AI_ENABLED: "true"
+              PAPERLESS_AI_LLM_BACKEND: openai-like
+              PAPERLESS_AI_LLM_MODEL: qwen2.5-3b-instruct
+              PAPERLESS_AI_LLM_ENDPOINT: http://llama-cpp.ai.svc.cluster.local:8080/v1
+              PAPERLESS_AI_LLM_API_KEY: not-required
+              PAPERLESS_AI_LLM_ALLOW_INTERNAL_ENDPOINTS: "true"
               # s6-overlay init refuses to boot otherwise: k8s emptyDir mounts for
               # /run are always root-owned + world-writable, which fails s6's
               # ownership check under readOnlyRootFilesystem + non-root uid.
@@ -108,7 +125,7 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 9.1-alpine@sha256:7bf043f6ff25ea50b557e2f6da8f76fce62775d766d943f076d1e66838099315
+              tag: 9.2-alpine@sha256:48dc9d22ed984d9599e0d5823726053b0b426a86cff534f6bf1bd3dfb951f33e
             args:
               - valkey-server
               - --appendonly
@@ -177,6 +194,16 @@ spec:
           paperless-ngx:
             app:
               - path: /usr/src/paperless/media
+      # Drop-folder ingestion. NAS-side prerequisite: /paperless/consume
+      # must exist on the export before this mounts cleanly.
+      consume:
+        type: nfs
+        server: 10.20.30.11
+        path: /paperless/consume
+        advancedMounts:
+          paperless-ngx:
+            app:
+              - path: /usr/src/paperless/consume
       valkey-data:
         type: emptyDir
         advancedMounts:

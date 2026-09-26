@@ -42,6 +42,10 @@ data:
         identifiers:
           name: forgejo-users
         id: forgejo-users-group
+      - model: authentik_core.group
+        identifiers:
+          name: home-assistant-users
+        id: home-assistant-users-group
       # First real "tier" group (not a dedicated per-app group like the
       # others above) - intended to be reused by other media apps
       # (jellyfin, audiobookshelf, etc) as they get wired up. Carve a
@@ -51,3 +55,14 @@ data:
         identifiers:
           name: media-users
         id: media-users-group
+      # Not an access-tier group like the others above - this one's the
+      # destination_group for the shipped NotificationRules
+      # (blueprints-notification-destinations.yaml), so it controls who
+      # receives system alerts (config errors, exceptions, update
+      # available), not who can log into an app. Empty membership by
+      # default for the same reason as the others - add yourself via the
+      # Authentik UI.
+      - model: authentik_core.group
+        identifiers:
+          name: authentik-notifications
+        id: authentik-notifications-group

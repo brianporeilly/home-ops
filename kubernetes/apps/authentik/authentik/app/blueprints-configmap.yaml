@@ -110,6 +110,12 @@ data:
             # people/addresses become trusted; an admin can also just
             # override a specific user's type by hand in the UI any time,
             # regardless of what this sets at enrollment.
+            #
+            # Also the sole source of truth for whether a new SSO signup is
+            # allowed to enroll at all, not just its UI-access tier -
+            # blueprints-sso-enrollment-allowlist.yaml denies enrollment
+            # outright for anyone this doesn't return type: internal for.
+            # Change the lists below and that gate inherits it automatically.
             trusted_domains = ["oreillys.io"]
             trusted_emails = ["brianporeilly@gmail.com"]
 

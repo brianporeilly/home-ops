@@ -20,8 +20,12 @@ patches:
           kopiur.home-operations.com/privileged-movers: "true"
 resources:
   - ./audiobookshelf/ks.yaml
+  - ./bookorbit/ks.yaml
   - ./jellyfin/ks.yaml
+  - ./jellyseerr/ks.yaml
+  - ./navidrome/ks.yaml
   - ./podfetch/ks.yaml
   - ./ersatztv/ks.yaml
   - ./grimmory/ks.yaml
+  - ./kavita/ks.yaml
   - ./tube-archivist/ks.yaml

@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: kube-vip
-      version: 0.11.0
+      version: 0.11.1
       sourceRef:
         kind: HelmRepository
         name: kube-vip
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

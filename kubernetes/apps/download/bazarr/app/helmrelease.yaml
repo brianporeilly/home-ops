@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: bazarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           init-config:
             image:
               repository: docker.io/library/busybox
-              tag: 1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+              tag: 1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
             env:
               SONARR_API_KEY:
                 valueFrom:
@@ -62,7 +63,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/bazarr
-              tag: 1.6.0@sha256:133a3064b0b9ea18ad66cc88b6863f91b9c05dc32212805843fcfce4c4b8eb05
+              tag: 1.6.2@sha256:5ed5fc54eee7157ce8a5e3a03c8ef41092a0111b11eab702e4fbdd700d71457b
             probes:
               liveness: &probes
                 enabled: true

@@ -1,0 +1,172 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kavita
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: kavita
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      kavita:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # Kavita's own entrypoint.sh seeds /kavita/config/appsettings.json
+          # by copying it from /tmp/config/appsettings.json (baked into the
+          # image, see its Dockerfile) on first run - but mounting an
+          # emptyDir at /tmp (below, for the main container's own writable
+          # temp) shadows that directory before entrypoint.sh ever runs,
+          # so the copy fails and the app never starts (confirmed live:
+          # "cp: cannot stat '/tmp/config/appsettings.json'"). Seeding here
+          # instead, in a container whose /tmp is untouched by that mount,
+          # sidesteps entrypoint.sh's own copy entirely - same
+          # config.yaml/config.ini pattern used by lazylibrarian.
+          #
+          # Also pre-creates config/temp/migration/vUnknown: on first boot
+          # (empty ServerSetting table -> GetMigrationDirectory returns
+          # "vUnknown") Kavita's own Program.cs backs up kavita.db into that
+          # directory before migrating, via a DirectoryService instance it
+          # deliberately constructs with a null ILogger. If that backup
+          # step throws for ANY reason, the null-logger crashes trying to
+          # log the error, masking the real exception behind an unhelpful
+          # ArgumentNullException (confirmed live, reproducible on every
+          # restart: "cp: cannot stat" is long gone, this is a second,
+          # separate bug). The node's ext4 mount carries an active SELinux
+          # seclabel, and a manual busybox mkdir/cp of the exact same path
+          # as the exact same uid succeeded fine - so this is suspected to
+          # be a SELinux-context/syscall difference in .NET's own
+          # Directory.CreateDirectory vs a plain shell mkdir, not a raw
+          # permissions problem. Pre-creating the directory here makes
+          # Kavita's own ExistOrCreate call a same-uid no-op, sidestepping
+          # whatever that difference actually is.
+          init-config:
+            image:
+              repository: ghcr.io/kareadita/kavita
+              tag: 0.9.1@sha256:c3ccdc5b4d935cd3a50cfc3776a0cfa3d55e04abbf77015e0c31156f72347123
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                if [ ! -f /kavita/config/appsettings.json ]; then
+                  echo "Seeding appsettings.json"
+                  cp /tmp/config/appsettings.json /kavita/config/appsettings.json
+                else
+                  echo "appsettings.json already exists, leaving it alone"
+                fi
+                mkdir -p /kavita/config/temp/migration/vUnknown
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/kareadita/kavita
+              tag: 0.9.1@sha256:c3ccdc5b4d935cd3a50cfc3776a0cfa3d55e04abbf77015e0c31156f72347123
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 5000
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+              # First boot applies every EF Core migration since the start
+              # of the project (Kavita's own words) before Kestrel ever
+              # starts listening - confirmed live, the default 30-40s
+              # liveness grace (no startup probe) killed it mid-migration
+              # via SIGTERM (exit 143) well before that finished. Without
+              # this, liveness/readiness start counting immediately and
+              # never give first boot a real chance to complete.
+              startup:
+                enabled: true
+                spec:
+                  failureThreshold: 30
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100Mi
+              limits:
+                memory: 2Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: kavita
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - comics.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      config:
+        suffix: config
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "2Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        # for the full explanation. Re-added (was dropped: root cause was
+        # the shared restore.yaml component's mover.inheritSecurityContextFrom.snapshot
+        # setting, which needs a real prior snapshot to resolve - fixed at
+        # the component level, see kubernetes/components/kopiur/backup/restore.yaml).
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: kavita
+        globalMounts:
+          - path: /kavita/config
+      # NAS static NFS mount - same comics export grimmory and Mylar3 use,
+      # so tagged/organized issues show up here without a separate copy step.
+      comics:
+        type: nfs
+        server: 10.20.30.11
+        path: /media/comics
+        advancedMounts:
+          kavita:
+            app:
+              - path: /comics
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          kavita:
+            app:
+              - path: /tmp

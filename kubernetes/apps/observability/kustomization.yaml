@@ -17,3 +17,4 @@ resources:
   - ./kromgo/ks.yaml
   - ./kubernetes-event-exporter/ks.yaml
   - ./crowdsec/ks.yaml
+  - ./calico-deny-log-shipper/ks.yaml

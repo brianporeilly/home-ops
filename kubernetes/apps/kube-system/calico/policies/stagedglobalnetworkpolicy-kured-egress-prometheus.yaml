@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added after
+# reviewing round-4's pending-diff data (2026-09-01): kured queries
+# Prometheus (kube-prometheus-stack) before draining/rebooting a node, to
+# check for active alerts that should block the reboot - real, continuous
+# need (98 hits in the sample), not previously staged.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-kured-egress-prometheus
+spec:
+  stagedAction: Set
+  selector: app.kubernetes.io/name == 'kured'
+  namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'prometheus' && app.kubernetes.io/instance == 'kube-prometheus-stack'
+        namespaceSelector: kubernetes.io/metadata.name == 'observability'
+        ports: [9090]

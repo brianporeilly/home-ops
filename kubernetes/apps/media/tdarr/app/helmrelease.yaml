@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: tdarr
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/haveagitgat/tdarr
-              tag: 2.86.01@sha256:6ca12ec9989089b364e43b692a8eafb4c8d0ecc14151d86fd933d35717a1e934
+              tag: 2.90.01@sha256:8d45a331af72fe992a440fbe74ded86b991057fd400a3d65016120351c2741b1
             env:
               PUID: 1000
               PGID: 1000

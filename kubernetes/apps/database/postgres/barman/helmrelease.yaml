@@ -9,12 +9,13 @@ spec:
   chart:
     spec:
       chart: plugin-barman-cloud
-      version: 0.7.1
+      version: 0.8.0
       sourceRef:
         kind: HelmRepository
         name: cloudnative-pg # shared with the operator (operator/helmrepository.yaml)
       interval: 5m
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:

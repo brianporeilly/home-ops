@@ -309,3 +309,326 @@ data:
           order: 0
           target: !KeyOf immich-application
           group: !Find [authentik_core.group, [name, media-users]]
+  provider-home-assistant.yaml: |
+    metadata:
+      name: OIDC Provider - home-assistant
+    version: 1
+    entries:
+      # Only public (no client_secret/!Env pair, unlike every other
+      # provider in this file) - hass-oidc-auth's own docs recommend a
+      # public client: PKCE + strict redirect_uri matching is enough for a
+      # home setup, no secret to manage at all.
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: home-assistant
+        id: home-assistant-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: public
+          client_id: home-assistant
+          redirect_uris:
+            - matching_mode: strict
+              # hass-oidc-auth's own callback path, not /oauth2/callback -
+              # this app isn't behind components/authentik/protect. Both
+              # hostnames listed since hass-oidc-auth derives redirect_uri
+              # from the live request (confirmed against its own source,
+              # tools/helpers.py get_url()), not a fixed configured
+              # value - whichever hostname the browser used just needs to
+              # be registered here too.
+              url: https://home.internal.oreillys.io/auth/oidc/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://home.oreillys.io/auth/oidc/callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          # scope-profile's groups claim (see the "No custom 'groups'
+          # scope mapping needed" note at the top of this file) is what
+          # HA's own auth_oidc.roles.admin config (configuration.yaml)
+          # checks against home-assistant-admins below - no extra scope
+          # mapping needed here either.
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: home-assistant
+        id: home-assistant-application
+        attrs:
+          name: Home Assistant
+          provider: !KeyOf home-assistant-provider
+      # Household app, own dedicated group (not media-users/etc) - same
+      # convention as changedetection/linkwarden/forgejo. Empty membership
+      # by default, add via the Authentik UI.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf home-assistant-application
+          group: !Find [authentik_core.group, [name, home-assistant-users]]
+      # Empty membership by default - add yourself/others via the
+      # Authentik UI. HA's auth_oidc.roles.admin config (configuration.yaml)
+      # grants the HA 'admin' role to anyone in this group, 'user'
+      # otherwise - same pattern as grafana-admins/nebraska-admins above.
+      - model: authentik_core.group
+        identifiers:
+          name: home-assistant-admins
+  provider-jellyfin.yaml: |
+    metadata:
+      name: OIDC Provider - jellyfin
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: jellyfin
+        id: jellyfin-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env JELLYFIN_OAUTH_CLIENT_ID
+          client_secret: !Env JELLYFIN_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # jellyfin-plugin-oidc's own callback path (Api/OidcController.cs,
+              # [Route("sso/OIDC")] + [HttpGet("Callback/{providerId}")]) -
+              # {providerId} is "authentik" (see the plugin config payload,
+              # oidc-bootstrap CronJob, helmrelease.yaml). Not /oauth2/callback -
+              # this app isn't behind components/authentik/protect. No
+              # post-logout redirect_uri - the plugin doesn't implement
+              # OIDC single-logout, just clears the local Jellyfin session.
+              #
+              # https, not http - this comment previously claimed the
+              # opposite ("tested all of them directly, none changed it"),
+              # but that was wrong, or went stale the moment #737 (jellyfin
+              # helmrelease.yaml, "add pod CIDR to KnownProxies so scheme
+              # detection works") actually landed: confirmed live via direct
+              # curl against the Jellyfin Service with Host+X-Forwarded-Proto
+              # headers set to mimic Envoy exactly - X-Forwarded-Proto:
+              # https DOES flip GetSmartApiUrl's scheme once the calling
+              # proxy IP is in KnownProxies (which Envoy's pod IPs are,
+              # 10.246.0.0/16), for both hostnames. That's the whole point
+              # of #737 - it was never meant as a no-op. Confirmed broken in
+              # production 2026-08-30: real login attempts to
+              # https://media.oreillys.io sent
+              # redirect_uri=https://media.oreillys.io/... and Authentik
+              # rejected it since only the strict http:// entry was
+              # registered. No http->https bridge trick needed anymore -
+              # Jellyfin now reports the real scheme directly. Both
+              # hostnames listed, like home-assistant/
+              # browser used" reason - this app has both an internal and
+              # an external route.
+              url: https://media.internal.oreillys.io/sso/OIDC/Callback/authentik
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://media.oreillys.io/sso/OIDC/Callback/authentik
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: jellyfin
+        id: jellyfin-application
+        attrs:
+          name: Jellyfin
+          provider: !KeyOf jellyfin-provider
+      # media-users, not a dedicated group - same as immich/audiobookshelf.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf jellyfin-application
+          group: !Find [authentik_core.group, [name, media-users]]
+      # Unlike home-assistant/grafana, this plugin's own RoleMapping group
+      # names are fully ours to choose (not hardcoded like Audiobookshelf's
+      # admin/user/guest) - oidc-bootstrap's RoleMappings payload maps this
+      # group to IsAdmin: true. Empty membership by default, add via the
+      # Authentik UI.
+      - model: authentik_core.group
+        identifiers:
+          name: jellyfin-admins
+  provider-audiobookshelf.yaml: |
+    metadata:
+      name: OIDC Provider - audiobookshelf
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: audiobookshelf
+        id: audiobookshelf-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env AUDIOBOOKSHELF_OAUTH_CLIENT_ID
+          client_secret: !Env AUDIOBOOKSHELF_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # Audiobookshelf's own callback paths, not /oauth2/callback -
+              # this app isn't behind components/authentik/protect. Both
+              # hostnames listed (like home-assistant below) since ABS
+              # derives its redirect_uri from the live request, not a
+              # fixed value - whichever hostname the browser used needs
+              # to be registered too, now that both are routed.
+              url: https://audiobooks.internal.oreillys.io/auth/openid/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/auth/openid/callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.internal.oreillys.io/auth/openid/mobile-redirect
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/auth/openid/mobile-redirect
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              # Built from ROUTER_BASE_PATH (defaults to "/audiobookshelf",
+              # unlike the callback URLs above) - see OidcAuthStrategy.js
+              # getEndSessionUrl().
+              url: https://audiobooks.internal.oreillys.io/audiobookshelf/login
+              redirect_uri_type: logout
+            - matching_mode: strict
+              url: https://audiobooks.oreillys.io/audiobookshelf/login
+              redirect_uri_type: logout
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: audiobookshelf
+        id: audiobookshelf-application
+        attrs:
+          name: Audiobookshelf
+          provider: !KeyOf audiobookshelf-provider
+      # media-users, not a dedicated group - see that group's own comment
+      # in blueprints-groups.yaml, immich uses the same one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf audiobookshelf-application
+          group: !Find [authentik_core.group, [name, media-users]]
+  provider-grimmory.yaml: |
+    metadata:
+      name: OIDC Provider - grimmory
+    version: 1
+    entries:
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: grimmory
+        id: grimmory-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_id: !Env GRIMMORY_OAUTH_CLIENT_ID
+          client_secret: !Env GRIMMORY_OAUTH_CLIENT_SECRET
+          redirect_uris:
+            - matching_mode: strict
+              # Grimmory (BookLore) builds this client-side from
+              # window.location.origin (confirmed in the shipped frontend
+              # JS bundle) - not /oauth2/callback, this app isn't behind
+              # components/authentik/protect. Both hostnames listed, like
+              # audiobookshelf/home-assistant, since whichever one the
+              # browser used needs to be registered too.
+              url: https://books.internal.oreillys.io/oauth2-callback
+              redirect_uri_type: authorization
+            - matching_mode: strict
+              url: https://books.oreillys.io/oauth2-callback
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: grimmory
+        id: grimmory-application
+        attrs:
+          name: Grimmory
+          provider: !KeyOf grimmory-provider
+      # media-users, not a dedicated group - see that group's own comment
+      # in blueprints-groups.yaml, immich/audiobookshelf use the same one.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf grimmory-application
+          group: !Find [authentik_core.group, [name, media-users]]
+      # Like jellyfin-admins (not audiobookshelf's hardcoded groups) -
+      # BookLore's OidcGroupMapping is a safe best-effort sync with no
+      # login-denial-on-no-match behavior, confirmed against the app.jar's
+      # OidcGroupMappingService. oidc-bootstrap maps this group name to
+      # isAdmin: true. Empty membership by default, add via the Authentik
+      # UI.
+      - model: authentik_core.group
+        identifiers:
+          name: grimmory-admins
+  provider-podfetch.yaml: |
+    metadata:
+      name: OIDC Provider - podfetch
+    version: 1
+    entries:
+      # Public client, no client_secret - PodFetch's own OIDC config
+      # (crates/common-infrastructure/src/config.rs) has no client-secret
+      # env var at all, only OIDC_JWKS - its auth_middleware.rs validates
+      # incoming Bearer JWTs against that JWKS directly, no server-side
+      # authorization-code exchange in the Rust backend. The frontend SPA
+      # does the whole redirect+token dance itself (PKCE), same shape as
+      # home-assistant/nebraska.
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: podfetch
+        id: podfetch-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          client_type: public
+          client_id: podfetch
+          redirect_uris:
+            # Correction, confirmed live (2026-08-29): the app root took the
+            # browser to the raw /.well-known/openid-configuration document
+            # instead of completing login. PodFetch's SPA is served under
+            # /ui/ (confirmed via its own request logs), and /ui/login is
+            # the real callback path - matches working configs in upstream
+            # issues #1479/#1167, not something PodFetch derives from the
+            # live request the way audiobookshelf/home-assistant/grimmory
+            # do, so only this one fixed value is needed.
+            - matching_mode: strict
+              url: https://podfetch.internal.oreillys.io/ui/login
+              redirect_uri_type: authorization
+          grant_types:
+            - authorization_code
+            - refresh_token
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      - model: authentik_core.application
+        identifiers:
+          slug: podfetch
+        id: podfetch-application
+        attrs:
+          name: PodFetch
+          provider: !KeyOf podfetch-provider
+      # media-users, not a dedicated group - same convention as
+      # grimmory/immich/audiobookshelf, see that group's own comment in
+      # blueprints-groups.yaml.
+      - model: authentik_policies.policybinding
+        identifiers:
+          order: 0
+          target: !KeyOf podfetch-application
+          group: !Find [authentik_core.group, [name, media-users]]

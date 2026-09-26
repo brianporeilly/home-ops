@@ -12,6 +12,10 @@ spec:
   components:
     - ../../../../components/authentik/protect
     - ../../../../components/authentik/protect-external
+  # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+  dependsOn:
+    - name: authentik
+      namespace: authentik
   interval: 1h
   path: ./kubernetes/apps/network/echo/app
   postBuild:

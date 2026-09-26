@@ -24,7 +24,7 @@ spec:
           # cache). Still allowPrivilegeEscalation: false + drop ALL below.
           containers:
             - name: prowlarr-bootstrap
-              image: docker.io/library/alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+              image: docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
               command: ["sh", "-c", "apk add --no-cache curl jq >/dev/null && sh /scripts/bootstrap.sh"]
               env:
                 - name: PROWLARR_API_KEY
@@ -47,11 +47,14 @@ spec:
                     secretKeyRef:
                       name: lidarr-secret
                       key: LIDARR__AUTH__APIKEY
-                - name: LAZYLIBRARIAN_API_KEY
+                # Fixed value baked into mylar3's own seeded config.ini
+                # (kubernetes/apps/download/mylar3/app/secret.yaml,
+                # [API] api_key) - must match that value exactly.
+                - name: MYLAR3_API_KEY
                   valueFrom:
                     secretKeyRef:
                       name: prowlarr-bootstrap-creds
-                      key: LAZYLIBRARIAN_API_KEY
+                      key: MYLAR3_API_KEY
                 - name: NZBPLANET_API_KEY
                   valueFrom:
                     secretKeyRef:

@@ -1,0 +1,410 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-rbd-image-iostat-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Storage"
+data:
+  ceph-rbd-image-iostat.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "target": {
+              "limit": 100,
+              "matchAny": false,
+              "tags": [],
+              "type": "dashboard"
+            },
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Per-OSD apply/commit latency and per-RBD-image IOPS/latency, sourced from mgr/prometheus/rbd_stats_pools. Use this to find which PVCs are actually driving load on the slow HDD OSDs before deciding what to move to ceph-block-ssd.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Ranked by apply latency - the two known-bad WD Green HDDs (osd.0, osd.2) should stand out here. SSD OSDs run 2-4ms; a healthy HDD like osd.4 runs ~90ms.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 20 },
+                  { "color": "red", "value": 100 }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "ceph_daemon" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "hostname" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "device_class" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "auto" } },
+                  { "id": "thresholds", "value": null }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": true, "displayName": "Apply Latency (ms)" }]
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "ceph_osd_apply_latency_ms * on(ceph_daemon) group_left(hostname, device_class) ceph_osd_metadata",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "ceph_osd_commit_latency_ms * on(ceph_daemon) group_left(hostname, device_class) ceph_osd_metadata",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            }
+          ],
+          "title": "OSD Apply/Commit Latency",
+          "transformations": [
+            { "id": "merge", "options": {} },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "cluster": true,
+                  "container": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "pod": true,
+                  "service": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "ceph_daemon": "OSD",
+                  "hostname": "Host",
+                  "device_class": "Class",
+                  "Value #A": "Apply Latency (ms)",
+                  "Value #B": "Commit Latency (ms)"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "description": "Every RBD-backed PVC matching the $namespace/$storageclass filters above, ranked by combined read+write IOPS over the selected range. RBD Image is the underlying Ceph object (csi-vol-<uuid>) - App (PVC name), Namespace, and StorageClass are resolved server-side in PromQL via vector matching (image -> the PV's generated name via kube_persistentvolume_info -> the real PVC name/namespace/storage class via kube_persistentvolumeclaim_info.volumename), so all 4 queries already carry identical labels and just need a straight merge, not a field join. The $namespace/$storageclass filter is a label matcher on the PVC-side series feeding that match, so an image whose PVC doesn't match - including one with no matching PVC at all (orphaned) - drops out of every query's result entirely. In this repo the PVC name is the app name/suffix (see CLAUDE.md conventions), so App (PVC name) is usually enough to identify the app directly.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{ "color": "green", "value": null }]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Total IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Write IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Read IOPS" },
+                "properties": [{ "id": "unit", "value": "iops" }]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Avg Write Latency (ms)" },
+                "properties": [
+                  { "id": "unit", "value": "ms" },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "orange", "value": 20 },
+                        { "color": "red", "value": 100 }
+                      ]
+                    }
+                  },
+                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+          "id": 2,
+          "options": {
+            "cellHeight": "sm",
+            "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+            "showHeader": true,
+            "sortBy": [{ "desc": true, "displayName": "Total IOPS" }]
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "description": "PVC/namespace/storage-class enrichment is done server-side in PromQL (vector matching against kube_persistentvolume_info/kube_persistentvolumeclaim_info), not via a Grafana table join - a prior version relied on chained joinByField transforms and silently rendered with the enrichment columns missing.",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) ((rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval])) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_ops[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
+              "format": "table",
+              "instant": true,
+              "refId": "B"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_read_ops[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))",
+              "format": "table",
+              "instant": true,
+              "refId": "C"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "(sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_latency_sum[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))) / (sum by (image, pool, persistentvolumeclaim, namespace, storageclass) (rate(ceph_rbd_write_latency_count[$__rate_interval]) * on(image) group_left(persistentvolumeclaim, namespace, storageclass) (label_replace(kube_persistentvolume_info{csi_driver=\"rook-ceph.rbd.csi.ceph.com\"}, \"image\", \"csi-vol-$1\", \"csi_volume_handle\", \".*-([0-9a-f-]{36})$\") * on(persistentvolume) group_left(persistentvolumeclaim, namespace, storageclass) label_replace(kube_persistentvolumeclaim_info{namespace=~\"$namespace\", storageclass=~\"$storageclass\"}, \"persistentvolume\", \"$1\", \"volumename\", \"(.*)\")))) / 1e6",
+              "format": "table",
+              "instant": true,
+              "refId": "D"
+            }
+          ],
+          "title": "Top RBD Images by IOPS",
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Time 1": true,
+                  "Time 2": true,
+                  "Time 3": true,
+                  "__name__": true
+                },
+                "indexByName": {},
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "persistentvolumeclaim": "App (PVC name)",
+                  "storageclass": "StorageClass",
+                  "pool": "Pool",
+                  "image": "RBD Image",
+                  "Value #A": "Total IOPS",
+                  "Value #B": "Write IOPS",
+                  "Value #C": "Read IOPS",
+                  "Value #D": "Avg Write Latency (ms)"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "iops"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
+          "id": 3,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_ops[$__rate_interval]) + rate(ceph_rbd_read_ops[$__rate_interval]))",
+              "legendFormat": "{{pool}} / {{image}}",
+              "refId": "A"
+            }
+          ],
+          "title": "RBD IOPS by Image",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "orange", "value": 20 },
+                  { "color": "red", "value": 100 }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
+          "id": 4,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "editorMode": "code",
+              "expr": "sum by (pool, image) (rate(ceph_rbd_write_latency_sum[$__rate_interval])) / sum by (pool, image) (rate(ceph_rbd_write_latency_count[$__rate_interval])) / 1e6",
+              "legendFormat": "{{pool}} / {{image}}",
+              "refId": "A"
+            }
+          ],
+          "title": "RBD Avg Write Latency by Image",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 40,
+      "tags": ["ceph", "storage"],
+      "templating": {
+        "list": [
+          {
+            "allValue": ".*",
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, namespace)",
+            "hide": 0,
+            "includeAll": true,
+            "multi": true,
+            "name": "namespace",
+            "options": [],
+            "query": {
+              "query": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, namespace)",
+              "refId": "StandardVariableQuery"
+            },
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "allValue": ".*",
+            "current": { "selected": true, "text": "All", "value": "$__all" },
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "definition": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, storageclass)",
+            "hide": 0,
+            "includeAll": true,
+            "multi": true,
+            "name": "storageclass",
+            "options": [],
+            "query": {
+              "query": "label_values(kube_persistentvolumeclaim_info{storageclass=~\"ceph-block.*\"}, storageclass)",
+              "refId": "StandardVariableQuery"
+            },
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": { "from": "now-6h", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ceph RBD Image IOStat",
+      "uid": "ceph-rbd-image-iostat",
+      "version": 1,
+      "weekStart": ""
+    }

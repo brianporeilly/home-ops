@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: *app
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: mbentley/omada-controller
-              tag: 6.2.14.11@sha256:9d0867727c48441f8c569b04ddffdb47b5be23c7eb497037f1bd6215fa8235ad
+              tag: 6.3.0.45@sha256:07b051fe0fb7488ce3401c815c2cb8a507d5e45c497ae5c40f050ea8d94d19d3
             env:
               MANAGE_HTTP_PORT: "8088"
               MANAGE_HTTPS_PORT: "8043"

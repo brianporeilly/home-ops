@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: immich
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -25,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-server
-              tag: v3.1.0@sha256:079cc990b26a88d71f96027341c67329cb11829d4c341ce33b3718fe0f84cbfa
+              tag: v3.2.2@sha256:6b0eaf8cfea6d4d6f86a45dfd0c9e3b068ed4493d8b7fa1efeca4cc87792fbe8
             env:
               DB_HOSTNAME: immich-postgres-rw
               DB_PORT: "5432"
@@ -80,7 +81,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v3.1.0@sha256:a25ddad7d6d2ab18a161176731dc171bb7e39c0e9dd3884fb1ec629dab535d05
+              tag: v3.2.2@sha256:390453a571ca73b563cc3d9a12a37a4d71217b12608de72f26884f5e2ebc4896
             env:
               TRANSFORMERS_CACHE: /cache
               MACHINE_LEARNING_CACHE_FOLDER: /cache
@@ -107,7 +108,7 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 9.1-alpine@sha256:7bf043f6ff25ea50b557e2f6da8f76fce62775d766d943f076d1e66838099315
+              tag: 9.2-alpine@sha256:48dc9d22ed984d9599e0d5823726053b0b426a86cff534f6bf1bd3dfb951f33e
             args:
               - valkey-server
               - --appendonly
@@ -162,6 +163,16 @@ spec:
               - name: "{{ .Release.Name }}-app"
                 port: 2283
       external:
+        annotations:
+          # gatus-sidecar's HTTPRoute auto-discovery skips a bare "/" match
+          # and picks the next PathPrefix rule it finds instead (see the
+          # authentik-server-external and jellyfin comments for the same
+          # bug) - without this override it started probing
+          # /api/auth/login instead of / the moment the login-rate-limited
+          # rule below was added, and that path 302s instead of returning
+          # 200.
+          gatus.home-operations.com/endpoint: |-
+            path: /
         hostnames:
           - photos.oreillys.io
         parentRefs:
@@ -170,6 +181,17 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
+              - name: "{{ .Release.Name }}-app"
+                port: 2283
+          # Named so the BackendTrafficPolicy below
+          # (backendtrafficpolicy-login-ratelimit.yaml) can target just this
+          # rule via sectionName.
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /api/auth/login
+            backendRefs:
               - name: "{{ .Release.Name }}-app"
                 port: 2283
 

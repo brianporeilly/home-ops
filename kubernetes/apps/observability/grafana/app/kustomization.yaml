@@ -7,3 +7,6 @@ resources:
   - ./oidc-secret.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./calico-deny-dashboard.yaml
+  - ./openhands-conversation-report-dashboard.yaml
+  - ./ceph-rbd-image-iostat-dashboard.yaml

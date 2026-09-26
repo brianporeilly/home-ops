@@ -10,6 +10,11 @@ resources:
   - ./oauth-sources-secret.yaml
   - ./blueprints-configmap.yaml
   - ./blueprints-groups.yaml
+  - ./blueprints-brute-force.yaml
+  - ./blueprints-mfa-required.yaml
+  - ./blueprints-sso-enrollment-allowlist.yaml
+  - ./blueprints-password-policy.yaml
+  - ./blueprints-notification-destinations.yaml
   - ./blueprint-reapply-rbac.yaml
   - ./blueprint-reapply-cronjob.yaml
   - ./oidc-generators.yaml
@@ -23,11 +28,19 @@ resources:
   - ./grafana-oidc-credentials.yaml
   - ./paperless-ngx-oidc-credentials.yaml
   - ./linkwarden-oidc-credentials.yaml
+  - ./navidrome-oidc-credentials.yaml
   - ./forgejo-oidc-credentials.yaml
   - ./immich-oidc-credentials.yaml
+  - ./whisker-oidc-credentials.yaml
+  - ./jellyfin-oidc-credentials.yaml
+  - ./audiobookshelf-oidc-credentials.yaml
+  - ./grimmory-oidc-credentials.yaml
+  - ./openhands-oidc-credentials.yaml
   - ./blueprints-protected-apps.yaml
   - ./blueprints-native-apps.yaml
   - ./httproute-external.yaml
+  - ./backendtrafficpolicy-admin-block.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml

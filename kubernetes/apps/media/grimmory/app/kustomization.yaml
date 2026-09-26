@@ -6,6 +6,8 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./mariadb.yaml
-  - ./obc.yaml
   - ./backup.yaml
   - ./kopiur-snapshot.yaml
+  - ./oidc-secret.yaml
+  - ./admin-secret.yaml
+  - ./backendtrafficpolicy-login-ratelimit.yaml

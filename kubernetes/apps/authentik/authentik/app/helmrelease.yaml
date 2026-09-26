@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: authentik
   install:
+    timeout: 15m
     remediation:
       retries: -1
   upgrade:
@@ -36,6 +37,11 @@ spec:
       configMaps:
         - authentik-blueprints-oauth-sources
         - authentik-blueprints-groups
+        - authentik-blueprints-brute-force
+        - authentik-blueprints-mfa-required
+        - authentik-blueprints-sso-enrollment-allowlist
+        - authentik-blueprints-password-policy
+        - authentik-blueprints-notification-destinations
         - authentik-blueprints-protected-apps
         - authentik-blueprints-native-apps
     authentik:
@@ -44,6 +50,20 @@ spec:
         name: authentik
         user: authentik
         port: 5432
+      # In-cluster no-auth relay (see maddy-smtp-relay memory) - same
+      # host:port, no username/password, as forgejo's FORGEJO__mailer__*
+      # config. Not previously configured at all (confirmed live - empty
+      # host/password, `email.host: localhost` default), so nothing sent:
+      # not password-recovery (moot now, only akadmin has a local password),
+      # not the four shipped NotificationRules (config-error/warning,
+      # update-available, exception) that already point at
+      # default-email-transport but were silently going nowhere.
+      email:
+        host: maddy.misc.svc.cluster.local
+        port: 25
+        from: authentik@oreillys.io
+        use_tls: false
+        use_ssl: false
       # secret_key intentionally left empty here - the chart's own
       # env-generation helper skips empty values, so AUTHENTIK_SECRET_KEY
       # comes solely from global.env below (sourced from our sops secret)
@@ -130,6 +150,67 @@ spec:
           valueFrom:
             secretKeyRef:
               name: kopiur-ui-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-openhands.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from openhands-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: OPENHANDS_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: openhands-oidc-credentials
+              key: client-id
+        - name: OPENHANDS_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: openhands-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-whisker.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from whisker-oidc-credentials.yaml (ExternalSecret) - see
+        # echo-oidc-credentials.yaml for the pattern rationale.
+        - name: WHISKER_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-id
+        - name: WHISKER_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: whisker-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-jellyfin.yaml key in blueprints-native-apps.yaml.
+        - name: JELLYFIN_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-id
+        - name: JELLYFIN_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-audiobookshelf.yaml key in blueprints-native-apps.yaml.
+        # Sourced from audiobookshelf-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-id
+        - name: AUDIOBOOKSHELF_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: audiobookshelf-oidc-credentials
+              key: client-secret
+        # Consumed by the provider-grimmory.yaml key in blueprints-native-apps.yaml.
+        - name: GRIMMORY_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
+              key: client-id
+        - name: GRIMMORY_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: grimmory-oidc-credentials
               key: client-secret
         # Consumed by the provider-changedetection.yaml key in blueprints-protected-apps.yaml.
         - name: CHANGEDETECTION_OAUTH_CLIENT_ID
@@ -241,6 +322,17 @@ spec:
             secretKeyRef:
               name: immich-oidc-credentials
               key: client-secret
+        # Consumed by the provider-navidrome.yaml key in blueprints-protected-apps.yaml.
+        - name: NAVIDROME_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: navidrome-oidc-credentials
+              key: client-id
+        - name: NAVIDROME_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: navidrome-oidc-credentials
+              key: client-secret
     server:
       replicas: 1
       route:
@@ -280,5 +372,15 @@ spec:
         requests:
           cpu: 100m
           memory: 512Mi
+        # blueprint-reapply-cronjob execs `ak apply_blueprint` into this
+        # pod, spawning a full second Django bootstrap on top of the
+        # resident worker process (~440-860Mi observed) - too little
+        # headroom manifests as SIGBUS (cgroup memory limit hit during an
+        # mmap page fault) rather than a clean OOM kill, confirmed live
+        # twice now: first at 1Gi with 14 blueprint files (#712), again at
+        # 1.5Gi once the mounted blueprint count grew to 26. Bumped with
+        # real margin since this count only grows as more apps get added -
+        # if it recurs, check `ls /blueprints/mounted/*/*.yaml | wc -l`
+        # against this headroom rather than just re-bumping blindly.
         limits:
-          memory: 1Gi
+          memory: 3Gi

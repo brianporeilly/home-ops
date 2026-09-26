@@ -47,7 +47,7 @@ spec:
                 path: /backups
           containers:
             - name: sync
-              image: docker.io/rclone/rclone:1.75.0
+              image: docker.io/rclone/rclone:1.75.1
               env:
                 - { name: RCLONE_CONFIG_RGW_TYPE, value: s3 }
                 - { name: RCLONE_CONFIG_RGW_PROVIDER, value: Ceph }

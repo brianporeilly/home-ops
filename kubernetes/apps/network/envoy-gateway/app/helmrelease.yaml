@@ -10,6 +10,7 @@ spec:
     kind: OCIRepository
     name: envoy-gateway
   install:
+    timeout: 15m
     crds: CreateReplace
     remediation:
       retries: -1

@@ -50,11 +50,14 @@ spec:
 
         - alert: SnmpLowMemory
           expr: |-
-            (memAvailReal / memTotalReal) * 100 < 10
+            # opnsense's bsnmpd doesn't expose Active/Inactive/Wired, and its memAvailReal
+            # excludes reclaimable cache/buffers (unlike Linux net-snmp), so it reads as
+            # chronically low on a healthy FreeBSD box. Add cache/buffers back in ourselves.
+            ((memTotalFree + memCached + memBuffer) / memTotalReal) * 100 < 10
           for: 15m
           annotations:
             summary: >-
-              Available memory on {{ $labels.instance }} is below 10%
+              Reclaimable memory on {{ $labels.instance }} is below 10%
           labels:
             severity: warning
 

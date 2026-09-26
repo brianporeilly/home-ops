@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_stagedglobalnetworkpolicies.yaml
+# Piece of docs/egress-policy-plan.md's proposed baseline, added round 6
+# (2026-09-02) - first time kopiur-system has shown up in the egress
+# review. Confirmed real via live pending-diff data: a
+# nas-backups-offsite-repl Job (RepositoryReplication, the off-site
+# Backblaze B2 sync) made 21 tcp/443 calls to PUBLIC NETWORK over its run.
+#
+# Namespace-wide (selector: all()) rather than scoped to the replication
+# Job's own pod-template-hash-suffixed name, same reasoning as the other
+# broad first-pass internet-egress rules (download, flux-system) - every
+# workload in this namespace (controller/webhook/kopia-server/snapshot and
+# replication Jobs) is
+# `app.kubernetes.io/managed-by: kopiur`-labelled and the namespace's whole
+# job is backup/replication I/O, not a mix of internet-facing and
+# internal-only apps the way `home` or `media` are.
+apiVersion: projectcalico.org/v3
+kind: StagedGlobalNetworkPolicy
+metadata:
+  name: allow-kopiur-egress-offsite
+spec:
+  stagedAction: Set
+  selector: all()
+  namespaceSelector: kubernetes.io/metadata.name == 'kopiur-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

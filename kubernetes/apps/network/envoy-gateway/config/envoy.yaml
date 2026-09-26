@@ -14,7 +14,7 @@ spec:
       envoyDeployment:
         replicas: 2
         container:
-          image: mirror.gcr.io/envoyproxy/envoy:v1.39.0
+          image: mirror.gcr.io/envoyproxy/envoy:v1.39.1
           resources:
             requests:
               cpu: 100m
@@ -152,6 +152,19 @@ spec:
         certificateRefs:
           - kind: Secret
             name: oreillys.io-tls
+    # Raw TCP, no SNI/Host header to route on - TCPRoute only matches by
+    # listener (port), not hostname. Fine here since there's only one raw-TCP
+    # backend (forgejo SSH clone); a second one would need its own port. The
+    # TCPRoute itself lives with forgejo (misc/tcproute.yaml), not here - this
+    # Kustomization has targetNamespace: network, which would silently force
+    # a TCPRoute defined here into namespace network and break its
+    # same-namespace backendRef to the forgejo-ssh Service in misc.
+    - name: ssh
+      protocol: TCP
+      port: 22
+      allowedRoutes:
+        namespaces:
+          from: All
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -168,6 +181,80 @@ spec:
   timeout:
     http:
       requestTimeout: 10m
+  # Styled error pages (tarampampam/error-pages, kubernetes/apps/network/error-pages)
+  # via responseOverride/redirect are DISABLED as of 2026-09-22, cluster-wide,
+  # for every status code - not just excluding the ones we've caught being
+  # broken by it one at a time. The underlying defect (a known Envoy Gateway
+  # bug: the client-visible status is always reported as 302 for anything
+  # responseOverride redirects to error-pages, regardless of the real code)
+  # applies to every code routed through this mechanism, including the ones
+  # still configured below (429/500/502/503/504) - we just hadn't hit an app
+  # that cared about distinguishing those yet. 400/401 broke Whisker's OIDC
+  # error display, 403 broke tube-archivist's login, 404 broke OpenHands's
+  # Settings screen - three different apps, one bug, found one code at a
+  # time. Re-enable once the upstream bug is fixed (or confirmed
+  # not-a-bug) and reported - no tracking issue filed yet.
+  #
+  # Kept as a comment, not deleted outright: this is a real, wanted feature
+  # (styled pages instead of Envoy's blank-body errors) disabled pending an
+  # external fix, not dead config.
+  #
+  # responseOverride:
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 429
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /429
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 500
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /500
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 502
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /502
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 503
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /503
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 504
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -183,6 +270,11 @@ spec:
   # Listener-level (sectionName) policies fully replace, rather than merge
   # with, the Gateway-level "envoy" policy below for that listener - so
   # compression/timeout are repeated here to avoid losing them on https.
+  # Same reason responseOverride (styled error pages) is repeated below too -
+  # without it, external traffic would silently keep Envoy's blank-body
+  # errors while internal traffic got the styled ones - now moot, disabled
+  # here too. See the "envoy" policy's comment above for the full rationale
+  # (cluster-wide, all codes, pending an upstream Envoy Gateway bug report).
   compression:
     - type: Brotli
     - type: Gzip
@@ -196,6 +288,62 @@ spec:
         - limit:
             requests: 100
             unit: Second
+  # responseOverride:
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 429
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /429
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 500
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /500
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 502
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /502
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 503
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /503
+  #   - match:
+  #       statusCodes:
+  #         - type: Value
+  #           value: 504
+  #     redirect:
+  #       scheme: https
+  #       hostname: error-pages.internal.oreillys.io
+  #       port: 443
+  #       path:
+  #         type: ReplaceFullPath
+  #         replaceFullPath: /504
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -229,10 +377,25 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+      # frame-ancestors replaces X-Frame-Options (the modern, more
+      # flexible CSP directive - same "who can frame this" job, but a
+      # value list instead of DENY/SAMEORIGIN/single-origin). addIfAbsent,
+      # not set: Jellyfin's LG webOS app needs a looser value
+      # ('self' file:) than every other app - well-documented upstream
+      # issue, jellyfin.org's own nginx/Traefik guides call it out. Its
+      # own HTTPRoute (route.app.rules[].filters, helmrelease.yaml) sets
+      # Content-Security-Policy itself; addIfAbsent backs off for any app
+      # that already has the header by the time this late-stage check
+      # runs (confirmed via Envoy Gateway's HTTPHeaderFilter source -
+      # AddIfAbsent is "a no-op if the header is already present"),
+      # unlike set here which would win regardless and stomp jellyfin's
+      # own value (confirmed via the same source + docs: lateResponseHeaders
+      # runs after route-level filters and normally overwrites them).
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_clienttrafficpolicies.yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -262,10 +425,15 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
+      # See the matching comment on the "envoy" (envoy-internal) policy
+      # above - same frame-ancestors-replaces-X-Frame-Options reasoning.
+      # Jellyfin's external route (media.oreillys.io) overrides this the
+      # same way its internal route does.
+      addIfAbsent:
+        - name: Content-Security-Policy
+          value: "frame-ancestors 'self';"
   # Deliberately NOT on the shared "envoy" policy above - envoy-internal is
   # direct LAN traffic with no NAT/proxy hop in front of it, so trusting an
   # XFF hop there would let any LAN client spoof its own source IP.

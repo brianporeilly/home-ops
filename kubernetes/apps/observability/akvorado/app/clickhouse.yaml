@@ -24,7 +24,7 @@ spec:
         spec:
           containers:
             - name: clickhouse
-              image: clickhouse/clickhouse-server:26.7@sha256:69d76335ffc615a21de7cfd52a4c598a3ddde238b8d4113bee3ef3df9b9e53de
+              image: clickhouse/clickhouse-server:26.9@sha256:4dd3b1cb462023242f5e0530e1ea96f2007d6f893c94d55b6a00262acbfdfd6e
               resources:
                 requests:
                   cpu: 500m
@@ -34,7 +34,11 @@ spec:
     volumeClaimTemplates:
       - name: akvorado-clickhouse-storage
         spec:
-          storageClassName: ceph-block
+          # ceph-block-ssd: this was the busiest thing on ceph-block (48 IOPS,
+          # ~435ms write latency). Live PVC already migrated 2026-09-25 via a
+          # VolumeSnapshot restore (see docs/ceph-ssd-storage-migration-plan.md)
+          # - this just keeps a from-scratch rebuild consistent with reality.
+          storageClassName: ceph-block-ssd
           accessModes:
             - ReadWriteOnce
           resources:

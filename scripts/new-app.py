@@ -66,7 +66,7 @@ def main() -> None:
     parser.add_argument("--route-type", choices=["internal", "external"], default="internal", help="Route gateway")
     parser.add_argument("--add-secret", action="store_true", help="Add secret.yaml and envFrom reference")
     parser.add_argument("--no-reloader", action="store_true", help="Skip reloader annotation")
-    parser.add_argument("--chart-version", default="4.3.0", help="app-template chart version (default 4.3.0)")
+    parser.add_argument("--chart-version", default="5.1.0", help="app-template chart version (default 5.1.0)")
     parser.add_argument("--memory-limit", default="1Gi", help="Memory limit (default 1Gi)")
     parser.add_argument("--memory-request", default="100Mi", help="Memory request (default 100Mi)")
     parser.add_argument("--cpu-request", default="100m", help="CPU request (default 100m)")

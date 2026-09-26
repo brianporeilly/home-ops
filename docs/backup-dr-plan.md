@@ -1,8 +1,10 @@
 # Backup & Disaster Recovery Plan (ADR)
 
-Status: **Partially implemented** (updated 2026-08-15). Companion to `disk-hardware-plan.md`,
+Status: **Partially implemented** (updated 2026-08-21). Companion to `disk-hardware-plan.md`,
 `node-inventory.md`, `migration-inventory.md`. **Done:** dead-man's switch (§7), Ceph RGW S3
-target (§3), CNPG Barman backups + MariaDB native backups → RGW (§1), etcd + `/etc/kubernetes/pki`
+target (§3), CNPG Barman backups → RGW, MariaDB native backups → **PVC via kopiur, not RGW**
+(§1 — Ceph 20.2.4's SigV4 hardening broke mariadb-operator's minio-go client; see the note in
+`kubernetes/apps/media/grimmory/app/backup.yaml`), etcd + `/etc/kubernetes/pki`
 snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts incl. CNPG base-backup
 (§5), Loki chunk storage → RGW (§4), **L2 non-DB PVC backups via `kopiur`** (§2 L2) — live on
 29 apps, hourly schedule, confirmed working end-to-end, **auto-restore-on-rebuild also live**
@@ -10,11 +12,9 @@ snapshot CronJob → RGW (§2 cluster-state), backup-failure/staleness alerts in
 verified — see `migration-inventory.md`), and **off-site (B2) is now live** (§2 L3) — both the
 kopiur repo itself (`RepositoryReplication` → `kopiur-backups` bucket) and the RGW-sourced
 DB/etcd backups (`rgw-nas-sync`'s B2 leg → a separate `ceph-rgw-backups` bucket), each confirmed
-with a real end-to-end sync, not just applied-and-assumed-working. **Still open:** confirm the
-sops age-key backup ×2 (§6, owner task), restore runbook (§6 — the testing itself is done),
-grimmory-bookdrop's missing backup coverage (found during the restore migration, unrelated root
-cause not yet investigated — see `migration-inventory.md` backlog). See the checklist in §8 for
-per-item status.
+with a real end-to-end sync, not just applied-and-assumed-working, and the **sops age-key backup
+is confirmed** off-cluster (§6). **Still open:** restore runbook (§6 — the testing itself is
+done). See the checklist in §8 for per-item status.
 
 Cluster facts that shape this: **vanilla Kubernetes via kubeadm** (stacked etcd as static pods
 on the 3 control-plane nodes — *not* k3s), **Flux GitOps** (every workload + sops-encrypted
@@ -57,8 +57,15 @@ consistent, point-in-time-capable backup instead, targeting S3:
   archiving** + scheduled base backups → **PITR**. `ScheduledBackup` CR per cluster + the
   cluster's `.spec.backup.barmanObjectStore` (or the newer Barman Cloud Plugin) pointed at an
   S3 bucket. Pure GitOps, fits the repo. Retention via Barman policy.
-- **MariaDB (grimmory):** mariadb-operator native `Backup` CR (scheduled) → S3 or PVC, with a
-  matching `Restore` CR path. 
+- **MariaDB (grimmory):** mariadb-operator native `Backup` CR (scheduled) → **PVC**, not S3/RGW
+  — mariadb-operator's minio-go client always sends an unsigned `Content-Type` header on
+  chunked/streaming uploads, which Ceph 20.2.4's SigV4 hardening (correctly) rejects; no
+  client-side workaround exists, and the server-side one (`rgw_sigv4_insecure`) would weaken
+  signature validation for every S3 client on the RGW, not just this one. The backup PVC
+  (`grimmory-mariadb-backup-pvc`, same name as the `Backup` CR — renamed from `grimmory-mariadb-backup`
+  since `spec.storage` is immutable on this CRD, so switching away from S3 needed a new object, not
+  an in-place edit) rides the L2 kopiur pipeline instead
+  (see `kopiur-snapshot.yaml`) for NAS + off-site coverage — no matching `Restore` CR path yet.
 - **Redpanda:** topic data is largely a transient bus (Akvorado flow ingest). Tiered
   storage/`rpk` topic export to S3 is possible but **low value** — treat as recreate-fresh
   unless a concrete need appears. Decide explicitly, don't back up on reflex.
@@ -140,9 +147,10 @@ can't touch the other):
   policy needed). Destination inherits the source repo's password verbatim.
 - **RGW-sourced DB/etcd backups → `ceph-rgw-backups` bucket.** `rgw-nas-sync`
   (`kubernetes/components/rgw-nas-sync/`) got a second `rclone sync` leg alongside its existing
-  NAS sync, same mirror logic — CNPG's `retentionPolicy: 14d` and mariadb-operator's
-  `maxRetention: 720h` already self-prune at the RGW source, so `rclone sync` (not `copy`)
-  propagates that pruning to B2 automatically, no new logic needed.
+  NAS sync, same mirror logic — CNPG's `retentionPolicy: 14d` self-prunes at the RGW source, so
+  `rclone sync` (not `copy`) propagates that pruning to B2 automatically, no new logic needed.
+  MariaDB is no longer part of this leg — its backup moved off RGW entirely (see §1), so its
+  NAS/off-site coverage now comes from kopiur instead.
 
 **Gotcha worth remembering:** kopia shards blobs into nested directories (`p00/`, `p01/`, ...)
 only on **filesystem** backends, to keep any one directory's entry count sane on a real
@@ -249,9 +257,8 @@ signals cover that bootstrap window. (MariaDB base backups are covered via `kube
 
 ## 6. Secrets & rebuild runbook (highest-consequence, lowest-effort)
 - **SOPS age private key** — if lost, *every* secret is unrecoverable and the cluster can't be
-  bootstrapped from git. Confirm it's backed up in **≥2 places, off-cluster and off-site**
-  (password manager + printed/second location). Do **not** store it in this repo. This is the
-  single most important DR item and it's currently undocumented.
+  bootstrapped from git. **Confirmed backed up (2026-08-28)**, off-cluster/off-site. Do **not**
+  store it in this repo.
 - **Flux bootstrap runbook** — write the exact rebuild path: restore age key → `flux bootstrap`
   → reconcile order → restore etcd/PKI (if restoring vs rebuilding) → restore L1/L2 data.
   Capture **imperative, not-in-git** state here too (e.g. the Ceph CRUSH hdd-rule swap done
@@ -268,10 +275,11 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
 
 ## 8. Implementation order (proposed)
 1. ✅ **Dead-man's switch** — closes the scariest blind spot. (§7)
-2. ⬜ **Confirm sops age-key backup** off-cluster ×2 — removes the worst "can't rebuild". **Owner task.** (§6)
+2. ✅ **Confirm sops age-key backup** off-cluster — removes the worst "can't rebuild". (§6)
 3. ✅ **CephObjectStore (RGW)** + buckets — the S3 target everything else needs. (§3)
 4. ✅ **CNPG Barman backups** → RGW (Barman Cloud **plugin**). (§1)
-5. ✅ **MariaDB native backup** → RGW. (§1)
+5. ✅ **MariaDB native backup** → PVC via kopiur (moved off RGW 2026-08-21 — Ceph 20.2.4 SigV4
+   hardening broke the S3 path, no client-side fix available). (§1)
 6. ✅ **RGW → NAS sync** (`components/rgw-nas-sync`, rclone) — makes DB backups actual DR. Live
    on all 8 RGW buckets (loki deliberately excluded — RGW is its primary storage, not a backup
    of it).
@@ -292,9 +300,8 @@ failure you can't self-report ("the alerter/cluster/internet is down") — see
     this cluster. Still 🟡, not ✅, until at least one of those gets a real drill.
 13. ⬜ **Scheduled VolumeSnapshots** (L0) — nice-to-have rollback. (§2 L0)
 
-**Next up:** (2) age-key confirmation [owner] is the only fully-unstarted item and needs no NAS.
-(6), (7), (8), and (11) are all done; (12)'s runbook is now written (`restore-runbook.md`) but
-stays 🟡 until its self-flagged gaps (CNPG/MariaDB restore, a full etcd/PKI rebuild, B2-only
+**Next up:** (2) age-key backup is now confirmed. (12)'s runbook is written (`restore-runbook.md`)
+but stays 🟡 until its self-flagged gaps (CNPG/MariaDB restore, a full etcd/PKI rebuild, B2-only
 recovery) get an actual drill — that's the next real backup item. (13) is a low-priority
 nice-to-have.
 
