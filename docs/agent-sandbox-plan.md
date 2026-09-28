@@ -487,11 +487,15 @@ compute that holds none.**
   ServiceAccount, an RWX `ceph-filesystem` state PVC (conversation
   snapshots, so a resume is verbatim and prompt-cache-warm; optional for
   correctness), the driver secret (Anthropic key + scratch-scoped git
-  token), and a **suspended** example CronJob. `harness run` is idempotent
-  (start if the branch is new, else resume), so cron, `kubectl create job
-  --from=cronjob/...`, and any future web UI all launch the same Job.
+  token), and `cronjob-example.yaml` - a CronJob **template that is not
+  deployed** (unlisted in its kustomization.yaml); copy it per task and list
+  the copy. `harness run` is idempotent (start if the branch is new, else
+  resume), so cron, `kubectl create job --from=cronjob/...`, and any future
+  web UI all launch the same Job.
 - Calico: `allow-agent-runner-egress` (DNS, apiserver, llama-cpp, public
-  443; enforcing) and `allow-agent-runner-to-llama-cpp`. The sandbox egress
+  443; enforcing) and `allow-agent-runner-to-llama-cpp`. An out-of-cluster
+  llama-server on a private address needs the commented Allow in
+  `allow-agent-runner-egress` filled in, above its RFC1918 Deny. The sandbox egress
   policy is unchanged - model calls come from the driver, so sandboxes never
   need llama-cpp.
 
@@ -502,7 +506,7 @@ coding-agent --repo-url ... chat <slug>`.
 
 **Known gaps:**
 - The harness images aren't published yet (the burst-harness repo isn't on
-  GitHub yet); the CronJob stays suspended until they are and are pinned
+  GitHub yet); no task CronJob should be deployed until they are, pinned
   by digest.
 - Not yet run end to end in-cluster (Job → claim → model → push → PR).
   Claim/clone/branch/list/release was run live from a workstation.
@@ -510,8 +514,10 @@ coding-agent --repo-url ... chat <slug>`.
   bumped the controller image to v1.0.4 (#1020, #1047) - re-vendor the
   release manifest so CRDs and controller match.
 - llama-cpp's current model/GPU (Qwen3-4B on a 4GB GTX 745) can't drive
-  this tool loop; revisit on gpu-typhon. Set HARNESS_CONTEXT_WINDOW_LIMIT
-  to llama-server's `--ctx-size` when switching.
+  this tool loop; use a separate llama-server with a larger model for now.
+  When switching, set HARNESS_CONTEXT_WINDOW_LIMIT to its `--ctx-size` and
+  HARNESS_MODEL_TIMEOUT well above the client's 30s default (see the
+  commented block in cronjob-example.yaml).
 
 ## What was considered and not built (from the original Phase 2 writeup)
 

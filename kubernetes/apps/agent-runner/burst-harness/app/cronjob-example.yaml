@@ -1,23 +1,26 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/cronjob_v1.json
 #
-# Template for a scheduled/autonomous burst-harness task. One CronJob per
-# recurring task; copy this file, change the name, labels, schedule and
-# args. `harness run` is idempotent (starts the task if its branch doesn't
-# exist, resumes it otherwise), so every firing is the same command, and
-# each firing claims a fresh sandbox from the coding-agent warm pool, works,
-# pushes, and releases it.
+# TEMPLATE - not listed in kustomization.yaml, so Flux never applies it.
+# One CronJob per recurring task: copy this file to cronjob-<task>.yaml,
+# change the name, both burst-harness/task labels, schedule, args, and
+# HARNESS_REPO_URL, then add the copy to kustomization.yaml.
 #
-# Suspended: fire it on demand ("run now", or from any UI that can create a
-# Job) with
-#   kubectl create job -n agent-runner --from=cronjob/burst-harness-example example-$(date +%s)
-# and watch with `harness list` or `kubectl logs -n agent-runner job/<name>`.
-# The last log line is `HARNESS_RESULT {json}`. Exit 0 = PR/paused/abandoned,
+# `harness run` is idempotent (starts the task if its branch doesn't exist,
+# resumes it otherwise), so every firing is the same command; each one claims
+# a fresh sandbox from the coding-agent warm pool, works, pushes, and
+# releases it.
+#
+# Keep `suspend: true` for a task that should only run on demand, and fire it
+# ("run now", or from any UI that can create a Job) with
+#   kubectl create job -n agent-runner --from=cronjob/<name> <name>-$(date +%s)
+# Watch with `harness list` or `kubectl logs -n agent-runner job/<job>`. The
+# last log line is `HARNESS_RESULT {json}`. Exit 0 = PR/paused/abandoned,
 # 3 = waiting on a human answer, 1 = no terminal state.
 #
 # Image: not yet published - push the burst-harness repo to GitHub and its
 # images workflow publishes ghcr.io/brianporeilly/burst-harness. Pin
-# tag@sha256 here once it exists, then unsuspend.
+# tag@sha256 before deploying a copy.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -75,14 +78,27 @@ spec:
                   value: https://github.com/brianporeilly/REPLACE_ME.git
                 - name: HARNESS_PR_DRAFT
                   value: "true"
-                # Anthropic (default provider). For llama-cpp instead, once a
-                # model that can drive a tool loop runs on it (gpu-typhon):
-                #   HARNESS_PROVIDER=llamacpp
-                #   HARNESS_BASE_URL=http://llama-cpp.ai.svc.cluster.local:8080
-                #   HARNESS_MODEL_ID=<model>
-                #   HARNESS_CONTEXT_WINDOW_LIMIT=<llama-server --ctx-size>
+                # Anthropic (the default provider) - needs ANTHROPIC_API_KEY
+                # in burst-harness-secret.
                 - name: HARNESS_MODEL_ID
                   value: claude-opus-5-5
+                # llama.cpp instead: replace the HARNESS_MODEL_ID entry above
+                # with this block. base_url is the server root (no /v1). An
+                # endpoint outside the cluster on a private address also
+                # needs its own egress rule - see
+                # globalnetworkpolicy-agent-runner-egress.yaml.
+                # - name: HARNESS_PROVIDER
+                #   value: llamacpp
+                # - name: HARNESS_BASE_URL
+                #   value: http://<host>:8080   # in-cluster: http://llama-cpp.ai.svc.cluster.local:8080
+                # - name: HARNESS_MODEL_ID
+                #   value: <label>              # llama-server ignores it; for logs
+                # - name: HARNESS_CONTEXT_WINDOW_LIMIT
+                #   value: "65536"              # = llama-server --ctx-size
+                # - name: HARNESS_MODEL_PARAMS
+                #   value: '{"max_tokens": 8192}'
+                # - name: HARNESS_MODEL_TIMEOUT
+                #   value: "900"                # seconds; the client default is 30
                 # Read-only root: kubectl's discovery cache and gh's config
                 # go under $HOME, so point it at the emptyDir.
                 - name: HOME
