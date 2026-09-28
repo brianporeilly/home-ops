@@ -24,7 +24,7 @@ spec:
           app:
             image:
               repository: itzg/minecraft-server
-              tag: latest@sha256:f528b51700dda8dcdcca96d0a9b2ae0f0a832a0d1b70eed38f13c41811131dbf
+              tag: latest@sha256:a055abfa852686cdb2fe5c88501fb4dd99f02052f1c16b9b1669086f157ee7c9
             env:
               EULA: "TRUE"
               TYPE: PAPER
