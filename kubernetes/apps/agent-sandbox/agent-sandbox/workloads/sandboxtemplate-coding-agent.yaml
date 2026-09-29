@@ -65,11 +65,11 @@ spec:
       containers:
         - name: agent
           image: ghcr.io/brianporeilly/burst-harness-sandbox:sha-1641e06@sha256:4d4ab14c5634fc254350ab926a4f029b74b8d206eb7745010fccbad91416c61c
-          # Keeps the container alive so a task can be kicked off with
-          # `kubectl exec` (interactive) or a follow-up patch to `command`
-          # (headless, single-shot) - this image's own default entrypoint
-          # would otherwise just start a shell and exit once it ends.
-          command: ["sleep", "infinity"]
+          # `args`, NOT `command`: `command` replaces the image ENTRYPOINT
+          # (burst-sandbox-init, which composes ~/.claude.json and
+          # ~/.claude/settings.json at start), `args` only replaces its CMD.
+          # sleep keeps the pod up to be driven over `kubectl exec`.
+          args: ["sleep", "infinity"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
