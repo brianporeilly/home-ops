@@ -476,10 +476,9 @@ compute that holds none.**
 **What changed here:**
 - `agent-sandbox/.../workloads/sandboxtemplate-coding-agent.yaml`: no
   secret env; `automountServiceAccountToken: false` (confirmed live the
-  controller already leaves it unmounted - this pins it). Image unchanged:
-  `buildpack-deps:noble-scm` meets the contract (confirmed live by a
-  claim/clone/release run); burst-harness's Fedora
-  `images/sandbox/Containerfile` is its replacement once published.
+  controller already leaves it unmounted - this pins it). Image switched
+  from `buildpack-deps:noble-scm` to `burst-harness-sandbox` (Fedora 44 +
+  git, python3, nodejs, gcc/make; `images/sandbox/Containerfile`).
 - `agent-sandbox/.../runner-rbac/` (new sibling Kustomization): Role in
   `agent-sandbox-system` for `sandboxclaims` CRUD + `pods` get + `pods/exec`,
   bound to `agent-runner`'s `burst-harness` ServiceAccount.
@@ -505,9 +504,12 @@ laptop is just another driver, using its own kubeconfig and keys:
 coding-agent --repo-url ... chat <slug>`.
 
 **Known gaps:**
-- The harness images aren't published yet (the burst-harness repo isn't on
-  GitHub yet); no task CronJob should be deployed until they are, pinned
-  by digest.
+- Images are published from github.com/brianporeilly/strands-harness
+  (`sha-<commit>` and `main` tags) and pinned by digest here. The repo is
+  private; the two GHCR packages must be set **public** or nothing can pull
+  them (no imagePullSecret is configured, by choice). The tags are commit
+  hashes, which Renovate can't order - tag releases `v*` in that repo (the
+  workflow already publishes semver tags for them) to get update PRs.
 - Not yet run end to end in-cluster (Job → claim → model → push → PR).
   Claim/clone/branch/list/release was run live from a workstation.
 - The vendored `upstream.yaml` CRDs are from v1.0.2 while Renovate has

@@ -34,16 +34,13 @@
 # kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
 # has a stable, self-defined selector to target.
 #
-# Base image confirmed live (2026-09-22): Claude Code's own CLI image
-# (previously used here) has no git at all. Using plain
-# buildpack-deps:noble-scm (Docker Official Image, Ubuntu 24.04 "noble",
-# scm variant - no vendor branding) instead - confirmed live: git 2.43.0,
-# curl/wget/ssh, nothing else. It meets burst-harness's sandbox contract
-# (sh, git, coreutils - confirmed live 2026-09-25 by a claim/clone/release
-# run) but has no language runtime. The purpose-built Fedora replacement is
-# burst-harness's images/sandbox/Containerfile, published as
-# ghcr.io/brianporeilly/burst-harness-sandbox - swap the image below to it
-# (tag@sha256) once that's published.
+# Image: burst-harness-sandbox, built from images/sandbox/Containerfile in
+# github.com/brianporeilly/strands-harness - Fedora 44 with git, coreutils,
+# python3, nodejs, gcc/make; a pre-baked `agent` user at UID 1000 with a real
+# HOME; no credentials and no gh. It is the purpose-built replacement for the
+# earlier placeholders: Claude Code's CLI image (no git at all, 2026-09-22)
+# and buildpack-deps:noble-scm (git but no language runtime). Its command
+# contract with the harness (sh, git, coreutils) is checked at claim time.
 apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
 metadata:
@@ -67,7 +64,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: agent
-          image: docker.io/library/buildpack-deps:noble-scm@sha256:4163ac2c58660c533f3cf3d178551287ddd0ac18269ef84f3a382d0698c89254
+          image: ghcr.io/brianporeilly/burst-harness-sandbox:sha-1641e06@sha256:4d4ab14c5634fc254350ab926a4f029b74b8d206eb7745010fccbad91416c61c
           # Keeps the container alive so a task can be kicked off with
           # `kubectl exec` (interactive) or a follow-up patch to `command`
           # (headless, single-shot) - this image's own default entrypoint

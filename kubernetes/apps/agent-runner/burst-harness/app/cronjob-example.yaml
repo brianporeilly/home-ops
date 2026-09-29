@@ -18,9 +18,8 @@
 # last log line is `HARNESS_RESULT {json}`. Exit 0 = PR/paused/abandoned,
 # 3 = waiting on a human answer, 1 = no terminal state.
 #
-# Image: not yet published - push the burst-harness repo to GitHub and its
-# images workflow publishes ghcr.io/brianporeilly/burst-harness. Pin
-# tag@sha256 before deploying a copy.
+# Image: the burst-harness driver, published by the images workflow in
+# github.com/brianporeilly/strands-harness (tagged sha-<commit> and main).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -58,7 +57,7 @@ spec:
             fsGroupChangePolicy: OnRootMismatch
           containers:
             - name: harness
-              image: ghcr.io/brianporeilly/burst-harness:main
+              image: ghcr.io/brianporeilly/burst-harness:sha-1641e06@sha256:62fbb47849e05060003188c0e19ae4c6a7d5b7431ad1fe2508e33f1f8696bd4a
               args:
                 - run
                 - example
