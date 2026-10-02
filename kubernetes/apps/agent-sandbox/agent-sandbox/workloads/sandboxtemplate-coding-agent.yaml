@@ -56,7 +56,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: agent
-          image: docker.io/library/buildpack-deps:noble-scm@sha256:6a78b404fc653922fe9b7717e1dc382d200517d4be146303f87d2928999192d6
+          image: docker.io/library/buildpack-deps:noble-scm@sha256:a2049a4ae157e738d66a02198c132a90a98dfac30309df9a9de32940c770436e
           # Keeps the container alive so a task can be kicked off with
           # `kubectl exec` (interactive) or a follow-up patch to `command`
           # (headless, single-shot) - this image's own default entrypoint
