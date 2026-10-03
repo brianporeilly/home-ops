@@ -2,6 +2,8 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: agent-runner
+components:
+  - ../../components/common
 resources:
-  - ./sandboxtemplate-coding-agent.yaml
-  - ./sandboxwarmpool-coding-agent.yaml
+  - ./burst-harness/ks.yaml
