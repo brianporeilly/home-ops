@@ -1,0 +1,42 @@
+---
+# Lets the burst-harness driver (ServiceAccount burst-harness in
+# agent-runner, see kubernetes/apps/agent-runner/burst-harness/) run a task
+# in a sandbox - exactly the calls harness/agent_sandbox.py makes, nothing
+# else:
+#   sandboxclaims  create (claim from the warm pool), get/watch (kubectl wait
+#                  for Ready, read .status.sandbox.name), list (`harness
+#                  list`), delete (release at a terminal state)
+#   pods           get - kubectl exec looks the pod up first
+#   pods/exec      create, plus get: kubectl >=1.30 execs over WebSockets,
+#                  an HTTP GET upgrade, which older apiservers authorize as
+#                  `get` rather than `create`
+# No access to Sandbox/SandboxTemplate/SandboxWarmPool, Secrets, or any
+# other namespace. Cross-namespace RoleBinding (subject in agent-runner,
+# Role here), same shape as openhands-runtime/rbac.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: burst-harness
+rules:
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: burst-harness
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: burst-harness
+subjects:
+  - kind: ServiceAccount
+    name: burst-harness
+    namespace: agent-runner

@@ -9,18 +9,24 @@
 #
 # NOT directly instantiable - confirmed live (2026-09-22): Sandbox has no
 # templateRef field, and SandboxClaim requires a warmPoolRef, not a
-# template ref. Claim one from sandboxwarmpool-coding-agent.yaml (also in
-# this directory) instead:
+# template ref. Sandboxes are claimed from sandboxwarmpool-coding-agent.yaml
+# (also in this directory) - normally by burst-harness, which owns the whole
+# claim lifecycle (docs/agent-sandbox-plan.md "Phase 3"):
 #
-#   kubectl create -n agent-sandbox-system -f - <<EOF
-#   apiVersion: extensions.agents.x-k8s.io/v1beta1
-#   kind: SandboxClaim
-#   metadata:
-#     generateName: coding-agent-
-#   spec:
-#     warmPoolRef:
-#       name: coding-agent
-#   EOF
+#   harness --target agent-sandbox --namespace agent-sandbox-system \
+#     --pool coding-agent --repo-url https://github.com/<you>/<scratch>.git \
+#     run <slug> --task "..."
+#
+# It creates a labelled SandboxClaim with a lifecycle.shutdownTime deadline
+# (shutdownPolicy: Delete, so an orphaned claim is reaped by the controller),
+# clones into /workspace/repo, drives the pod over kubectl exec, and deletes
+# the claim when the task reaches a terminal state.
+#
+# Holds NO credentials (Phase 3): the harness passes its git token per
+# command and opens PRs from the driver, so nothing in this pod can push or
+# exfiltrate a token. The former GIT_TOKEN env + scratch-git secret were
+# removed for that reason - the token now lives with the driver
+# (kubernetes/apps/agent-runner/burst-harness/app/secret.yaml).
 #
 # podTemplate.metadata.labels below is set explicitly (rather than relying
 # on whatever labels the controller itself stamps on spawned pods) so the
@@ -32,11 +38,12 @@
 # (previously used here) has no git at all. Using plain
 # buildpack-deps:noble-scm (Docker Official Image, Ubuntu 24.04 "noble",
 # scm variant - no vendor branding) instead - confirmed live: git 2.43.0,
-# curl/wget/ssh, nothing else. No language runtime and no pre-baked
-# non-root user (unlike a devcontainers-style image) - deliberately kept
-# minimal. A proper purpose-built (Fedora-based) sandbox image is the
-# planned real replacement for this; this is the "something pre-built that
-# works today" placeholder, not the destination.
+# curl/wget/ssh, nothing else. It meets burst-harness's sandbox contract
+# (sh, git, coreutils - confirmed live 2026-09-25 by a claim/clone/release
+# run) but has no language runtime. The purpose-built Fedora replacement is
+# burst-harness's images/sandbox/Containerfile, published as
+# ghcr.io/brianporeilly/burst-harness-sandbox - swap the image below to it
+# (tag@sha256) once that's published.
 apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
 metadata:
@@ -48,6 +55,10 @@ spec:
         app.kubernetes.io/name: agent-sandbox-workload
         agent-sandbox.internal.oreillys.io/template: coding-agent
     spec:
+      # Nothing in a sandbox talks to the apiserver. Confirmed live that the
+      # controller already leaves the token unmounted; explicit here so that
+      # stays true regardless of controller defaults.
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -62,14 +73,6 @@ spec:
           # (headless, single-shot) - this image's own default entrypoint
           # would otherwise just start a shell and exit once it ends.
           command: ["sleep", "infinity"]
-          env:
-            # Scratch-repo-scoped only - see secret.yaml. Never this
-            # cluster's own credentials.
-            - name: GIT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: agent-sandbox-scratch-git-secret
-                  key: SCRATCH_GIT_TOKEN
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
