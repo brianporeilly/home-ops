@@ -33,7 +33,7 @@ from agent-sandbox below). See "Phase 2" below.
 
 agent-sandbox-system namespace (rook-ceph-style operator + CR siblings)
 ├── agent-sandbox            controller - vendored kubernetes-sigs/agent-sandbox
-│                             v1.0.2 release manifest (CRDs + Deployment + RBAC)
+│                             v1.0.6 release manifest (CRDs + Deployment + RBAC)
 └── agent-sandbox-workloads  a SandboxTemplate + SandboxWarmPool for headless
                               coding-agent tasks + a scratch-repo-scoped git
                               credential - claim a Sandbox with a SandboxClaim
@@ -505,16 +505,21 @@ coding-agent --repo-url ... chat <slug>`.
 
 **Known gaps:**
 - Images are published from github.com/brianporeilly/strands-harness
-  (`sha-<commit>` and `main` tags) and pinned by digest here. The repo is
-  private; the two GHCR packages must be set **public** or nothing can pull
-  them (no imagePullSecret is configured, by choice). The tags are commit
+  (`sha-<commit>` and `main` tags) and pinned by digest here, currently
+  `sha-e4bed0d`. The repo is private; the GHCR packages must be set
+  **public** or nothing can pull them (no imagePullSecret is configured, by
+  choice). As of 2026-10-13 `burst-harness-sandbox` is public but the
+  driver image `burst-harness` is not: anonymous pulls of it are refused,
+  so a Job from `cronjob-example.yaml` would fail to pull until it is. The tags are commit
   hashes, which Renovate can't order - tag releases `v*` in that repo (the
   workflow already publishes semver tags for them) to get update PRs.
 - Not yet run end to end in-cluster (Job → claim → model → push → PR).
   Claim/clone/branch/list/release was run live from a workstation.
-- The vendored `upstream.yaml` CRDs are from v1.0.2 while Renovate has
-  bumped the controller image to v1.0.4 (#1020, #1047) - re-vendor the
-  release manifest so CRDs and controller match.
+- Re-vendored `upstream.yaml` from the v1.0.6 release (2026-10-13) so the
+  CRDs match the controller Renovate had already moved to; the only CRD
+  changes from v1.0.2 are a name-length validation and an extra printer
+  column. Renovate bumps only the controller image, so re-vendor by hand on
+  each controller bump.
 - llama-cpp's current model/GPU (Qwen3-4B on a 4GB GTX 745) can't drive
   this tool loop; use a separate llama-server with a larger model for now.
   When switching, set HARNESS_CONTEXT_WINDOW_LIMIT to its `--ctx-size` and
