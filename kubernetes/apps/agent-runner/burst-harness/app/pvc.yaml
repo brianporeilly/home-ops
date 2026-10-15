@@ -1,0 +1,17 @@
+---
+# HARNESS_STATE_DIR (/state): Strands conversation snapshots and offloaded
+# tool results, keyed by repo (github.com_<owner>_<repo>/) then task slug.
+# Optional for correctness - a burst resumes from the task doc committed on
+# its branch without it - but it's what makes a resume verbatim and
+# prompt-cache-warm. ceph-filesystem (RWX), not ceph-block: every task Job
+# mounts it, and RWO would serialize concurrent Jobs onto one node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: burst-harness-state
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: ceph-filesystem
+  resources:
+    requests:
+      storage: 5Gi
