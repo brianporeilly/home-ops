@@ -9017,7 +9017,7 @@ spec:
       - args:
         - --leader-elect=true
         - --extensions
-        image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.6@sha256:876f9621e0f0e168bcff13aa377880b75fd37e1c8712f2f249e8878c22d06ffd
+        image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.7@sha256:d13d49c483356be2d117c7de5c65f9780a83e3096ef82df5ea9d727967322596
         name: agent-sandbox-controller
         ports:
         - containerPort: 8080
