@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/searxng/searxng
-              tag: 2026.10.16-ff8f5ddcc@sha256:e41db82826e2404cebb5961e291d788db6319eb12ef243ac71b3a551dbe7f412
+              tag: 2026.10.17-2a6fc07be@sha256:05c74b63b5cdd4062057ae0aaa7e80e8e4567c1db44d683e7b37da89a7bf628e
             env:
               SEARXNG_BASE_URL: https://searxng.internal.oreillys.io
               SEARXNG_SERVER__LIMITER: "false"
