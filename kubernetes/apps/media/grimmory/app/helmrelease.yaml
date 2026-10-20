@@ -97,7 +97,7 @@ spec:
           concurrencyPolicy: Forbid
           backoffLimit: 2
           successfulJobsHistory: 1
-          failedJobsHistory: 3
+          failedJobsHistory: 1
         pod:
           # defaultPodOptions below runs the main app as root (0:0) for
           # its own file-permission handling - this container needs none
