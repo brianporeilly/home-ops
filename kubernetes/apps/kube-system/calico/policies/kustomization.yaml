@@ -36,6 +36,9 @@ resources:
   # spawning per-conversation sandbox pods into their own namespace
   - ./globalnetworkpolicy-openhands-runtime-egress.yaml
   - ./globalnetworkpolicy-openhands-to-runtime-sandbox.yaml
+  # Phase 3 (docs/agent-sandbox-plan.md) - burst-harness driver Jobs
+  - ./globalnetworkpolicy-agent-runner-egress.yaml
+  - ./globalnetworkpolicy-agent-runner-to-llama-cpp.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml

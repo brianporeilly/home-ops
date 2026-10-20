@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/agents.x-k8s.io_sandboxes.yaml
 #
 # Vendored verbatim from
-# https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.2/sandbox-with-extensions.yaml
+# https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.6/sandbox-with-extensions.yaml
 # (CRDs + core/extensions controller + RBAC), with two deliberate edits:
 #
 # 1. The upstream Namespace object (agent-sandbox-system) is stripped. This
@@ -12,8 +12,8 @@
 #    directory's agent-sandbox Kustomization) both owning/pruning the same
 #    Namespace object, and deleting this Kustomization would then delete
 #    the whole namespace out from under agent-sandbox-workloads too.
-# 2. The controller image is pinned to its digest (v1.0.2, amd64), matching
-#    this repo's tag@sha256 convention - upstream only ships tag: v1.0.2.
+# 2. The controller image is pinned to its digest (v1.0.6, amd64), matching
+#    this repo's tag@sha256 convention - upstream only ships tag: v1.0.6.
 #
 # Everything else - CRDs, RBAC, Service, Deployment - is untouched. Re-vendor
 # by re-downloading the release asset and re-applying only these two edits.
@@ -4424,6 +4424,11 @@ spec:
         required:
         - spec
         type: object
+        x-kubernetes-validations:
+        - message: metadata.name must not exceed 63 characters when spec.service is
+            true
+          rule: '!has(self.spec.service) || !self.spec.service || size(self.metadata.name)
+            <= 63'
     served: true
     storage: true
     subresources:
@@ -8724,6 +8729,10 @@ spec:
     - jsonPath: .spec.replicas
       name: Desired
       type: integer
+    - jsonPath: .spec.sandboxTemplateRef.name
+      name: Template
+      priority: 1
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -9008,7 +9017,7 @@ spec:
       - args:
         - --leader-elect=true
         - --extensions
-        image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.4@sha256:cc339c7b25f74ecf734dcca49bdfb28d4dc66b8ea7bef497b0f80ab29de1dabe
+        image: registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.7@sha256:d13d49c483356be2d117c7de5c65f9780a83e3096ef82df5ea9d727967322596
         name: agent-sandbox-controller
         ports:
         - containerPort: 8080

@@ -58,3 +58,32 @@ spec:
   targetNamespace: *namespace
   timeout: 5m
   wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# What burst-harness (kubernetes/apps/agent-runner/) may do in this
+# namespace - see runner-rbac/rbac.yaml. Lives here, not in agent-runner,
+# because a Role must sit in the namespace it grants access to (same
+# cross-namespace pattern as openhands-runtime/rbac).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app agent-sandbox-runner-rbac
+  namespace: &namespace agent-sandbox-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: agent-sandbox
+      namespace: *namespace
+  interval: 1h
+  path: ./kubernetes/apps/agent-sandbox/agent-sandbox/runner-rbac
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false

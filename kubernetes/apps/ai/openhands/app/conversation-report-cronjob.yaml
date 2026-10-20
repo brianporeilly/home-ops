@@ -55,7 +55,7 @@ spec:
             runAsGroup: 1000
           containers:
             - name: report
-              image: docker.io/alpine/k8s:1.37.0@sha256:32c5765a0d1772b8620e96796bd171b925c0ddb0acbbf9a11dcdc81083e8d025
+              image: docker.io/alpine/k8s:1.37.1@sha256:a466f1230db238e7e534c633619b4c4c2fa5fded43c74bd7600e17545929ae98
               env:
                 # Same number CONVERSATION_MAX_AGE_SECONDS defaults to
                 # upstream - see helmrelease.yaml's env comment for why

@@ -1,0 +1,10 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./serviceaccount.yaml
+  - ./pvc.yaml
+  - ./secret.yaml
+  # cronjob-example.yaml is a template, deliberately not deployed: copy it to
+  # cronjob-<task>.yaml, fill it in, and list the copy here.
