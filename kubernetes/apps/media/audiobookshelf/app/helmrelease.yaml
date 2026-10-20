@@ -68,7 +68,7 @@ spec:
           concurrencyPolicy: Forbid
           backoffLimit: 2
           successfulJobsHistory: 1
-          failedJobsHistory: 3
+          failedJobsHistory: 1
         containers:
           app:
             image:
