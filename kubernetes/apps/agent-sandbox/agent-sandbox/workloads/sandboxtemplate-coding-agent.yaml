@@ -119,6 +119,23 @@ spec:
             items:
               - key: tls.crt
                 path: ca.crt
+  # The controller makes a NetworkPolicy from this for every sandbox of the
+  # template (coding-agent-network-policy). Left out, it is the controller's
+  # default - egress to every public address - and a Kubernetes
+  # NetworkPolicy's Allow counts as much as any Calico one, so sandboxes got
+  # out directly, around burst-gateway. The same rule as
+  # globalnetworkpolicy-agent-sandbox-workloads-egress.yaml: the gateway's
+  # proxy port, nothing else. No ingress rule: nothing connects in (exec goes
+  # through the kubelet, and nothing here uses the sandbox router).
+  networkPolicy:
+    egress:
+      - to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: burst-gateway
+        ports:
+          - protocol: TCP
+            port: 3128
   volumeClaimTemplates:
     - metadata:
         name: workspace
