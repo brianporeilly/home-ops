@@ -1,17 +1,25 @@
 ---
 # HARNESS_STATE_DIR (/state): Strands conversation snapshots and offloaded
-# tool results, keyed by repo (github.com_<owner>_<repo>/) then task slug.
-# Optional for correctness - a burst resumes from the task doc committed on
-# its branch without it - but it's what makes a resume verbatim and
-# prompt-cache-warm. ceph-filesystem (RWX), not ceph-block: every task Job
-# mounts it, and RWO would serialize concurrent Jobs onto one node.
+# tool results, keyed by repo (github.com_<owner>_<repo>/) then task slug;
+# jobs' run records and reports (jobs/<name>/runs/, reports/), and each
+# sandbox's egress events (egress/). Optional for correctness - a burst
+# resumes from the task doc committed on its branch without it - but it's
+# what makes a resume verbatim and a job's history visible.
+#
+# ceph-block (RWO), not ceph-filesystem (2026-10-21): CephFS cannot be
+# mounted on these nodes ("no mds is up ... or you may not be authorized";
+# the MDS never sees the client). Most likely the daemon cephx rotation to
+# aes256k, which a 6.12 kernel client cannot do (docs/ceph-cephx-key-
+# rotation-plan.md); nothing had mounted CephFS before this. RWO means Jobs
+# that overlap share a node; with one CronJob, concurrencyPolicy Forbid,
+# that is no constraint yet. Back to RWX once CephFS mounts.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: burst-harness-state
 spec:
-  accessModes: ["ReadWriteMany"]
-  storageClassName: ceph-filesystem
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ceph-block
   resources:
     requests:
       storage: 5Gi
