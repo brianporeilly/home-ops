@@ -34,6 +34,16 @@
 # kubernetes/apps/kube-system/calico/policies/globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
 # has a stable, self-defined selector to target.
 #
+# Network: through burst-gateway only (../gateway/). The egress policy lets
+# these pods reach its proxy port and nothing else - no DNS, no internet -
+# and the gateway refuses a pod the driver has not registered, so a
+# claim is used with `gateway_control` set on the driver (harness/
+# gateway_control.py). The proxy variables point at the gateway's fixed
+# ClusterIP (no DNS to look up its name). burst-sandbox-init trusts the
+# gateway's CA at start-up: it writes the system CAs plus BURST_GATEWAY_CA to
+# /tmp/burst-harness/ca-bundle.crt, which the TLS variables name. All of it
+# is per template, not per claim, so claims still come from the warm pool.
+#
 # Image: burst-harness-sandbox, built from images/sandbox/Containerfile in
 # github.com/brianporeilly/strands-harness - Fedora 44 with git, coreutils,
 # python3, nodejs, gcc/make; a pre-baked `agent` user at UID 1000 with a real
@@ -64,12 +74,27 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: agent
-          image: ghcr.io/brianporeilly/burst-harness-sandbox:sha-e4bed0d@sha256:9bea8143798fc3d55c14e47d82a29c4612b21388ac3470fbf1649ba43e9a95bd
+          image: ghcr.io/brianporeilly/burst-harness-sandbox:REPLACE_AFTER_STRANDS_HARNESS_23
           # `args`, NOT `command`: `command` replaces the image ENTRYPOINT
           # (burst-sandbox-init, which composes ~/.claude.json and
           # ~/.claude/settings.json at start), `args` only replaces its CMD.
           # sleep keeps the pod up to be driven over `kubectl exec`.
           args: ["sleep", "infinity"]
+          env:
+            - { name: HTTPS_PROXY, value: "http://10.248.0.128:3128" }
+            - { name: https_proxy, value: "http://10.248.0.128:3128" }
+            - { name: HTTP_PROXY, value: "http://10.248.0.128:3128" }
+            - { name: http_proxy, value: "http://10.248.0.128:3128" }
+            - { name: NO_PROXY, value: "localhost,127.0.0.1" }
+            - { name: no_proxy, value: "localhost,127.0.0.1" }
+            # Node's own fetch ignores the proxy variables unless told otherwise.
+            - { name: NODE_USE_ENV_PROXY, value: "1" }
+            - { name: BURST_GATEWAY_CA, value: /etc/burst-gateway/ca.crt }
+            - { name: SSL_CERT_FILE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: REQUESTS_CA_BUNDLE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: CURL_CA_BUNDLE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: GIT_SSL_CAINFO, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: NODE_EXTRA_CA_CERTS, value: /etc/burst-gateway/ca.crt }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -83,6 +108,17 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
+            - name: gateway-ca
+              mountPath: /etc/burst-gateway
+              readOnly: true
+      volumes:
+        # The gateway's CA certificate only; its key stays with the gateway.
+        - name: gateway-ca
+          secret:
+            secretName: burst-gateway-ca
+            items:
+              - key: tls.crt
+                path: ca.crt
   volumeClaimTemplates:
     - metadata:
         name: workspace

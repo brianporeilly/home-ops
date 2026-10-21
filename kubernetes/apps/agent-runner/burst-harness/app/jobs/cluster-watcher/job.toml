@@ -1,0 +1,29 @@
+# The cluster-watcher job from strands-harness (examples/jobs/cluster-watcher),
+# as this cluster runs it: cronjob-cluster-watcher.yaml mounts this directory
+# and runs `harness job run` on it. prompt.md and cluster_state.py are the
+# example's, with this cluster's API server filled in; keep them in step with
+# it when it changes.
+#
+# Where it runs (agent-sandbox, the pool, the gateway) is set by the CronJob's
+# environment, so this file stays a job and not a deployment.
+
+# The model is called from the driver: typhon's llama-server.
+provider = "llamacpp"
+base_url = "http://10.20.40.11:8080"
+model_timeout = 900
+
+# The sandbox reaches only the API server, through the gateway.
+egress_allow = []
+
+[job]
+trigger = "0 8 * * *"  # what the CronJob's schedule says; the CronJob is what runs it
+mode = "report"
+output = ["stdout", "file:/state/reports/cluster-watcher/%Y-%m-%d.md"]
+
+# The read-only ServiceAccount's token (cluster-watcher-rbac.yaml), which the
+# gateway adds to requests to the API server; the sandbox never holds it. The
+# server is verified with the cluster's CA, the one every pod is given.
+[job.secrets.kube]
+env = "KUBE_TOKEN"
+host = "10.20.254.100:6443"
+ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"

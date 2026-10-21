@@ -45,6 +45,8 @@ spec:
   dependsOn:
     - name: agent-sandbox
       namespace: *namespace
+    - name: agent-sandbox-gateway
+      namespace: *namespace
     - name: rook-ceph-cluster
       namespace: rook-ceph
   interval: 1h
@@ -78,6 +80,39 @@ spec:
       namespace: *namespace
   interval: 1h
   path: ./kubernetes/apps/agent-sandbox/agent-sandbox/runner-rbac
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# burst-gateway: the shared egress gateway every sandbox here goes through
+# (gateway/deployment.yaml). Before the workloads: the SandboxTemplate mounts
+# its CA, and sandboxes reach nothing without it.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app agent-sandbox-gateway
+  namespace: &namespace agent-sandbox-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: cert-manager
+      namespace: cert-manager
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: burst-gateway
+      namespace: *namespace
+  interval: 1h
+  path: ./kubernetes/apps/agent-sandbox/agent-sandbox/gateway
   prune: true
   retryInterval: 2m
   sourceRef:

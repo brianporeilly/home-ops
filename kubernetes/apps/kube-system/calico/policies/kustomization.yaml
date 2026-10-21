@@ -39,6 +39,9 @@ resources:
   # Phase 3 (docs/agent-sandbox-plan.md) - burst-harness driver Jobs
   - ./globalnetworkpolicy-agent-runner-egress.yaml
   - ./globalnetworkpolicy-agent-runner-to-llama-cpp.yaml
+  # ROADMAP phase 6 in strands-harness - the shared egress gateway sandboxes go through
+  - ./globalnetworkpolicy-burst-gateway-egress.yaml
+  - ./globalnetworkpolicy-agent-runner-to-burst-gateway.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
   - ./stagedglobalnetworkpolicy-dns-egress.yaml
   - ./stagedglobalnetworkpolicy-apiserver-egress.yaml

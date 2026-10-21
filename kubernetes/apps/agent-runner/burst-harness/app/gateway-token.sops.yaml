@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://json.schemastore.org/kubernetes-secret
+#
+# burst-gateway's control token (kubernetes/apps/agent-sandbox/agent-sandbox/
+# gateway/secret.sops.yaml holds the same value), with which the driver
+# registers each sandbox it claims.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: burst-harness-gateway-token
+stringData:
+    HARNESS_GATEWAY_TOKEN: ENC[AES256_GCM,data:rUdieghPVXQtwTJtmcrCoPkV3FxLvP4pW5/vxv0kaQwrizqsqG3Spfxz6yK+EfYROZJzk8VWbbGnt4XFjQRYDQ==,iv:xabx4CBHUXv3jTtbT+jkImFMa8uTPSVgo1mFslQRa0E=,tag:YHNRB56VH7lw1d9PzJaokQ==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB6eGU4MjRka2tXM1k3SFRM
+            SlhBNXJVK3NMZi83a3d1U1NBRHh0MEJaRG1FCnlQaC9KR29hZHowVFkvbkZGSno2
+            cU9SVUZoekpZNWsvOURaSkpxaXlhNjgKLS0tIGxFZllkbXdSNWN1MFpBZThIbGlJ
+            OExRWEpHQ3dJcUs5MHBNbDg2ZnA1QVEKdRb18x4eGQa+vhSYfQOybIriTft95luj
+            ykZPkvhXABJ7axzCQFwaG2+cBCje4aDRKZ7qw0dkp7YuxwyXnUAPAg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age16l2td9xa5h64qq804f7xmqmus7v6hzqdycfay30e6heylesuws3sf0a4xc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-21T18:08:31Z"
+    mac: ENC[AES256_GCM,data:8UdDxRkY7RgWYtmIs+we53sPHI5v9velIyvHMN9FBhZlyqEhYSo0D/+jHUs6f/Dcw3IysyK7ZO47ZDplMjqjOSLWxmZ66AlEArLvoxfq31bbdU47DPB1ho8o5Wo8DJmagKYFiHeFVdjMT2Qe6NBZYpxnW/LC9UC8FAp5M33KfZs=,iv:ljTh6+Vkzaj8I0zwFXS/uSAzhJ1PvfyMgqtGsTppdq8=,tag:wtOP9nJmYfxZ8U64ujA2YQ==,type:str]
+    version: 3.13.1
