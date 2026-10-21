@@ -18,6 +18,10 @@ kind: CronJob
 metadata:
   name: burst-harness-cluster-watcher
 spec:
+  # Suspended while typhon runs benchmarks: two model clients at once have
+  # crashed llama-server. Set back to false (or drop the line) to resume; a
+  # manual `kubectl create job --from=...` still works while suspended.
+  suspend: true
   schedule: "0 8 * * *"
   timeZone: America/Anchorage
   concurrencyPolicy: Forbid
