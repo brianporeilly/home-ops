@@ -1,0 +1,64 @@
+---
+# The cluster-watcher job (examples/jobs/cluster-watcher in
+# github.com/brianporeilly/strands-harness): read what its cluster_state.py
+# reads, and nothing else - no secrets, no configmaps, no exec, no writes.
+#
+# Its token is added to requests by the burst-harness egress gateway, never
+# handed to the sandbox, and the gateway runs the job in report mode, so
+# only GETs reach the apiserver even if RBAC allowed more. Until that gateway
+# runs in the cluster, jobs run on a laptop with:
+#
+#   KUBE_TOKEN=$(kubectl -n agent-runner get secret cluster-watcher-token \
+#     -o jsonpath='{.data.token}' | base64 -d)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-watcher
+automountServiceAccountToken: false
+---
+# A long-lived token, revoked by deleting this Secret (Flux recreates it,
+# with a new token).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-watcher-token
+  annotations:
+    kubernetes.io/service-account.name: cluster-watcher
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: burst-cluster-watcher
+rules:
+  - apiGroups: [""]
+    resources: [nodes, pods, events, persistentvolumeclaims]
+    verbs: [get, list]
+  - apiGroups: [cert-manager.io]
+    resources: [certificates]
+    verbs: [get, list]
+  - apiGroups: [kustomize.toolkit.fluxcd.io]
+    resources: [kustomizations]
+    verbs: [get, list]
+  - apiGroups: [helm.toolkit.fluxcd.io]
+    resources: [helmreleases]
+    verbs: [get, list]
+  - apiGroups: [kopiur.home-operations.com]
+    resources: [snapshotpolicies]
+    verbs: [get, list]
+  - apiGroups: [postgresql.cnpg.io]
+    resources: [clusters]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: burst-cluster-watcher
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: burst-cluster-watcher
+subjects:
+  - kind: ServiceAccount
+    name: cluster-watcher
+    namespace: agent-runner
