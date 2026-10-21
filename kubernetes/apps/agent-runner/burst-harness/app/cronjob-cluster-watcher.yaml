@@ -48,7 +48,7 @@ spec:
             fsGroupChangePolicy: OnRootMismatch
           containers:
             - name: harness
-              image: ghcr.io/brianporeilly/burst-harness:REPLACE_AFTER_STRANDS_HARNESS_23
+              image: ghcr.io/brianporeilly/burst-harness:sha-41dd580@sha256:50d1765cdfa8644bccfb7e2fc72a45a88e5fc452179d7cd321a6eccf967acb4b
               args: ["job", "run", "/jobs/cluster-watcher"]
               env:
                 - name: HARNESS_TARGET
