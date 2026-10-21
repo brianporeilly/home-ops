@@ -1,0 +1,116 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/apps/deployment_v1.json
+#
+# burst-gateway, shared (github.com/brianporeilly/strands-harness, gateway/;
+# ROADMAP phase 6): every sandbox in this namespace reaches the network
+# through it and nothing else (globalnetworkpolicy-agent-sandbox-workloads-
+# egress.yaml). It knows sandboxes by pod IP and refuses any it was not told
+# about: the burst-harness driver registers each claimed sandbox on the
+# control port - its allowlist, the credentials to add for it, whether it may
+# only read - and unregisters it on release, collecting its events.
+#
+# One replica, Recreate: registrations live only in memory, so two gateways
+# behind the Service would each refuse the other's sandboxes. A restart
+# loses them all; sandboxes are refused until their drivers register again,
+# and a driver that does not lapses at its claim's deadline.
+#
+# Every request is also logged to stdout, one JSON line each
+# (`kubectl logs -n agent-sandbox-system deploy/burst-gateway`).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: burst-gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: burst-gateway
+  template:
+    metadata:
+      labels:
+        # Selector for the gateway's policies; deliberately not
+        # agent-sandbox-workload, which would hold it to the sandboxes' egress.
+        app.kubernetes.io/name: burst-gateway
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: ghcr.io/brianporeilly/burst-harness-gateway:REPLACE_AFTER_STRANDS_HARNESS_23
+          env:
+            - name: EGRESS_CONTROL
+              value: "8081"
+            - name: EGRESS_CONTROL_TOKEN_FILE
+              value: /etc/burst-gateway/control/token
+            - name: EGRESS_LISTEN
+              value: "3128"
+            # No resolver: sandboxes have no DNS, and use the proxy.
+            - name: EGRESS_DNS
+              value: "0"
+            - name: EGRESS_CA_CERT
+              value: /etc/burst-gateway/ca/tls.crt
+            - name: EGRESS_CA_KEY
+              value: /etc/burst-gateway/ca/tls.key
+            # Per-host certificates are written here.
+            - name: EGRESS_CA_DIR
+              value: /run/burst-gateway
+          ports:
+            - name: proxy
+              containerPort: 3128
+            - name: control
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: control
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: proxy
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/burst-gateway/ca
+              readOnly: true
+            - name: control
+              mountPath: /etc/burst-gateway/control
+              readOnly: true
+            - name: run
+              mountPath: /run/burst-gateway
+      volumes:
+        - name: ca
+          secret:
+            secretName: burst-gateway-ca
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        - name: control
+          secret:
+            secretName: burst-gateway-control
+            defaultMode: 0440
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi

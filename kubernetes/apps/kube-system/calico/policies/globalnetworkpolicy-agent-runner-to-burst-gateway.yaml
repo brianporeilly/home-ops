@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# The burst-harness driver (agent-runner) registers each sandbox it claims
+# with burst-gateway (agent-sandbox-system) on the gateway's control port,
+# and unregisters it on release. Only the driver: a registration carries the
+# credentials the gateway adds for that sandbox. Same shape as
+# allow-agent-runner-to-llama-cpp. Sandboxes reach the gateway's proxy port
+# through the same-namespace allow, and are kept off this port by their own
+# egress policy.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-agent-runner-to-burst-gateway
+spec:
+  selector: app.kubernetes.io/name == 'burst-gateway'
+  namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == 'burst-harness'
+        namespaceSelector: kubernetes.io/metadata.name == 'agent-runner'
+      destination:
+        ports: [8081]

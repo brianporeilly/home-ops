@@ -1,0 +1,57 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# burst-gateway (agent-sandbox-system), the shared egress gateway sandboxes
+# go through. It enforces each sandbox's own allowlist; this is the ceiling
+# on all of them, so one registered with a broad allowlist still cannot
+# reach the rest of the cluster:
+#   - DNS: the gateway resolves the names sandboxes ask for.
+#   - The apiserver, for jobs that read it through the gateway (the
+#     cluster-watcher job, with a read-only ServiceAccount token the gateway
+#     adds): the kube-vip VIP and the control-plane nodes, as in
+#     globalnetworkpolicy-agent-runner-egress.yaml.
+#   - HTTPS to the internet. RFC1918 Deny first, as in the other agent
+#     policies: a private address needs a rule above it.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-burst-gateway-egress
+spec:
+  selector: app.kubernetes.io/name == 'burst-gateway'
+  namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.254.100/32
+          - 10.20.10.11/32
+          - 10.20.10.12/32
+          - 10.20.10.13/32
+        ports: [6443]
+    - action: Deny
+      protocol: TCP
+      destination:
+        nets:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [443]

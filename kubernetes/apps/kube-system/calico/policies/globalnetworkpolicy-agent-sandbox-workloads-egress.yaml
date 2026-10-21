@@ -8,18 +8,18 @@
 # of kubernetes/apps/agent-sandbox/agent-sandbox/workloads/sandboxtemplate-coding-agent.yaml
 # (chosen deliberately so this policy has a stable target regardless of
 # whatever labels the agent-sandbox controller itself stamps on spawned
-# pods). DNS + HTTPS-to-the-internet only - no rule here reaches rook-ceph,
-# any other app namespace, or the rest of the internal service graph. If a
-# future task needs the apiserver (e.g. running kubectl from inside a
-# sandbox), that's a deliberate, separate addition - not implied by this.
+# pods).
 #
-# Unlike the fleet's existing staged internet-egress rules (e.g.
-# allow-navidrome-egress-internet.yaml), which allow a bare 0.0.0.0/0 - that
-# CIDR also covers this cluster's own private ranges, so an unqualified
-# version would defeat the whole point of isolating agent workloads from
-# rook-ceph/other namespaces. The explicit Deny below closes that gap:
-# Calico evaluates egress rules in order, first match wins, so RFC1918
-# destinations hit Deny before ever reaching the final Allow.
+# Sandboxes reach burst-gateway's proxy port and nothing else
+# (kubernetes/apps/agent-sandbox/agent-sandbox/gateway/, ROADMAP phase 6 in
+# strands-harness). The gateway decides, per sandbox, what is let through,
+# records every request, and adds credentials the sandbox never holds; this
+# policy is what makes it the only way out. No DNS either: software using
+# the proxy never resolves a name itself, and kube-dns forwarding outside
+# names would be a way out of its own. The control port (8081) is not
+# allowed: a sandbox must not be able to register itself.
+#
+# Replaced (2026-10-21) DNS plus HTTPS to any public address.
 apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
@@ -31,27 +31,8 @@ spec:
     - Egress
   egress:
     - action: Allow
-      protocol: UDP
-      destination:
-        selector: k8s-app == 'kube-dns'
-        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
-        ports: [53]
-    - action: Allow
       protocol: TCP
       destination:
-        selector: k8s-app == 'kube-dns'
-        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
-        ports: [53]
-    - action: Deny
-      protocol: TCP
-      destination:
-        nets:
-          - 10.0.0.0/8
-          - 172.16.0.0/12
-          - 192.168.0.0/16
-    - action: Allow
-      protocol: TCP
-      destination:
-        nets:
-          - 0.0.0.0/0
-        ports: [443]
+        selector: app.kubernetes.io/name == 'burst-gateway'
+        namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+        ports: [3128]

@@ -11,10 +11,10 @@
 #     Exec is proxied by the apiserver, so no direct path to sandbox pods or
 #     kubelets is needed. CP node IPs because kubeadm's apiserver runs
 #     hostNetwork (same as the controller/openhands policies).
-#   - llama-cpp, for HARNESS_PROVIDER=llamacpp: the in-cluster one below;
-#     an out-of-cluster server on a private address needs the commented
-#     rule filled in (the RFC1918 Deny would otherwise block it). Runs
+#   - llama-cpp, for HARNESS_PROVIDER=llamacpp: the in-cluster one, and
+#     typhon's llama-server (10.20.40.11:8080) outside the cluster. Runs
 #     driven from a workstation don't touch this policy at all.
+#   - burst-gateway's control port, to register the sandboxes it claims.
 #   - HTTPS to the internet: api.anthropic.com, github.com (gh pr create).
 #     Git clone/push traffic comes from the sandbox pod, not this one.
 # RFC1918 Deny before the internet Allow, as in the other agent policies.
@@ -58,14 +58,21 @@ spec:
         selector: app.kubernetes.io/name == 'llama-cpp'
         namespaceSelector: kubernetes.io/metadata.name == 'ai'
         ports: [8080]
-    # Out-of-cluster llama-server: uncomment with its address and port.
-    # Must stay ABOVE the RFC1918 Deny - first match wins.
-    # - action: Allow
-    #   protocol: TCP
-    #   destination:
-    #     nets:
-    #       - <llama-server-ip>/32
-    #     ports: [8080]
+    # burst-gateway's control port: registering the sandboxes it claims.
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'burst-gateway'
+        namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+        ports: [8081]
+    # Out-of-cluster llama-server (typhon). Must stay ABOVE the RFC1918
+    # Deny - first match wins.
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.40.11/32
+        ports: [8080]
     - action: Deny
       protocol: TCP
       destination:

@@ -1,0 +1,35 @@
+---
+# The CA burst-gateway terminates sandboxes' TLS with, for the hosts it adds
+# credentials at (or every host, for a sandbox held to reads). It signs a
+# certificate per host itself; this is only its root. From cert-manager, not
+# made by the gateway at start-up, so it outlives a restart and the
+# SandboxTemplate can mount it before any sandbox is claimed.
+#
+# Sandboxes mount tls.crt alone (an `items` projection); the key reaches only
+# the gateway. rotationPolicy Never and ten years: sandboxes build their trust
+# bundle when they start, so a new CA would be trusted only by pods started
+# after it - renewing means restarting the gateway and the warm pool.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: burst-gateway-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: burst-gateway-ca
+spec:
+  isCA: true
+  commonName: burst-gateway CA (agent-sandbox-system)
+  secretName: burst-gateway-ca
+  duration: 87600h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never
+  issuerRef:
+    name: burst-gateway-selfsigned
+    kind: Issuer

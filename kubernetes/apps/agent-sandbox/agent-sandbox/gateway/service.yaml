@@ -1,0 +1,21 @@
+---
+# A fixed ClusterIP, because sandboxes have no DNS (their egress reaches the
+# gateway's proxy port and nothing else, kube-dns included): the
+# SandboxTemplate's HTTPS_PROXY names this address. From the low end of the
+# service range (10.248.0.0/16), the part the apiserver keeps for static
+# assignments.
+apiVersion: v1
+kind: Service
+metadata:
+  name: burst-gateway
+spec:
+  clusterIP: 10.248.0.128
+  selector:
+    app.kubernetes.io/name: burst-gateway
+  ports:
+    - name: proxy
+      port: 3128
+      targetPort: proxy
+    - name: control
+      port: 8081
+      targetPort: control
