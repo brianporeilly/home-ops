@@ -14,6 +14,11 @@
 # loses them all; sandboxes are refused until their drivers register again,
 # and a driver that does not lapses at its claim's deadline.
 #
+# Sessions (`harness session` on agent-sandbox) are reached through it too:
+# envoy-internal sends each session's HTTPRoute to the inbound port, and the
+# gateway passes the connection to the sandbox whose registration holds that
+# Host name (session-NAME.internal.oreillys.io), recording it.
+#
 # Every request is also logged to stdout, one JSON line each
 # (`kubectl logs -n agent-sandbox-system deploy/burst-gateway`).
 apiVersion: apps/v1
@@ -45,7 +50,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gateway
-          image: ghcr.io/brianporeilly/burst-harness-gateway:sha-41dd580@sha256:9bac1a1a0bebda4fd8aa6d98ac9a80ad8dd9b954fe96f7095ef69f15b7305627
+          image: ghcr.io/brianporeilly/burst-harness-gateway:sha-ae8a56b@sha256:85f0816b33bb370c414030d55e425aff903a90cb549c9ecdf55bb39cf2b26ddc
           env:
             - name: EGRESS_CONTROL
               value: "8081"
@@ -53,6 +58,9 @@ spec:
               value: /etc/burst-gateway/control/token
             - name: EGRESS_LISTEN
               value: "3128"
+            # Sessions' UIs, from envoy-internal, by Host name.
+            - name: EGRESS_INBOUND_HTTP
+              value: "8080"
             # No resolver: sandboxes have no DNS, and use the proxy.
             - name: EGRESS_DNS
               value: "0"
@@ -68,6 +76,8 @@ spec:
               containerPort: 3128
             - name: control
               containerPort: 8081
+            - name: inbound
+              containerPort: 8080
           readinessProbe:
             httpGet:
               path: /healthz
