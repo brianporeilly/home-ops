@@ -9,6 +9,10 @@
 #     cluster-watcher job, with a read-only ServiceAccount token the gateway
 #     adds): the kube-vip VIP and the control-plane nodes, as in
 #     globalnetworkpolicy-agent-runner-egress.yaml.
+#   - Sessions' UIs: the sandbox pods' opencode (4096) and terminal (8083)
+#     ports, which the gateway passes envoy-internal's connections to.
+#   - typhon's llama-server, the model a session's opencode calls (through
+#     the gateway, like the rest of its traffic).
 #   - HTTPS to the internet. RFC1918 Deny first, as in the other agent
 #     policies: a private address needs a rule above it.
 apiVersion: projectcalico.org/v3
@@ -42,6 +46,18 @@ spec:
           - 10.20.10.12/32
           - 10.20.10.13/32
         ports: [6443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app.kubernetes.io/name == 'agent-sandbox-workload'
+        namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
+        ports: [4096, 8083]
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.40.11/32
+        ports: [8080]
     - action: Deny
       protocol: TCP
       destination:
