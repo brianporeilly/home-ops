@@ -9,6 +9,7 @@ resources:
   - ./cluster-watcher-rbac.yaml
   - ./gateway-token.sops.yaml
   - ./cronjob-cluster-watcher.yaml
+  - ./session-reaper.yaml
   # cronjob-example.yaml is a template, deliberately not deployed: copy it to
   # cronjob-<task>.yaml, fill it in, and list the copy here.
 configMapGenerator:

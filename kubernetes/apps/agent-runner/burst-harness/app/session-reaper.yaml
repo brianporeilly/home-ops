@@ -1,0 +1,88 @@
+---
+# Suspends cluster sessions left idle (`harness session start --idle 2h` on
+# agent-sandbox): every 5 minutes, `harness session reap` asks burst-gateway
+# how long each registered session has done nothing and stops - suspends -
+# each one quiet for longer than its --idle, as `harness session stop` would.
+# The pod goes, the workspace stays; `harness session start` brings it back.
+# The gateway only reports idle time: it has no rights over pods, and gets
+# none, being the part that faces the internet.
+#
+# Its own ServiceAccount, with only what stopping a session takes
+# (kubernetes/apps/agent-sandbox/agent-sandbox/runner-rbac/session-reaper.yaml).
+# Labelled as the driver, app.kubernetes.io/name: burst-harness, for the
+# driver's network policies: the API server and the gateway's control port.
+# No state volume: burst-harness-state is RWO, and a job every 5 minutes would
+# pin it to one node. The events of a session it stops go to an emptyDir, so
+# are lost with the pod; the gateway's own log has every one.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: burst-session-reaper
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: burst-session-reaper
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: burst-harness
+            burst-harness/task: session-reaper
+        spec:
+          serviceAccountName: burst-session-reaper
+          automountServiceAccountToken: true  # kubectl in-cluster
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: harness
+              image: ghcr.io/brianporeilly/burst-harness:sha-3c5c7d1@sha256:364510ad719cc2c29f31145987aeea5eb7d669e9b7eaa7d7f100f6466ed933c7
+              args: ["session", "reap"]
+              env:
+                - name: HARNESS_TARGET
+                  value: agent-sandbox
+                - name: HARNESS_NAMESPACE
+                  value: agent-sandbox-system
+                - name: HARNESS_GATEWAY_CONTROL
+                  value: http://burst-gateway.agent-sandbox-system.svc.cluster.local:8081
+                - name: HARNESS_GATEWAY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: burst-harness-gateway-token
+                      key: HARNESS_GATEWAY_TOKEN
+                - name: HARNESS_STATE_DIR
+                  value: /tmp/state
+                # Read-only root: kubectl's discovery cache goes under $HOME.
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

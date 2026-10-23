@@ -1,0 +1,37 @@
+---
+# Lets burst-session-reaper (agent-runner, see
+# kubernetes/apps/agent-runner/burst-harness/app/session-reaper.yaml) stop
+# idle sessions - exactly the calls `harness session reap` makes:
+#   sandboxclaims  get - that the idle registration is a session's claim, and
+#                  which Sandbox is its
+#   sandboxes      get, patch - operatingMode: Suspended
+#   pods           get, list, watch - `kubectl wait --for=delete`, so a
+#                  stop is done when the pod has gone
+# Nothing else: it cannot claim, delete, or exec into anything.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: burst-session-reaper
+rules:
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    verbs: ["get"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: burst-session-reaper
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: burst-session-reaper
+subjects:
+  - kind: ServiceAccount
+    name: burst-session-reaper
+    namespace: agent-runner
