@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/extensions.agents.x-k8s.io_sandboxwarmpools.yaml
+#
+# Root sessions' pool (sandboxtemplate-coding-agent-root.yaml): the harness's
+# root_pool. One warm sandbox, as for coding-agent.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: coding-agent-root
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: coding-agent-root
