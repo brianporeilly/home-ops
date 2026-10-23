@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: lscr.io/linuxserver/grocy
-              tag: 4.7.1@sha256:cc3ac45cfa1c481a3305bd10f65cbc25b93d90ec6c7f707f06feff02a8f7f948
+              tag: 4.7.1@sha256:04b76def84197b214369d3c373df25b012477e25ac656a1b94d5d254d3597b6c
             env:
               PUID: 1000
               GUID: 1000
