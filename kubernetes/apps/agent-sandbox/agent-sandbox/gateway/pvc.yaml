@@ -1,0 +1,16 @@
+---
+# EGRESS_STATE: the gateway's registrations, kept so a restart (an image
+# update, a node drain) does not cut every sandbox and session off until its
+# driver registers it again. One small file, rewritten on every change. It
+# holds the credentials registrations carry, so only the gateway mounts it.
+# RWO is enough: one replica, and the Deployment recreates rather than rolls.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: burst-gateway-state
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 1Gi
