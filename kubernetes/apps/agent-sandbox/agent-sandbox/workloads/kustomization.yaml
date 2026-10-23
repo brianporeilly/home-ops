@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
   - ./sandboxtemplate-coding-agent.yaml
   - ./sandboxwarmpool-coding-agent.yaml
+  - ./sandboxtemplate-coding-agent-root.yaml
+  - ./sandboxwarmpool-coding-agent-root.yaml

@@ -1,0 +1,116 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/kubernetes-sigs/agent-sandbox/main/k8s/crd/bases/extensions.agents.x-k8s.io_sandboxtemplates.yaml
+#
+# coding-agent (sandboxtemplate-coding-agent.yaml), but as root, so the agent
+# can `dnf install`: for `harness session start NAME --root`, which claims
+# from the coding-agent-root pool (the harness's root_pool setting).
+#
+# Root in a user namespace (hostUsers: false): uid 0 in the pod maps to an
+# unprivileged uid range on the node, and its capabilities count only inside
+# that namespace. Checked on this cluster (2026-10-21): Kubernetes 1.36,
+# Flatcar's 6.12 kernel and containerd 2.2 run such pods, and they can write
+# and chown on an idmapped ceph-block volume. As on rootless podman, root gets
+# back only what installing packages takes - changing ownership and switching
+# user - and no-new-privileges stays set.
+#
+# Everything else is coding-agent's - the same image, proxy, CA, label (so
+# the same Calico policies), network policy and workspace - and a change
+# there belongs here too. A session keeps the kind it was created as: its
+# workspace's files are owned accordingly.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: coding-agent-root
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-sandbox-workload
+        agent-sandbox.internal.oreillys.io/template: coding-agent-root
+    spec:
+      # Nothing in a sandbox talks to the apiserver. Confirmed live that the
+      # controller already leaves the token unmounted; explicit here so that
+      # stays true regardless of controller defaults.
+      automountServiceAccountToken: false
+      # Root here is no one on the node.
+      hostUsers: false
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+      containers:
+        - name: agent
+          image: ghcr.io/brianporeilly/burst-harness-sandbox:sha-41dd580@sha256:cc744897234c58da5f6513e569d87ee9f45ff070a6d2c9926d4e973540cc1dfc
+          # `args`, NOT `command`: `command` replaces the image ENTRYPOINT
+          # (burst-sandbox-init, which composes ~/.claude.json and
+          # ~/.claude/settings.json at start), `args` only replaces its CMD.
+          # sleep keeps the pod up to be driven over `kubectl exec`.
+          args: ["sleep", "infinity"]
+          env:
+            - { name: HTTPS_PROXY, value: "http://10.248.0.128:3128" }
+            - { name: https_proxy, value: "http://10.248.0.128:3128" }
+            - { name: HTTP_PROXY, value: "http://10.248.0.128:3128" }
+            - { name: http_proxy, value: "http://10.248.0.128:3128" }
+            - { name: NO_PROXY, value: "localhost,127.0.0.1" }
+            - { name: no_proxy, value: "localhost,127.0.0.1" }
+            # Node's own fetch ignores the proxy variables unless told otherwise.
+            - { name: NODE_USE_ENV_PROXY, value: "1" }
+            - { name: BURST_GATEWAY_CA, value: /etc/burst-gateway/ca.crt }
+            - { name: SSL_CERT_FILE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: REQUESTS_CA_BUNDLE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: CURL_CA_BUNDLE, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: GIT_SSL_CAINFO, value: /tmp/burst-harness/ca-bundle.crt }
+            - { name: NODE_EXTRA_CA_CERTS, value: /etc/burst-gateway/ca.crt }
+          securityContext:
+            allowPrivilegeEscalation: false
+            # What dnf/rpm need (harness/containers.py ROOT_CAPABILITIES).
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "SETUID", "SETGID", "SETFCAP"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: gateway-ca
+              mountPath: /etc/burst-gateway
+              readOnly: true
+      volumes:
+        # The gateway's CA certificate only; its key stays with the gateway.
+        - name: gateway-ca
+          secret:
+            secretName: burst-gateway-ca
+            items:
+              - key: tls.crt
+                path: ca.crt
+  # The controller makes a NetworkPolicy from this for every sandbox of the
+  # template (coding-agent-network-policy). Left out, it is the controller's
+  # default - egress to every public address - and a Kubernetes
+  # NetworkPolicy's Allow counts as much as any Calico one, so sandboxes got
+  # out directly, around burst-gateway. The same rule as
+  # globalnetworkpolicy-agent-sandbox-workloads-egress.yaml: the gateway's
+  # proxy port, nothing else. No ingress rule: nothing connects in (exec goes
+  # through the kubelet, and nothing here uses the sandbox router).
+  networkPolicy:
+    egress:
+      - to:
+          - podSelector:
+              matchLabels:
+                app.kubernetes.io/name: burst-gateway
+        ports:
+          - protocol: TCP
+            port: 3128
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: ceph-block
+        resources:
+          requests:
+            storage: 10Gi
