@@ -9,10 +9,10 @@
 # control port - its allowlist, the credentials to add for it, whether it may
 # only read - and unregisters it on release, collecting its events.
 #
-# One replica, Recreate: registrations live only in memory, so two gateways
-# behind the Service would each refuse the other's sandboxes. A restart
-# loses them all; sandboxes are refused until their drivers register again,
-# and a driver that does not lapses at its claim's deadline.
+# One replica, Recreate: registrations are the gateway's own, so two
+# gateways behind the Service would each refuse the other's sandboxes, and
+# their file (EGRESS_STATE, on an RWO volume: pvc.yaml) is read at start. A
+# restart keeps them all; one that has lapsed meanwhile is dropped.
 #
 # Sessions (`harness session` on agent-sandbox) are reached through it too:
 # envoy-internal sends each session's HTTPRoute to the inbound port, and the
@@ -50,7 +50,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gateway
-          image: ghcr.io/brianporeilly/burst-harness-gateway:sha-ae8a56b@sha256:85f0816b33bb370c414030d55e425aff903a90cb549c9ecdf55bb39cf2b26ddc
+          image: ghcr.io/brianporeilly/burst-harness-gateway:sha-24bed1a@sha256:979c55e4aaeda6b7a6546dc5069a6fa8dfe7c2de186b1d9aacb9a6c969e3cbb5
           env:
             - name: EGRESS_CONTROL
               value: "8081"
@@ -71,6 +71,9 @@ spec:
             # Per-host certificates are written here.
             - name: EGRESS_CA_DIR
               value: /run/burst-gateway
+            # Registrations, kept across restarts (pvc.yaml).
+            - name: EGRESS_STATE
+              value: /var/lib/burst-gateway/registrations.json
           ports:
             - name: proxy
               containerPort: 3128
@@ -106,6 +109,8 @@ spec:
               readOnly: true
             - name: run
               mountPath: /run/burst-gateway
+            - name: state
+              mountPath: /var/lib/burst-gateway
       volumes:
         - name: ca
           secret:
@@ -124,3 +129,6 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 16Mi
+        - name: state
+          persistentVolumeClaim:
+            claimName: burst-gateway-state
