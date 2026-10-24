@@ -1,0 +1,50 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# The burst orchestrator: a web page for coding sessions in agent-sandbox-system
+# (create, start, stop, remove; watch each one's gateway events; approve what
+# the gateway refused). It replaces OpenHands. Behind Authentik's OIDC (the
+# protect component); it has no login of its own, and trusts the Remote-User
+# header the SecurityPolicy's jwt block sets, so app/networkpolicy.yaml admits
+# nothing but envoy-internal.
+#
+# Its own Kustomization, not part of burst-harness: the protect component
+# needs postBuild substitution, which would also run over burst-harness's job
+# files (Python, Markdown).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app burst-orchestrator
+  namespace: &namespace agent-runner
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  components:
+    - ../../../../components/authentik/protect
+  dependsOn:
+    # Reflector-mirror race - see download/lidarr/ks.yaml for the incident.
+    - name: authentik
+      namespace: authentik
+    - name: agent-sandbox-runner-rbac
+      namespace: agent-sandbox-system
+    - name: agent-sandbox-workloads
+      namespace: agent-sandbox-system
+    - name: rook-ceph-cluster
+      namespace: rook-ceph
+  interval: 1h
+  path: ./kubernetes/apps/agent-runner/burst-orchestrator/app
+  postBuild:
+    substitute:
+      APP: *app
+      HTTPROUTE_NAME: *app
+      HOSTNAME: orchestrator.internal.oreillys.io
+      AUTH_HOSTNAME: auth.internal.oreillys.io
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false

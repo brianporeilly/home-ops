@@ -164,6 +164,19 @@ spec:
             secretKeyRef:
               name: openhands-oidc-credentials
               key: client-secret
+        # Consumed by the provider-burst-orchestrator.yaml key in blueprints-protected-apps.yaml.
+        # Sourced from burst-orchestrator-oidc-credentials.yaml (ExternalSecret) -
+        # see echo-oidc-credentials.yaml for the pattern rationale.
+        - name: BURST_ORCHESTRATOR_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: burst-orchestrator-oidc-credentials
+              key: client-id
+        - name: BURST_ORCHESTRATOR_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: burst-orchestrator-oidc-credentials
+              key: client-secret
         # Consumed by the provider-whisker.yaml key in blueprints-protected-apps.yaml.
         # Sourced from whisker-oidc-credentials.yaml (ExternalSecret) - see
         # echo-oidc-credentials.yaml for the pattern rationale.

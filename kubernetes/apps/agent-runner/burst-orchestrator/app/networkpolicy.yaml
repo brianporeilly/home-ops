@@ -1,0 +1,29 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_networkpolicies.yaml
+# envoy-internal, and nothing else, may reach the orchestrator. It trusts the
+# Remote-User header, which only Envoy verifies (the protect component's jwt
+# block), so anything else that could reach the pod could claim to be anyone.
+#
+# Ordered ahead of the policies that would otherwise let more in: the
+# common component's allow-same-namespace (every pod in agent-runner) and
+# allow-network-ingress (all of the network namespace, envoy-external too).
+# Calico evaluates lower `order` first, and the Deny here ends evaluation.
+# Kubelet probes come from the host, which Calico always admits.
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: burst-orchestrator-ingress
+spec:
+  order: 10
+  selector: app.kubernetes.io/component == 'orchestrator' && app.kubernetes.io/name == 'burst-harness'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+        selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
+      destination:
+        ports: [8700]
+    - action: Deny

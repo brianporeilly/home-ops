@@ -1,0 +1,120 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/apps/deployment_v1.json
+# `python -m orchestrator` from the burst-harness image, sessions in
+# agent-sandbox-system as `harness session` makes them there (settings below
+# are a cluster session's, as for the session reaper). Listens on all
+# addresses but answers only requests for ${HOSTNAME} carrying Remote-User,
+# which the protect component's SecurityPolicy sets from the Authentik login;
+# networkpolicy.yaml makes envoy-internal the only way in.
+#
+# Labelled as the driver, app.kubernetes.io/name: burst-harness, for the
+# driver's network policies: DNS, the API server, burst-gateway's control
+# port, typhon's llama-server (its /v1/models names a session's model), and
+# HTTPS out.
+#
+# Credentials it could hand to sessions (git token, Anthropic key) are not
+# given yet: sessions use typhon's model, and clone public repos or none.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: burst-orchestrator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO state volume
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: burst-harness
+      app.kubernetes.io/component: orchestrator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: burst-harness
+        app.kubernetes.io/component: orchestrator
+    spec:
+      serviceAccountName: burst-orchestrator
+      automountServiceAccountToken: true  # kubectl in-cluster
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: orchestrator
+          image: ghcr.io/brianporeilly/burst-harness:sha-90fecb8@sha256:99ff7af92d9ad8c8d162916e76ac1dbdbd6ce1adecf3e720a692b26c11700b05
+          command: ["python", "-m", "orchestrator"]
+          args:
+            - --listen=0.0.0.0
+            - --port=8700
+            - --host=${HOSTNAME}
+            - --user-header=Remote-User
+          ports:
+            - name: http
+              containerPort: 8700
+          env:
+            - name: HARNESS_TARGET
+              value: agent-sandbox
+            - name: HARNESS_NAMESPACE
+              value: agent-sandbox-system
+            - name: HARNESS_POOL
+              value: coding-agent
+            - name: HARNESS_ROOT_POOL
+              value: coding-agent-root
+            - name: HARNESS_GATEWAY_CONTROL
+              value: http://burst-gateway.agent-sandbox-system.svc.cluster.local:8081
+            - name: HARNESS_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: burst-harness-gateway-token
+                  key: HARNESS_GATEWAY_TOKEN
+            - name: HARNESS_SESSION_DOMAIN
+              value: internal.oreillys.io
+            - name: HARNESS_SESSION_ROUTE_PARENT
+              value: network/envoy-internal/https
+            # gatus-sidecar probes every HTTPRoute; on a session's, that is
+            # activity, and --idle would never fire.
+            - name: HARNESS_SESSION_ROUTE_ANNOTATIONS
+              value: gatus.home-operations.com/enabled=false
+            - name: HARNESS_EGRESS
+              value: allowlist
+            # The form's defaults; each session can choose its own.
+            - name: HARNESS_PROVIDER
+              value: llamacpp
+            - name: HARNESS_BASE_URL
+              value: http://10.20.40.11:8080
+            - name: HARNESS_STATE_DIR
+              value: /state
+            # Read-only root: kubectl's discovery cache goes under $HOME.
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: state
+              mountPath: /state
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: burst-orchestrator-state
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,54 @@
+---
+# Lets burst-orchestrator (agent-runner, see
+# kubernetes/apps/agent-runner/burst-orchestrator/) run coding sessions here -
+# the calls `harness session` makes (harness/cluster_session.py):
+#   sandboxclaims  create (claim from coding-agent or coding-agent-root), get,
+#                  list, watch (wait for Ready), delete (`rm`)
+#   sandboxes      get, list (which pod; stopped or running), patch
+#                  (operatingMode: Suspended / Running - stop and start)
+#   pods           get, list, watch - the pod's address, and `kubectl wait
+#                  --for=delete` on a stop
+#   pods/exec      create, plus get (kubectl execs over a WebSocket, a GET):
+#                  start opencode / the terminal in the sandbox
+#   httproutes     get, create, patch - each session's names, applied with the
+#                  claim as owner (deleted with it)
+#   configmaps     get, list, create, patch - each session's record, owned by
+#                  its claim. Not Secrets: this namespace holds sops-age, and
+#                  list cannot be narrowed to the records.
+# No Secrets, no SandboxTemplate/SandboxWarmPool, no other namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: burst-orchestrator
+rules:
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxclaims"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "create", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: burst-orchestrator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: burst-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: burst-orchestrator
+    namespace: agent-runner
