@@ -1,0 +1,16 @@
+---
+# /state: what each session was created with (orchestrator/<name>.json), so
+# starting it again means the same thing, and the gateway events of each
+# session removed (egress/). Session records themselves are ConfigMaps in
+# agent-sandbox-system, owned by their claims. ceph-block (RWO), as for
+# burst-harness-state; one replica, Recreate.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: burst-orchestrator-state
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 1Gi
