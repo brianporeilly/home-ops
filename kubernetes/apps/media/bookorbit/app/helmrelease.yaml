@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/bookorbit/bookorbit
-              tag: 3.1.0@sha256:fdf6c1c935cbd5e890d71d71ff3a44be22bc158b7ae84e1306e5040a2135449a
+              tag: 3.5.0@sha256:b15e048c6b25fa1e312a68a9b8b260fb81795b9b66ccd5ee4122c5755f067699
             env:
               PORT: &port 3000
               APP_URL: https://bookorbit.internal.oreillys.io
