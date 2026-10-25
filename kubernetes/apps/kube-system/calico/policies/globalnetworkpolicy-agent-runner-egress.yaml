@@ -10,7 +10,7 @@
 #   - kube-apiserver: SandboxClaim CRUD and `kubectl exec` into sandboxes.
 #     Exec is proxied by the apiserver, so no direct path to sandbox pods or
 #     kubelets is needed. CP node IPs because kubeadm's apiserver runs
-#     hostNetwork (same as the controller/openhands policies).
+#     hostNetwork (same as the controller policy).
 #   - llama-cpp, for HARNESS_PROVIDER=llamacpp: the in-cluster one, and
 #     typhon's llama-server (10.20.40.11:8080) outside the cluster. Runs
 #     driven from a workstation don't touch this policy at all.

@@ -31,11 +31,6 @@ resources:
   # rollout below (see each file for the full rationale)
   - ./globalnetworkpolicy-agent-sandbox-controller-egress.yaml
   - ./globalnetworkpolicy-agent-sandbox-workloads-egress.yaml
-  - ./globalnetworkpolicy-openhands-egress.yaml
-  # Phase 2 (docs/agent-sandbox-plan.md) - openhands's own KubernetesRuntime
-  # spawning per-conversation sandbox pods into their own namespace
-  - ./globalnetworkpolicy-openhands-runtime-egress.yaml
-  - ./globalnetworkpolicy-openhands-to-runtime-sandbox.yaml
   # Phase 3 (docs/agent-sandbox-plan.md) - burst-harness driver Jobs
   - ./globalnetworkpolicy-agent-runner-egress.yaml
   - ./globalnetworkpolicy-agent-runner-to-llama-cpp.yaml

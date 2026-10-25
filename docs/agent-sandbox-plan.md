@@ -1,5 +1,11 @@
 # OpenHands + agent-sandbox: isolated LLM agent PoC
 
+**OpenHands was removed (2026-10-25).** burst-harness's orchestrator
+(`kubernetes/apps/agent-runner/burst-orchestrator`) replaced it, on the same
+agent-sandbox pools and shared gateway. What follows about OpenHands and the
+openhands-runtime namespace is history; agent-sandbox and burst-harness are
+current.
+
 Status: **Phase 3 (burst-harness as agent-sandbox's driver) written
 2026-09-25** - see "Phase 3" below. **Phase 1 merged and deployed (2026-09-22).** Eight real issues hit
 across first boot, all fixed same day - see the "boot fix" sections below.
