@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
 # The burst orchestrator: a web page for coding sessions in agent-sandbox-system
 # (create, start, stop, remove; watch each one's gateway events; approve what
-# the gateway refused). It replaces OpenHands. Behind Authentik's OIDC (the
+# the gateway refused). Behind Authentik's OIDC (the
 # protect component); it has no login of its own, and trusts the Remote-User
 # header the SecurityPolicy's jwt block sets, so app/networkpolicy.yaml admits
 # nothing but envoy-internal.

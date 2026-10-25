@@ -151,19 +151,6 @@ spec:
             secretKeyRef:
               name: kopiur-ui-oidc-credentials
               key: client-secret
-        # Consumed by the provider-openhands.yaml key in blueprints-protected-apps.yaml.
-        # Sourced from openhands-oidc-credentials.yaml (ExternalSecret) -
-        # see echo-oidc-credentials.yaml for the pattern rationale.
-        - name: OPENHANDS_OAUTH_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: openhands-oidc-credentials
-              key: client-id
-        - name: OPENHANDS_OAUTH_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: openhands-oidc-credentials
-              key: client-secret
         # Consumed by the provider-burst-orchestrator.yaml key in blueprints-protected-apps.yaml.
         # Sourced from burst-orchestrator-oidc-credentials.yaml (ExternalSecret) -
         # see echo-oidc-credentials.yaml for the pattern rationale.
