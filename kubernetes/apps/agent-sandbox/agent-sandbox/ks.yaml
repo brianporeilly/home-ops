@@ -121,3 +121,33 @@ spec:
   targetNamespace: *namespace
   timeout: 5m
   wait: false
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+# Signing in to the coding sessions burst-orchestrator starts: Authentik, at
+# Envoy Gateway, on every session route (see session-sign-in/). dependsOn
+# authentik for the same reason as the authentik/protect component: its
+# Reflector mirror can otherwise lose a race against the ExternalSecret it
+# mirrors.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app agent-sandbox-session-sign-in
+  namespace: &namespace agent-sandbox-system
+spec:
+  commonMetadata:
+    labels:
+      app.kubernetes.io/name: *app
+  dependsOn:
+    - name: authentik
+      namespace: authentik
+  interval: 1h
+  path: ./kubernetes/apps/agent-sandbox/agent-sandbox/session-sign-in
+  prune: true
+  retryInterval: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: *namespace
+  timeout: 5m
+  wait: false
