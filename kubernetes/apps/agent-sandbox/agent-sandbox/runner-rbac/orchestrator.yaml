@@ -15,7 +15,15 @@
 #   configmaps     get, list, create, patch - each session's record, owned by
 #                  its claim. Not Secrets: this namespace holds sops-age, and
 #                  list cannot be narrowed to the records.
-# No Secrets, no SandboxTemplate/SandboxWarmPool, no other namespace.
+#   secrets        create only - with session_sign_in, each start's
+#                  credentials for Envoy to add (opencode's password, the
+#                  terminal's cookie), owned by the claim. Never read,
+#                  changed or deleted, which would reach sops-age too.
+#   httproutefilters  get, create, patch - the filter per route that adds
+#                  them (credentialInjection), owned by the claim
+#   securitypolicies  list - a session is refused unless one signs people
+#                  in on its routes (session-sign-in/)
+# No reading Secrets, no SandboxTemplate/SandboxWarmPool, no other namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -39,6 +47,15 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list", "create", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: ["gateway.envoyproxy.io"]
+    resources: ["httproutefilters"]
+    verbs: ["get", "create", "patch"]
+  - apiGroups: ["gateway.envoyproxy.io"]
+    resources: ["securitypolicies"]
+    verbs: ["list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
