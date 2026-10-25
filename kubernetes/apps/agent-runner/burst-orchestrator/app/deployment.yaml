@@ -43,13 +43,15 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-1da01aa@sha256:9986ef3aa30a8b1039ef8fccd067e8ed51b6264743c7b87306eef867909f46cd
+          image: ghcr.io/brianporeilly/burst-harness:sha-51cfe15@sha256:85966405fa4675d2c4a4278fa3cc02af24a22457af97b18c7708d8fb7e5cf1c9
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
             - --port=8700
             - --host=${HOSTNAME}
             - --user-header=Remote-User
+            # The jobs it lists and runs: jobs/ here, one ConfigMap each.
+            - --jobs=/jobs
           ports:
             - name: http
               containerPort: 8700
@@ -95,6 +97,27 @@ spec:
               value: context7=https://mcp.context7.com/mcp
             - name: HARNESS_STATE_DIR
               value: /state
+            # Jobs run on their cron triggers, in this timezone. A job starts
+            # paused until resumed in the Jobs tab: typhon's llama-server has
+            # crashed with two model clients at once, so nothing calls it on a
+            # schedule until someone says so. A time missed by up to an hour
+            # (a restart) runs late; longer, it is skipped.
+            - name: ORCHESTRATOR_SCHEDULE
+              value: "1"
+            - name: ORCHESTRATOR_START_PAUSED
+              value: "1"
+            - name: ORCHESTRATOR_TIMEZONE
+              value: America/Anchorage
+            # A job's sandbox claim is deleted after this, whatever happens to the run.
+            - name: HARNESS_CLAIM_TTL
+              value: "3600"
+            # cluster-watcher's: the read-only ServiceAccount's token, which the
+            # gateway adds to its requests to the API server (never in the sandbox).
+            - name: KUBE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-watcher-token
+                  key: token
             # Read-only root: kubectl's discovery cache goes under $HOME.
             - name: HOME
               value: /tmp
@@ -115,15 +138,25 @@ spec:
               cpu: 20m
               memory: 128Mi
             limits:
-              memory: 512Mi
+              memory: 1Gi  # job runs (harness job run, with the strands loop) are its subprocesses
           volumeMounts:
             - name: state
               mountPath: /state
             - name: tmp
               mountPath: /tmp
+            - name: job-cluster-watcher
+              mountPath: /jobs/cluster-watcher
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
             claimName: burst-orchestrator-state
         - name: tmp
           emptyDir: {}
+        - name: job-cluster-watcher
+          configMap:
+            name: burst-orchestrator-job-cluster-watcher
+            items:
+              - { key: job.toml, path: job.toml }
+              - { key: prompt.md, path: prompt.md }
+              - { key: cluster_state.py, path: scripts/cluster_state.py }
