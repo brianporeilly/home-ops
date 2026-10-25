@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-90fecb8@sha256:99ff7af92d9ad8c8d162916e76ac1dbdbd6ce1adecf3e720a692b26c11700b05
+          image: ghcr.io/brianporeilly/burst-harness:sha-f4472b7@sha256:c8be916379856402479c1c82349e0b05cbff5e154194dfb30f3600caca61e0a5
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -84,6 +84,10 @@ spec:
               value: llamacpp
             - name: HARNESS_BASE_URL
               value: http://10.20.40.11:8080
+            # MCP servers sessions connect to, through the gateway (the form
+            # can change them for each session).
+            - name: HARNESS_MCP
+              value: context7=https://mcp.context7.com/mcp
             - name: HARNESS_STATE_DIR
               value: /state
             # Read-only root: kubectl's discovery cache goes under $HOME.
