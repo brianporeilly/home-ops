@@ -412,22 +412,6 @@ data:
           order: 0
           target: !KeyOf whisker-application
           group: !Find [authentik_core.group, [name, infra-users]]
-  # OpenHands was removed (replaced by burst-orchestrator): this deletes its
-  # application (and with it, its policy binding) and provider. Drop this key
-  # once it has applied.
-  provider-openhands.yaml: |
-    metadata:
-      name: OIDC Provider - openhands
-    version: 1
-    entries:
-      - model: authentik_core.application
-        state: absent
-        identifiers:
-          slug: openhands
-      - model: authentik_providers_oauth2.oauth2provider
-        state: absent
-        identifiers:
-          name: openhands
   provider-burst-orchestrator.yaml: |
     metadata:
       name: OIDC Provider - burst-orchestrator
