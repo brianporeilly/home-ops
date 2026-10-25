@@ -1,0 +1,51 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/charts/gateway-helm/crds/generated/gateway.envoyproxy.io_securitypolicies.yaml
+# Authentik's sign-in on every coding session's routes: the HTTPRoutes
+# burst-orchestrator creates here per session (session-NAME[-term]), selected
+# by label since they come and go. Once signed in, Envoy adds each UI's own
+# login (opencode's password, the terminal's cookie) with the
+# HTTPRouteFilter the harness puts on each route (session_sign_in, see
+# strands-harness harness/cluster_session.py); the harness refuses to start
+# a session unless this policy is here.
+#
+# As the authentik/protect component, with these differences:
+# - no redirectURL: Envoy Gateway's default is the request's own host
+#   (%REQ(:authority)%/oauth2/callback), which the burst-sessions provider's
+#   regex redirect URI covers. A first visit to each session's host is a
+#   quick bounce through Authentik, already signed in.
+# - no cookieDomain: cookies stay per host, so they never meet the other
+#   apps' authentik-id-token cookies on internal.oreillys.io.
+# - refreshToken: a UI is held open for hours, on event streams and
+#   websockets; refreshing keeps its next request from a sign-in redirect.
+# - logoutPath under /oauth2/, out of the UIs' own paths.
+# - no jwt / Remote-User: nothing behind it reads who signed in.
+# - passThroughAuthHeader left off: with it, a request carrying its own
+#   Authorization would skip the sign-in, and the filter would then
+#   overwrite that header with the real password.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: burst-sessions
+spec:
+  targetSelectors:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      matchLabels:
+        app.kubernetes.io/managed-by: burst-harness
+  oidc:
+    provider:
+      issuer: "https://auth.internal.oreillys.io/application/o/burst-sessions/"
+      authorizationEndpoint: "https://auth.internal.oreillys.io/application/o/authorize/"
+      tokenEndpoint: "https://auth.internal.oreillys.io/application/o/token/"
+      endSessionEndpoint: "https://auth.internal.oreillys.io/application/o/burst-sessions/end-session/"
+    clientIDRef:
+      name: burst-sessions-oidc-client-secret
+    clientSecret:
+      name: burst-sessions-oidc-client-secret
+    logoutPath: /oauth2/logout
+    scopes:
+      - openid
+      - email
+    refreshToken: true
+    cookieNames:
+      idToken: burst-session-id-token

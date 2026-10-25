@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-f4472b7@sha256:c8be916379856402479c1c82349e0b05cbff5e154194dfb30f3600caca61e0a5
+          image: ghcr.io/brianporeilly/burst-harness:sha-595b8f5@sha256:ac59b76623b8e166f360f2dc3b868ed043cbd947450e3863ee2b578d16327d6b
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -77,6 +77,11 @@ spec:
             # activity, and --idle would never fire.
             - name: HARNESS_SESSION_ROUTE_ANNOTATIONS
               value: gatus.home-operations.com/enabled=false
+            # Authentik signs people in on the session routes (agent-sandbox/
+            # agent-sandbox/session-sign-in/), and Envoy adds each UI's own
+            # login: no password or token to copy.
+            - name: HARNESS_SESSION_SIGN_IN
+              value: "true"
             - name: HARNESS_EGRESS
               value: allowlist
             # The form's defaults; each session can choose its own.
