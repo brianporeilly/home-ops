@@ -9,3 +9,11 @@ resources:
   - ./service.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
+configMapGenerator:
+  # A job the orchestrator runs on its schedule (jobs/cluster-watcher/job.toml),
+  # mounted at /jobs/cluster-watcher by deployment.yaml.
+  - name: burst-orchestrator-job-cluster-watcher
+    files:
+      - jobs/cluster-watcher/job.toml
+      - jobs/cluster-watcher/prompt.md
+      - jobs/cluster-watcher/cluster_state.py

@@ -1,11 +1,11 @@
 # The cluster-watcher job from strands-harness (examples/jobs/cluster-watcher),
-# as this cluster runs it: cronjob-cluster-watcher.yaml mounts this directory
-# and runs `harness job run` on it. prompt.md and cluster_state.py are the
-# example's, with this cluster's API server filled in; keep them in step with
-# it when it changes.
+# as this cluster runs it: burst-orchestrator mounts this directory and runs
+# `harness job run` on it, on the trigger below or from its Jobs tab.
+# prompt.md and cluster_state.py are the example's, with this cluster's API
+# server filled in; keep them in step with it when it changes.
 #
-# Where it runs (agent-sandbox, the pool, the gateway) is set by the CronJob's
-# environment, so this file stays a job and not a deployment.
+# Where it runs (agent-sandbox, the pool, the gateway) is set by the
+# orchestrator's environment, so this file stays a job and not a deployment.
 
 # The model is called from the driver: typhon's llama-server.
 provider = "llamacpp"
@@ -16,7 +16,7 @@ model_timeout = 900
 egress_allow = []
 
 [job]
-trigger = "0 8 * * *"  # what the CronJob's schedule says; the CronJob is what runs it
+trigger = "0 8 * * *"  # burst-orchestrator's scheduler, in America/Anchorage; paused until resumed in its Jobs tab
 mode = "report"
 output = ["stdout", "file:/state/reports/cluster-watcher/%Y-%m-%d.md"]
 
