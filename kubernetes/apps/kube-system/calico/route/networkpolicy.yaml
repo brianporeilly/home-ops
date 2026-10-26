@@ -15,7 +15,7 @@
 # relative to calico-system.whisker doesn't matter.
 #
 # Confirmed live as the cause of the whisker route's 503s: Envoy
-# (`network` namespace) couldn't reach the pod on 8081 at all - connection
+# (`network` namespace) couldn't reach the pod at all - connection
 # silently dropped, not refused (Envoy's own access log showed an 8s+ hang
 # with response_flags DC, not a fast RST).
 #
@@ -39,11 +39,11 @@ spec:
         namespaceSelector: kubernetes.io/metadata.name == 'network'
       destination:
         ports:
-          - 8081
+          - 8443
     - action: Allow
       protocol: TCP
       source:
         namespaceSelector: kubernetes.io/metadata.name == 'observability'
       destination:
         ports:
-          - 8081
+          - 8443
