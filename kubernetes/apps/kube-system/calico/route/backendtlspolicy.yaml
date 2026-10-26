@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/backendtlspolicy_v1.json
+# Whisker's nginx serves TLS only (8443), cert signed by tigera-operator-signer.
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: whisker
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: whisker
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: tigera-ca-bundle
+    hostname: whisker.calico-system.svc

@@ -24,4 +24,4 @@ spec:
   rules:
     - backendRefs:
         - name: whisker
-          port: 8081
+          port: 8443

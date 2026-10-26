@@ -23,8 +23,9 @@ spec:
     remediation:
       retries: 3
   values:
-    # CRDs are created by the operator itself at startup, not by Helm.
-    manageCRDs: false
+    # With false the operator only creates missing CRDs and never updates them,
+    # leaving schemas stale after chart upgrades (v3.33 kube-controllers stuck unready).
+    manageCRDs: true
     # Installation/APIServer/Goldmane/Whisker CRs managed as raw YAML
     # by Flux so the chart doesn't fight with separate kustomize resources.
     installation:

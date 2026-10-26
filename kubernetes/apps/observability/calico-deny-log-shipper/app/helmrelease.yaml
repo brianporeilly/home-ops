@@ -69,9 +69,11 @@ spec:
               - python3
               - -c
               - |
-                import json, urllib.request, datetime
+                import json, ssl, urllib.request, datetime
 
-                WHISKER_URL = "http://whisker.calico-system.svc.cluster.local:8081/whisker-backend/flows?page_size=3000"
+                # Whisker serves TLS (operator-signed cert) on 8443 only; in-cluster, so skip verification.
+                WHISKER_CTX = ssl._create_unverified_context()
+                WHISKER_URL = "https://whisker.calico-system.svc.cluster.local:8443/whisker-backend/flows?page_size=3000"
                 LOKI_URL = "http://loki-headless.observability.svc.cluster.local:3100/loki/api/v1/push"
                 WINDOW_SECONDS = 180
                 # Only ships a pending-diff when the resolved decision
@@ -120,7 +122,7 @@ spec:
                     ) or (trigger.get("kind") or "").startswith("Staged")
                     return action, name, involves_staged
 
-                with urllib.request.urlopen(WHISKER_URL, timeout=30) as r:
+                with urllib.request.urlopen(WHISKER_URL, timeout=30, context=WHISKER_CTX) as r:
                     data = json.load(r)
                 items = data.get("items", [])
                 now = datetime.datetime.now(datetime.timezone.utc)
