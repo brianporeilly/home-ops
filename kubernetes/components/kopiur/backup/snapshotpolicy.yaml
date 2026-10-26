@@ -56,6 +56,11 @@ spec:
     # kopiur refuses to elevate and falls back to moverDefaults too.
     inheritSecurityContextFrom:
       pvcConsumer: {}
+    # The mover is root with DAC_OVERRIDE, so it never needs a chown. Without
+    # this, an app pod's `Always` is inherited and kubelet re-walks the whole
+    # persistent cache PVC on every run.
+    podSecurityContext:
+      fsGroupChangePolicy: OnRootMismatch
   # GFS retention: frequent recent recovery points, pruned further back.
   # Same shape across every app using this component - override individual
   # fields in the consuming app only if it genuinely needs something
