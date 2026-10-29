@@ -25,3 +25,21 @@ patches:
     target:
       kind: Deployment
       name: "(kustomize-controller|helm-controller|source-controller)"
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: not-used
+      spec:
+        template:
+          spec:
+            priorityClassName: system-cluster-critical
+            nodeSelector:
+              node-role.kubernetes.io/control-plane: ""
+            tolerations:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+                effect: NoSchedule
+    target:
+      kind: Deployment
+      namespace: flux-system

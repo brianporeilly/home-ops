@@ -31,7 +31,11 @@ spec:
             - name: envoy-internal
               namespace: network
               sectionName: https
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 2
       alertmanagerSpec:
+        podAntiAffinity: hard
         alertmanagerConfiguration:
           name: alertmanager
           global:
@@ -62,7 +66,11 @@ spec:
             - name: envoy-internal
               namespace: network
               sectionName: https
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
       prometheusSpec:
+        podAntiAffinity: hard
         image:
           registry: docker.io
           repository: prompp/prompp
