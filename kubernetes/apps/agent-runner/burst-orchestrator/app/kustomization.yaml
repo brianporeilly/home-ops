@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ./serviceaccount.yaml
   - ./pvc.yaml
+  - ./git-token.sops.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./httproute.yaml

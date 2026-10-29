@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://json.schemastore.org/kubernetes-secret
+#
+# The GitHub token burst-orchestrator's tasks clone, push and open pull
+# requests with: a fine-grained PAT for the repos tasks work on (contents and
+# pull requests: read/write). Only the orchestrator holds it. Each burst is
+# handed it for its own git commands and `gh pr create`; the sandbox never is.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: burst-orchestrator-git-token
+stringData:
+    HARNESS_GIT_TOKEN: ENC[AES256_GCM,data:+KmNkDW0qAwmpDWQj2TWu42qJehEHkDU/ZnCgt/DMCWsHmxzFbWhelpVU2Ht+e+4BxTVfNOOjk+hTLH5I+NKzgL+D9hjU0nmgPfqzX58PPK4MXambYadSUGsUi48,iv:sIR5/DeEUDMzd+QKXFs+tOyC6C7A2h+6Am6PC+CpkYE=,tag:NsPgib07DsPSb84ckNqcIg==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBWcUx1RnI1N2g1UnBEMG9z
+            UWsvTjlGY0dKeDBoMEpJWHpsSm1RVlFNMHpzCnBabEE1NnpMcStScFExTk15ZXRD
+            bjRzUnVSQlhud2UrRnVmZUFQUVowOXcKLS0tIG9JSDVFdmVyTjIrVVY1UXFPcEp3
+            OEFKQktzUGk3Y0hKWUlIK01TaUsxVTQK5FHRnlReMJUqQyOAzPKbjNbjk//kH3Xm
+            jPe0uHlS3T5umzHafuyK7kXv81zvbaJhkF3Mww+P4zo0zDnHTFdFFA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age16l2td9xa5h64qq804f7xmqmus7v6hzqdycfay30e6heylesuws3sf0a4xc
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-10-29T17:23:10Z"
+    mac: ENC[AES256_GCM,data:cYc2VC9y338w9m6CfQTQgIajgE9tAYR5abOBBH9NJ6ClaUvW8ut2rRbNTYrc3LMK/TlFJVzWxbQF0CyC6d8uWZ097oITEtIDgwRrpwJgLEP2CJWAYXIBFuPgyKNc8YtTagwpd9rk0a1Jt5hk4XVkYUe0P6hQhM1EQXg6+48IwvU=,iv:HAQOqApsIp2c+J2ouY1gMFzc7ZEXg992wrFxhaOP5EA=,tag:nc+dmhmxAdmLBiRNv0nL7A==,type:str]
+    version: 3.13.1

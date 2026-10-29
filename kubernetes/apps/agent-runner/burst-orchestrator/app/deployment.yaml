@@ -12,8 +12,10 @@
 # port, typhon's llama-server (its /v1/models names a session's model), and
 # HTTPS out.
 #
-# Credentials it could hand to sessions (git token, Anthropic key) are not
-# given yet: sessions use typhon's model, and clone public repos or none.
+# Tasks (a repo and a prompt, worked on until there is a PR) push and open
+# PRs with the GitHub token in git-token.sops.yaml: each burst is handed it
+# for its own git commands and `gh pr create`, and no session or job is.
+# There is no Anthropic key: tasks, like sessions, use typhon's model.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-51cfe15@sha256:85966405fa4675d2c4a4278fa3cc02af24a22457af97b18c7708d8fb7e5cf1c9
+          image: ghcr.io/brianporeilly/burst-harness:sha-17282fb@sha256:1a1881567ad90789b70f0635df9667baa69e76d1ed2ca0413348b26a3cc12c10
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -118,6 +120,12 @@ spec:
                 secretKeyRef:
                   name: cluster-watcher-token
                   key: token
+            # Tasks' (git-token.sops.yaml).
+            - name: HARNESS_GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: burst-orchestrator-git-token
+                  key: HARNESS_GIT_TOKEN
             # Read-only root: kubectl's discovery cache goes under $HOME.
             - name: HOME
               value: /tmp
