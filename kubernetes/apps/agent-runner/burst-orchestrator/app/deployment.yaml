@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-17282fb@sha256:1a1881567ad90789b70f0635df9667baa69e76d1ed2ca0413348b26a3cc12c10
+          image: ghcr.io/brianporeilly/burst-harness:sha-621f41f@sha256:826e3797f8f1a3eb21b707cd7e90f2978b8a669db0328f9e65f9d7bf6e345069
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
