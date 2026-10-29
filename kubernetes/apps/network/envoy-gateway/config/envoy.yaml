@@ -26,8 +26,6 @@ spec:
               # per Gateway instead of across all proxy pods
               matchLabelKeys:
                 - gateway.envoyproxy.io/owning-gateway-name
-      envoyPDB:
-        minAvailable: 1
         container:
           image: mirror.gcr.io/envoyproxy/envoy:v1.40.1
           resources:
@@ -35,6 +33,8 @@ spec:
               cpu: 100m
             limits:
               memory: 1Gi
+      envoyPDB:
+        minAvailable: 1
       envoyService:
         externalTrafficPolicy: Local
   shutdown:
