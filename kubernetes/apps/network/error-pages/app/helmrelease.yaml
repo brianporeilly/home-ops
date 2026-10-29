@@ -20,6 +20,7 @@ spec:
   values:
     controllers:
       error-pages:
+        replicas: 2
         containers:
           app:
             image:
@@ -73,6 +74,14 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: error-pages
+              app.kubernetes.io/instance: error-pages
 
     service:
       app:

@@ -13,6 +13,21 @@ spec:
     kubernetes:
       envoyDeployment:
         replicas: 2
+        pod:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: envoy
+                  app.kubernetes.io/component: proxy
+              # one shared EnvoyProxy backs both Gateways; key the spread
+              # per Gateway instead of across all proxy pods
+              matchLabelKeys:
+                - gateway.envoyproxy.io/owning-gateway-name
+      envoyPDB:
+        minAvailable: 1
         container:
           image: mirror.gcr.io/envoyproxy/envoy:v1.40.1
           resources:

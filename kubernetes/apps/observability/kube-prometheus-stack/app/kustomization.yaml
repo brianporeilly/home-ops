@@ -11,6 +11,7 @@ resources:
   - ./podmonitors.yaml
   - ./flux-prometheusrules.yaml
   - ./kured-prometheusrules.yaml
+  - ./node-health-prometheusrules.yaml
   - ./prometheusrule-volumes.yaml
   - ./backup-prometheusrules.yaml
   - ./nas-scrapeconfig.yaml

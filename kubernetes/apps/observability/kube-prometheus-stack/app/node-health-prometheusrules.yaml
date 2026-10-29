@@ -1,0 +1,45 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-health-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    app.kubernetes.io/component: monitoring
+    prometheus: kube-prometheus-stack
+spec:
+  groups:
+    - name: node-health
+      rules:
+        # A node can stay Ready while its pod network or container runtime is
+        # wedged, so the built-in NotReady/Unreachable alerts never fire.
+        - alert: NodePodsUnknown
+          annotations:
+            summary: "Node {{ $labels.node }} has pods stuck in Unknown"
+            description: >-
+              {{ $value }} pods on {{ $labels.node }} have been in the Unknown
+              phase for 10m while the node may still report Ready. Check the
+              node's calico-node pod and container runtime.
+          expr: |
+            sum by (node) (
+              kube_pod_status_phase{phase="Unknown"} * on (namespace, pod) group_left (node) kube_pod_info
+            ) >= 3
+          for: 10m
+          labels:
+            severity: critical
+
+        - alert: NodePodsStuckCreating
+          annotations:
+            summary: "Node {{ $labels.node }} has pods stuck in ContainerCreating"
+            description: >-
+              {{ $value }} pods on {{ $labels.node }} have been waiting in
+              ContainerCreating for 15m - usually a broken CNI, a hung CSI
+              mount, or a recursive volume chown.
+          expr: |
+            sum by (node) (
+              kube_pod_container_status_waiting_reason{reason="ContainerCreating"} * on (namespace, pod) group_left (node) kube_pod_info
+            ) >= 4
+          for: 15m
+          labels:
+            severity: warning

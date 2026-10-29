@@ -23,6 +23,15 @@ spec:
     remediation:
       retries: 3
   values:
+    replicaCount: 2
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: postgres-operator
+            app.kubernetes.io/name: cloudnative-pg
     crds:
       create: true
     monitoring:
