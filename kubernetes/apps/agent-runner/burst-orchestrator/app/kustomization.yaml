@@ -10,6 +10,7 @@ resources:
   - ./deployment.yaml
   - ./service.yaml
   - ./httproute.yaml
+  - ./httproute-api.yaml
   - ./networkpolicy.yaml
 configMapGenerator:
   # A job the orchestrator runs on its schedule (jobs/cluster-watcher/job.toml),

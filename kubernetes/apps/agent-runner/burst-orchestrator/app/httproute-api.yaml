@@ -1,0 +1,45 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# The Tasks API for scripts, other machines and bots: requests to /api/tasks
+# that carry an orchestrator API token (made in its Settings tab) skip the
+# Authentik sign-in. A separate route, so the protect component's
+# SecurityPolicy (it targets ${HTTPROUTE_NAME} by name) does not apply.
+#
+# The token is the gate, checked by the orchestrator: a bearer request reaches
+# /api/tasks and nothing else (never Settings, where credentials are set), and
+# one with a token that is not valid gets a 401. A request without a token
+# does not match here and goes to the signed-in route, so the page's own calls
+# to /api/tasks are unchanged. Gateway API prefers this route's longer match
+# (path and header) for the same hostname.
+#
+# Remote-User is removed: the orchestrator takes who a bearer request is from
+# its token, and this route has no jwt block to set the header, so whatever a
+# client sent is dropped rather than passed on.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: burst-orchestrator-api
+spec:
+  hostnames:
+    - ${HOSTNAME}
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/tasks
+          headers:
+            - name: Authorization
+              type: RegularExpression
+              value: "(?i)bearer\\s+orch_.+"
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - Remote-User
+      backendRefs:
+        - name: burst-orchestrator
+          port: 8700
