@@ -32,6 +32,10 @@ spec:
           name: thelounge
         spec:
           mover:
+            # Persistent NFS cache grows to ~165k small files; kubelet
+            # re-chowns it each run, taking longer than the hourly schedule.
+            cache:
+              mode: Ephemeral
             securityContext:
               runAsUser: 0
               runAsGroup: 0
