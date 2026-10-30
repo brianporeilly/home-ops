@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-4d1a906@sha256:5fe3359a304fc7e29fa7685cd41b06023b9a49e6248adaa602a11bf74d2f5a82
+          image: ghcr.io/brianporeilly/burst-harness:sha-fcacb3f@sha256:89874a5b047dbf38ddaa072282551d84e2e9651eb686491efa6eb0ab8611267d
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -131,6 +131,13 @@ spec:
                 secretKeyRef:
                   name: burst-orchestrator-git-token
                   key: HARNESS_GIT_TOKEN
+            # The Settings tab's credentials are kept encrypted on the PVC with
+            # this key (secrets-key.sops.yaml), not one beside them.
+            - name: ORCHESTRATOR_SECRETS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: burst-orchestrator-secrets-key
+                  key: ORCHESTRATOR_SECRETS_KEY
             # Read-only root: kubectl's discovery cache goes under $HOME.
             - name: HOME
               value: /tmp

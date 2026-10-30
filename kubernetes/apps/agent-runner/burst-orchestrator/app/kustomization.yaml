@@ -6,6 +6,7 @@ resources:
   - ./serviceaccount.yaml
   - ./pvc.yaml
   - ./git-token.sops.yaml
+  - ./secrets-key.sops.yaml
   - ./deployment.yaml
   - ./service.yaml
   - ./httproute.yaml
