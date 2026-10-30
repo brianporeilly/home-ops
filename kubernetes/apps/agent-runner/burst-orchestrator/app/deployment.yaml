@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-621f41f@sha256:826e3797f8f1a3eb21b707cd7e90f2978b8a669db0328f9e65f9d7bf6e345069
+          image: ghcr.io/brianporeilly/burst-harness:sha-4d1a906@sha256:5fe3359a304fc7e29fa7685cd41b06023b9a49e6248adaa602a11bf74d2f5a82
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -93,6 +93,11 @@ spec:
               value: llamacpp
             - name: HARNESS_BASE_URL
               value: http://10.20.40.11:8080
+            # typhon's llama-server --ctx-size, which Strands measures the
+            # context against; replies are capped at half of it. Change it
+            # with the server's.
+            - name: HARNESS_CONTEXT_WINDOW_LIMIT
+              value: "65536"
             # MCP servers sessions connect to, through the gateway (the form
             # can change them for each session).
             - name: HARNESS_MCP
