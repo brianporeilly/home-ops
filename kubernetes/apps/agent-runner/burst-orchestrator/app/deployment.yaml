@@ -97,7 +97,7 @@ spec:
             # context against; replies are capped at half of it. Change it
             # with the server's.
             - name: HARNESS_CONTEXT_WINDOW_LIMIT
-              value: "262144"
+              value: "131072"
             # MCP servers sessions connect to, through the gateway (the form
             # can change them for each session).
             - name: HARNESS_MCP
