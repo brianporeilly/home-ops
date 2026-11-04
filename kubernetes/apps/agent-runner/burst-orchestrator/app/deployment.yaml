@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:sha-fcacb3f@sha256:89874a5b047dbf38ddaa072282551d84e2e9651eb686491efa6eb0ab8611267d
+          image: ghcr.io/brianporeilly/burst-harness:sha-d8be467@sha256:b628f0ec0b10d748de1900c8d27eaa66defcf52f5f43ca6157f34b8147c8efe4
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -115,6 +115,11 @@ spec:
               value: "1"
             - name: ORCHESTRATOR_TIMEZONE
               value: America/Anchorage
+            # Who may start tasks and ask questions from Slack, by member ID.
+            # The bot's tokens are entered in the Settings tab (kept encrypted
+            # on the PVC), and it connects out over Socket Mode: nothing comes in.
+            - name: ORCHESTRATOR_SLACK_USERS
+              value: U02SAAUU5B7
             # A job's sandbox claim is deleted after this, whatever happens to the run.
             - name: HARNESS_CLAIM_TTL
               value: "3600"
