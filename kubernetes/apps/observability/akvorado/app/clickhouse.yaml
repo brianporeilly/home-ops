@@ -24,7 +24,7 @@ spec:
         spec:
           containers:
             - name: clickhouse
-              image: clickhouse/clickhouse-server:26.9@sha256:bb444bf22035cbb25755420b7aa2f0909bc157af8dd9d2af7172916d3a4ab281
+              image: clickhouse/clickhouse-server:26.10@sha256:f4ee508b8757b1a9694ce65ed17d7c194294a2f401bcdb243aa7a65c1ca82986
               resources:
                 requests:
                   cpu: 500m
