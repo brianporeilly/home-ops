@@ -12,9 +12,11 @@
 # port, typhon's llama-server (its /v1/models names a session's model), and
 # HTTPS out.
 #
-# Tasks (a repo and a prompt, worked on until there is a PR) push and open
-# PRs with the GitHub token in git-token.sops.yaml: each burst is handed it
-# for its own git commands and `gh pr create`, and no session or job is.
+# Credentials a person enters (the GitHub token tasks push and open PRs with,
+# HARNESS_GIT_TOKEN; Slack's tokens; a model key) are set in the Settings tab
+# and kept encrypted on the PVC (secrets-key.sops.yaml), not in this repo.
+# Each burst is handed only what it needs: a task the git token, for its own
+# git commands and `gh pr create`; no session or job is.
 # There is no Anthropic key: tasks, like sessions, use typhon's model.
 apiVersion: apps/v1
 kind: Deployment
@@ -130,12 +132,6 @@ spec:
                 secretKeyRef:
                   name: cluster-watcher-token
                   key: token
-            # Tasks' (git-token.sops.yaml).
-            - name: HARNESS_GIT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: burst-orchestrator-git-token
-                  key: HARNESS_GIT_TOKEN
             # The Settings tab's credentials are kept encrypted on the PVC with
             # this key (secrets-key.sops.yaml), not one beside them.
             - name: ORCHESTRATOR_SECRETS_KEY
