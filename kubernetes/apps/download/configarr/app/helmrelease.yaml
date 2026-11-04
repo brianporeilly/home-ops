@@ -32,7 +32,7 @@ spec:
           app:
             image:
               repository: ghcr.io/raydak-labs/configarr
-              tag: 1.36.0@sha256:0d15c74cf74cd980bb2f9e9dd0cfdde1655a8f928e481c3258d7ccd4cde9dcbc
+              tag: 1.39.0@sha256:416ac26c7d5dcf081cae827e7477d32cb959fc1b24619c5fece48b1cf0093b52
             env:
               SONARR_API_KEY:
                 valueFrom:
