@@ -195,7 +195,7 @@ spec:
           app:
             image:
               repository: docker.io/rebelcore/jellyfin-exporter
-              tag: v1.5.3@sha256:b3bc15b69aafd18b94a58ee28712bd8283320c8d099d4083434088f1003294b4
+              tag: v1.6.0@sha256:a79a2f25d4948c683b7a42c4f669c4f8a19194b8f5afcb4be4e70eae86210859
             args:
               - --jellyfin.address=http://jellyfin.media.svc.cluster.local:8096
               # media/playing/system/users collectors are enabled by default -
