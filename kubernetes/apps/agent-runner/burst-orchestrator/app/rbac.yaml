@@ -1,0 +1,30 @@
+---
+# What the orchestrator does in its own namespace: each burst of a task as a
+# Job (deployment.yaml, ORCHESTRATOR_BURSTS=job), followed until it ends and
+# deleted to stop it; its pods read for their exit status, and its own pod for
+# the image bursts run from. Sandboxes are agent-sandbox-system's
+# (agent-sandbox/agent-sandbox/runner-rbac/orchestrator.yaml).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: burst-orchestrator
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: burst-orchestrator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: burst-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: burst-orchestrator
+    namespace: agent-runner

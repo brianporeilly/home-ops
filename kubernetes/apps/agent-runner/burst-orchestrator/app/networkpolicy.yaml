@@ -26,4 +26,13 @@ spec:
         selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
       destination:
         ports: [8700]
+    # A burst run as a Job (deployment.yaml, ORCHESTRATOR_BURSTS) fetching its
+    # credentials as it starts, with a token good once: it may reach this
+    # port, and the orchestrator answers it on that one path only.
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/component == 'burst' && app.kubernetes.io/name == 'burst-harness'
+      destination:
+        ports: [8700]
     - action: Deny

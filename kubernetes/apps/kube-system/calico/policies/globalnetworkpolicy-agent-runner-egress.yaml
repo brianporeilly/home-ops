@@ -17,6 +17,8 @@
 #   - burst-gateway's control port, to register the sandboxes it claims.
 #   - HTTPS to the internet: api.anthropic.com, github.com (gh pr create).
 #     Git clone/push traffic comes from the sandbox pod, not this one.
+#   - A task's burst run as a Job (app.kubernetes.io/component: burst): the
+#     orchestrator's port, where it fetches its credentials as it starts.
 # RFC1918 Deny before the internet Allow, as in the other agent policies.
 #
 # Selector matches the pod-template label set explicitly in
@@ -65,6 +67,16 @@ spec:
         selector: app.kubernetes.io/name == 'burst-gateway'
         namespaceSelector: kubernetes.io/metadata.name == 'agent-sandbox-system'
         ports: [8081]
+    # A burst's Job fetching its credentials from the orchestrator, with a
+    # token good once (burst-orchestrator/app/networkpolicy.yaml admits it).
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/component == 'burst'
+      destination:
+        selector: app.kubernetes.io/name == 'burst-harness' && app.kubernetes.io/component == 'orchestrator'
+        namespaceSelector: kubernetes.io/metadata.name == 'agent-runner'
+        ports: [8700]
     # Out-of-cluster llama-server (typhon). Must stay ABOVE the RFC1918
     # Deny - first match wins.
     - action: Allow
