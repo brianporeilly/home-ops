@@ -52,7 +52,7 @@ spec:
         persistence:
           enabled: true
           storageClass: ceph-block
-          size: 30Gi
+          size: 50Gi
       # Nebraska's own auth middleware (backend/pkg/middleware/auth.go
       # commonPaths) always exempts /v1/update (the Omaha device-update
       # endpoint Flatcar nodes actually call) and /apps, /apps/*,
