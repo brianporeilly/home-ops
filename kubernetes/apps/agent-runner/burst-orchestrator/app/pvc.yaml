@@ -1,7 +1,10 @@
 ---
-# /state: what each session was created with (orchestrator/<name>.json), so
-# starting it again means the same thing, and the gateway events of each
-# session removed (egress/). Session records themselves are ConfigMaps in
+# /orchestrator (ORCHESTRATOR_STATE_DIR): what is the orchestrator's alone,
+# which bursts never mount: the Settings tab's credentials (encrypted), API
+# tokens, task records, and what each session was created with
+# (orchestrator/<name>.json), so starting it again means the same thing. It held the harness's state too
+# until bursts became Jobs; deployment.yaml's migrate-state copied that to
+# burst-harness-shared-state. Session records themselves are ConfigMaps in
 # agent-sandbox-system, owned by their claims. ceph-block (RWO), as for
 # burst-harness-state; one replica, Recreate.
 apiVersion: v1
@@ -14,3 +17,18 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+# /state (HARNESS_STATE_DIR): the harness's state, shared by the orchestrator
+# and each burst's Job, which mounts it at the same path: a task's snapshot
+# between bursts, its output, questions' answers, approved egress, gateway
+# events. ReadWriteMany, so a burst's pod can be on any node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: burst-harness-shared-state
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: ceph-filesystem
+  resources:
+    requests:
+      storage: 2Gi

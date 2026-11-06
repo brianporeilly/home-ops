@@ -17,6 +17,14 @@
 # and kept encrypted on the PVC (secrets-key.sops.yaml), not in this repo.
 # Each burst is handed only what it needs: a task the git token, for its own
 # git commands and `gh pr create`; no session or job is.
+#
+# A task's bursts run as Jobs of their own (ORCHESTRATOR_BURSTS=job; rbac.yaml):
+# a rollout here doesn't cut one short, and its memory isn't this pod's. A
+# burst's Job runs as burst-harness (the example CronJob's account), from this
+# pod's image, mounting burst-harness-shared-state at /state. It holds no
+# credentials: it fetches them from this pod with a token good once
+# (networkpolicy.yaml). What is the orchestrator's alone stays on
+# burst-orchestrator-state, at /orchestrator, which bursts never mount.
 # There is no Anthropic key: tasks, like sessions, use typhon's model.
 apiVersion: apps/v1
 kind: Deployment
@@ -45,9 +53,42 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Once: the harness's state, which was on burst-orchestrator-state with
+        # the orchestrator's own files, copied to the shared volume. The
+        # orchestrator's files (credentials, tokens, records) stay where they
+        # are, now at /orchestrator; a task's output goes with the harness's.
+        - name: migrate-state
+          image: ghcr.io/brianporeilly/burst-harness:0.4.0@sha256:5330d70a7614e51e8d7aae571882664fa9e5bc472b980760cfdaf33164538c71
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              [ -e /state/.migrated ] && exit 0
+              cd /orchestrator
+              for f in * .[!.]*; do
+                case "$f" in
+                  "*"|".[!.]*"|credentials.enc|secrets.key|tokens.json|orchestrator|tasks|lost+found) ;;
+                  *) cp -a "$f" /state/ ;;
+                esac
+              done
+              for d in tasks/*/; do
+                if [ -f "$d/output.log" ]; then mkdir -p "/state/$d" && cp -a "$d/output.log" "/state/$d"; fi
+              done
+              touch /state/.migrated
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: state
+              mountPath: /state
+            - name: orchestrator-state
+              mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.2.0@sha256:48ccadaec4c47e399902e9885101ec4f8fb13b9ba11599bbf6751a528acc69d1
+          image: ghcr.io/brianporeilly/burst-harness:0.4.0@sha256:5330d70a7614e51e8d7aae571882664fa9e5bc472b980760cfdaf33164538c71
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -106,6 +147,15 @@ spec:
               value: context7=https://mcp.context7.com/mcp
             - name: HARNESS_STATE_DIR
               value: /state
+            - name: ORCHESTRATOR_STATE_DIR
+              value: /orchestrator
+            # Each burst of a task as a Job (rbac.yaml), mounting /state's volume.
+            - name: ORCHESTRATOR_BURSTS
+              value: job
+            - name: ORCHESTRATOR_BURST_VOLUME
+              value: burst-harness-shared-state
+            - name: ORCHESTRATOR_BURST_ACCOUNT
+              value: burst-harness
             # Jobs run on their cron triggers, in this timezone. A job starts
             # paused until resumed in the Jobs tab: typhon's llama-server has
             # crashed with two model clients at once, so nothing calls it on a
@@ -159,10 +209,12 @@ spec:
               cpu: 20m
               memory: 128Mi
             limits:
-              memory: 1Gi  # job runs (harness job run, with the strands loop) are its subprocesses
+              memory: 1Gi  # scheduled job runs (harness job run, with the strands loop) are its subprocesses
           volumeMounts:
             - name: state
               mountPath: /state
+            - name: orchestrator-state
+              mountPath: /orchestrator
             - name: tmp
               mountPath: /tmp
             - name: job-cluster-watcher
@@ -170,6 +222,9 @@ spec:
               readOnly: true
       volumes:
         - name: state
+          persistentVolumeClaim:
+            claimName: burst-harness-shared-state
+        - name: orchestrator-state
           persistentVolumeClaim:
             claimName: burst-orchestrator-state
         - name: tmp
