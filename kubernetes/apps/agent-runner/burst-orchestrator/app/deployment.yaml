@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.5.0@sha256:6b8b96ce605a2616f31ac47cfce2dd125dba13b94a6b373d197e186b69f67fd5
+          image: ghcr.io/brianporeilly/burst-harness:0.6.0@sha256:ed26bf33e5f303737f5283b429695b92a1f010773a1cfe53251165f2e00c18db
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.5.0@sha256:6b8b96ce605a2616f31ac47cfce2dd125dba13b94a6b373d197e186b69f67fd5
+          image: ghcr.io/brianporeilly/burst-harness:0.6.0@sha256:ed26bf33e5f303737f5283b429695b92a1f010773a1cfe53251165f2e00c18db
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -149,7 +149,8 @@ spec:
               value: /state
             - name: ORCHESTRATOR_STATE_DIR
               value: /orchestrator
-            # Each burst of a task as a Job (rbac.yaml), mounting /state's volume.
+            # Each burst of a task, and each job's run, as a Job (rbac.yaml),
+            # mounting /state's volume.
             - name: ORCHESTRATOR_BURSTS
               value: job
             - name: ORCHESTRATOR_BURST_VOLUME
@@ -209,7 +210,7 @@ spec:
               cpu: 20m
               memory: 128Mi
             limits:
-              memory: 1Gi  # scheduled job runs (harness job run, with the strands loop) are its subprocesses
+              memory: 1Gi  # the page, Slack and the scheduler; bursts and job runs are Jobs of their own
           volumeMounts:
             - name: state
               mountPath: /state
