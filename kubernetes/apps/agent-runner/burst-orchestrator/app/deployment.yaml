@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.6.0@sha256:ed26bf33e5f303737f5283b429695b92a1f010773a1cfe53251165f2e00c18db
+          image: ghcr.io/brianporeilly/burst-harness:0.9.0@sha256:33b9793b28ab4e8d4ddef4e57addf0866bee718b72d22a413414b173e5560e26
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.6.0@sha256:ed26bf33e5f303737f5283b429695b92a1f010773a1cfe53251165f2e00c18db
+          image: ghcr.io/brianporeilly/burst-harness:0.9.0@sha256:33b9793b28ab4e8d4ddef4e57addf0866bee718b72d22a413414b173e5560e26
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -221,6 +221,9 @@ spec:
             - name: job-cluster-watcher
               mountPath: /jobs/cluster-watcher
               readOnly: true
+            - name: job-daily-brief
+              mountPath: /jobs/daily-brief
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -237,3 +240,10 @@ spec:
               - { key: job.toml, path: job.toml }
               - { key: prompt.md, path: prompt.md }
               - { key: cluster_state.py, path: scripts/cluster_state.py }
+        - name: job-daily-brief
+          configMap:
+            name: burst-orchestrator-job-daily-brief
+            items:
+              - { key: job.toml, path: job.toml }
+              - { key: prompt.md, path: prompt.md }
+              - { key: brief_data.py, path: scripts/brief_data.py }

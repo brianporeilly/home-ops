@@ -20,3 +20,9 @@ configMapGenerator:
       - jobs/cluster-watcher/job.toml
       - jobs/cluster-watcher/prompt.md
       - jobs/cluster-watcher/cluster_state.py
+  # The daily brief (jobs/daily-brief/job.toml), mounted at /jobs/daily-brief.
+  - name: burst-orchestrator-job-daily-brief
+    files:
+      - jobs/daily-brief/job.toml
+      - jobs/daily-brief/prompt.md
+      - jobs/daily-brief/brief_data.py

@@ -1,0 +1,45 @@
+# The daily-brief job from strands-harness (examples/jobs/daily-brief), as this
+# cluster runs it: today's calendar and the mail since yesterday that may need
+# you, posted as a DM from the Slack bot. prompt.md and brief_data.py are
+# the example's; keep them in step with it when it changes.
+#
+# It reads Gmail and Calendar with one Google sign-in (`harness oauth`):
+# GOOGLE_REFRESH_TOKEN, GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+# are set in burst-orchestrator's Settings tab, not here.
+#
+# Where it runs (agent-sandbox, the pool, the gateway) is set by the
+# orchestrator's environment, so this file stays a job and not a deployment.
+
+# Mail is read by the model, so it stays on our own: the model is called from
+# the driver, typhon's llama-server, and no hosted model sees it.
+provider = "llamacpp"
+base_url = "http://10.20.40.11:8080"
+model_timeout = 900
+
+# The sandbox reaches only Google's APIs, through the gateway, which adds the
+# access token for them below.
+egress_allow = []
+
+[job]
+trigger = "30 6 * * *"  # burst-orchestrator's scheduler, in America/Anchorage; paused until resumed in its Jobs tab
+# The gateway lets the sandbox read and nothing else: whatever a message says,
+# this job cannot send, archive or delete.
+mode = "report"
+# slack:MEMBER_ID posts to that person's DM with the bot (ORCHESTRATOR_SLACK_USERS).
+output = ["stdout", "file:/state/reports/daily-brief/%Y-%m-%d.md", "slack:U02SAAUU5B7"]
+
+# The refresh token is exchanged for an access token by the driver as a run
+# starts; the gateway adds that to requests to each host. The sandbox holds neither.
+[job.secrets.mail]
+env = "GOOGLE_REFRESH_TOKEN"
+host = "gmail.googleapis.com"
+token_url = "https://oauth2.googleapis.com/token"
+client_id_env = "GOOGLE_OAUTH_CLIENT_ID"
+client_secret_env = "GOOGLE_OAUTH_CLIENT_SECRET"
+
+[job.secrets.calendar]
+env = "GOOGLE_REFRESH_TOKEN"
+host = "www.googleapis.com"
+token_url = "https://oauth2.googleapis.com/token"
+client_id_env = "GOOGLE_OAUTH_CLIENT_ID"
+client_secret_env = "GOOGLE_OAUTH_CLIENT_SECRET"
