@@ -224,6 +224,9 @@ spec:
             - name: job-daily-brief
               mountPath: /jobs/daily-brief
               readOnly: true
+            - name: job-mail-sorter
+              mountPath: /jobs/mail-sorter
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -247,3 +250,10 @@ spec:
               - { key: job.toml, path: job.toml }
               - { key: prompt.md, path: prompt.md }
               - { key: brief_data.py, path: scripts/brief_data.py }
+        - name: job-mail-sorter
+          configMap:
+            name: burst-orchestrator-job-mail-sorter
+            items:
+              - { key: job.toml, path: job.toml }
+              - { key: prompt.md, path: prompt.md }
+              - { key: sort_mail.py, path: scripts/sort_mail.py }

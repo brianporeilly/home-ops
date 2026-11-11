@@ -26,3 +26,9 @@ configMapGenerator:
       - jobs/daily-brief/job.toml
       - jobs/daily-brief/prompt.md
       - jobs/daily-brief/brief_data.py
+  # The mail sorter (jobs/mail-sorter/job.toml), mounted at /jobs/mail-sorter.
+  - name: burst-orchestrator-job-mail-sorter
+    files:
+      - jobs/mail-sorter/job.toml
+      - jobs/mail-sorter/prompt.md
+      - jobs/mail-sorter/sort_mail.py

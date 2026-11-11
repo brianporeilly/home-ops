@@ -1,0 +1,44 @@
+# The mail-sorter job from strands-harness (examples/jobs/mail-sorter), as this
+# cluster runs it: each morning a plan to archive, mark read or label inbox
+# mail by sender, posted as a DM from the Slack bot with a button per item (and
+# in burst-orchestrator's Jobs tab). prompt.md and sort_mail.py are the
+# example's; keep them in step with it when it changes.
+#
+# A dry run for now: the Google token in burst-orchestrator's Settings may only
+# read mail, so approving says what would be done and changes nothing, and no
+# writes are let through the gateway. To let it act, sign in again with
+# gmail.modify (see the example), drop --dry-run, and add the example's
+# apply_writes.
+#
+# Where it runs (agent-sandbox, the pool, the gateway) is set by the
+# orchestrator's environment, so this file stays a job and not a deployment.
+
+# Mail is read by the model, so it stays on our own: the model is called from
+# the driver, typhon's llama-server, and no hosted model sees it.
+provider = "llamacpp"
+base_url = "http://10.20.40.11:8080"
+model_timeout = 900
+
+# The sandbox reaches only Gmail, through the gateway, which adds the access
+# token for it below.
+egress_allow = []
+
+[job]
+trigger = "0 6 * * *"  # burst-orchestrator's scheduler, in America/Anchorage; paused until resumed in its Jobs tab
+# The run that proposes is read-only at the gateway, whatever a message says.
+mode = "act"
+# The run that applies calls no model; with --dry-run it only reads.
+apply = "python3 scripts/sort_mail.py apply approved.json --dry-run"
+plan_ttl = "12h"
+# slack:MEMBER_ID posts to that person's DM with the bot (ORCHESTRATOR_SLACK_USERS),
+# the plan's buttons with it.
+output = ["stdout", "file:/state/reports/mail-sorter/%Y-%m-%d.md", "slack:U02SAAUU5B7"]
+
+# The refresh token is exchanged for an access token by the driver as a run
+# starts; the gateway adds that to requests to Gmail. The sandbox holds neither.
+[job.secrets.mail]
+env = "GOOGLE_REFRESH_TOKEN"
+host = "gmail.googleapis.com"
+token_url = "https://oauth2.googleapis.com/token"
+client_id_env = "GOOGLE_OAUTH_CLIENT_ID"
+client_secret_env = "GOOGLE_OAUTH_CLIENT_SECRET"
