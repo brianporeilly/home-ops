@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.14.0@sha256:f134bf42fd891569ca0c24989e9cfc544aeae108f9a44aa3bdaa8d4261fd9218
+          image: ghcr.io/brianporeilly/burst-harness:0.16.0@sha256:a7f87a9a559fc41c5cfcaccd4612b23e75b9f3ff60522f4e1936df43ce18ed5e
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.14.0@sha256:f134bf42fd891569ca0c24989e9cfc544aeae108f9a44aa3bdaa8d4261fd9218
+          image: ghcr.io/brianporeilly/burst-harness:0.16.0@sha256:a7f87a9a559fc41c5cfcaccd4612b23e75b9f3ff60522f4e1936df43ce18ed5e
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -168,6 +168,11 @@ spec:
               value: "1"
             - name: ORCHESTRATOR_TIMEZONE
               value: America/Anchorage
+            # Runs on typhon's llama-server also wait while it is busy with requests
+            # not ours (a benchmark). A job naming its model_id waits, regardless,
+            # while the server serves another.
+            - name: ORCHESTRATOR_WAIT_FOR_IDLE_SERVERS
+              value: "1"
             # Who may start tasks and ask questions from Slack, by member ID.
             # The bot's tokens are entered in the Settings tab (kept encrypted
             # on the PVC), and it connects out over Socket Mode: nothing comes in.

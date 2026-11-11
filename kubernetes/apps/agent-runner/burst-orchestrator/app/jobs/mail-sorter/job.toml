@@ -17,6 +17,9 @@
 # the driver, typhon's llama-server, and no hosted model sees it.
 provider = "llamacpp"
 base_url = "http://10.20.40.11:8080"
+# The model it runs on: while typhon serves another (a smaller one being
+# benchmarked), a run waits rather than going ahead on that.
+model_id = "Qwen3.8-27B-PXQN6"
 model_timeout = 900
 
 # The sandbox reaches only Gmail, through the gateway, which adds the access
