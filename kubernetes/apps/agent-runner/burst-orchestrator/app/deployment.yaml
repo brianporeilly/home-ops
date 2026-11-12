@@ -232,6 +232,9 @@ spec:
             - name: job-mail-sorter
               mountPath: /jobs/mail-sorter
               readOnly: true
+            - name: job-price-watch
+              mountPath: /jobs/price-watch
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -262,3 +265,11 @@ spec:
               - { key: job.toml, path: job.toml }
               - { key: prompt.md, path: prompt.md }
               - { key: sort_mail.py, path: scripts/sort_mail.py }
+        - name: job-price-watch
+          configMap:
+            name: burst-orchestrator-job-price-watch
+            items:
+              - { key: job.toml, path: job.toml }
+              - { key: prompt.md, path: prompt.md }
+              - { key: prices.py, path: scripts/prices.py }
+              - { key: products.toml, path: scripts/products.toml }

@@ -32,3 +32,10 @@ configMapGenerator:
       - jobs/mail-sorter/job.toml
       - jobs/mail-sorter/prompt.md
       - jobs/mail-sorter/sort_mail.py
+  # The price watch (jobs/price-watch/job.toml), mounted at /jobs/price-watch.
+  - name: burst-orchestrator-job-price-watch
+    files:
+      - jobs/price-watch/job.toml
+      - jobs/price-watch/prompt.md
+      - jobs/price-watch/prices.py
+      - jobs/price-watch/products.toml
