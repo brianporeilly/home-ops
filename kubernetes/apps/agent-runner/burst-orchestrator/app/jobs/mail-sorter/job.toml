@@ -1,4 +1,4 @@
-# The mail-sorter job from strands-harness (examples/jobs/mail-sorter), as this
+# The mail-sorter job from burst-harness (examples/jobs/mail-sorter), as this
 # cluster runs it: each morning a plan to archive, mark read or label inbox
 # mail by sender, posted as a DM from the Slack bot with a button per item (and
 # in burst-orchestrator's Jobs tab). prompt.md and sort_mail.py are the

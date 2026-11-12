@@ -510,7 +510,7 @@ laptop is just another driver, using its own kubeconfig and keys:
 coding-agent --repo-url ... chat <slug>`.
 
 **Known gaps:**
-- Images are published from github.com/brianporeilly/strands-harness
+- Images are published from github.com/brianporeilly/burst-harness
   (`sha-<commit>` and `main` tags) and pinned by digest here, currently
   `sha-e4bed0d`. The repo is private; the GHCR packages must be set
   **public** or nothing can pull them (no imagePullSecret is configured, by
