@@ -99,20 +99,29 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
+          # A Bevy build uses every core it gets, and its link step several
+          # GiB. CPU above the request is spare capacity, throttled rather than
+          # killed. Memory stays at 8Gi: workers run at 50-65% memory, and a
+          # sandbox past its limit is OOM-killed, not slowed.
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: "1"
+              memory: 3Gi
             limits:
-              cpu: "2"
-              memory: 4Gi
+              cpu: "6"
+              memory: 8Gi
           volumeMounts:
             - name: workspace
               mountPath: /workspace
+            - name: build-cache
+              mountPath: /cache
             - name: gateway-ca
               mountPath: /etc/burst-gateway
               readOnly: true
       volumes:
+        - name: build-cache
+          persistentVolumeClaim:
+            claimName: sandbox-build-cache
         # The gateway's CA certificate only; its key stays with the gateway.
         - name: gateway-ca
           secret:

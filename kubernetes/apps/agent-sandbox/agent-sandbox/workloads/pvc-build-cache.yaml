@@ -1,0 +1,21 @@
+---
+# Shared by every coding-agent sandbox at /cache: the agent's builds keep their
+# work here between bursts (burst-harness build_cache, HARNESS_BUILD_CACHE on
+# the orchestrator). For Rust, cargo's downloads (/cache/cargo) and each repo's
+# build output (/cache/target/<repo>): a Bevy build is done once, not once per
+# burst. Cargo locks both itself, so two sandboxes building at once wait for
+# each other.
+#
+# CephFS, so every sandbox mounts it at once. Its data pool is on HDD, which is
+# far quicker than building again. Anything a sandbox writes here, the next
+# one reads: a cache, not a boundary between tasks.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sandbox-build-cache
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: ceph-filesystem
+  resources:
+    requests:
+      storage: 100Gi
