@@ -31,5 +31,30 @@
       // required checks pass.
       automergeType: "pr",
     },
+    {
+      description: "Auto-merge minor bumps for a short allowlist of low-blast-radius apps. Operators, ingress, CRD charts and databases stay manual - add apps here deliberately.",
+      matchUpdateTypes: ["minor"],
+      matchManagers: ["flux", "helm-values", "regex", "kubernetes"],
+      matchPackageNames: [
+        "/rclone\\/rclone$/",
+        "ghcr.io/bookorbit/bookorbit",
+        "ghcr.io/home-operations/sonarr",
+        "ghcr.io/home-operations/radarr",
+        "ghcr.io/home-operations/prowlarr",
+        "ghcr.io/home-operations/lidarr",
+        "ghcr.io/home-operations/bazarr",
+      ],
+      minimumReleaseAge: "3 days",
+      automerge: true,
+      automergeType: "pr",
+    },
+    {
+      description: "0.37.x charts fail to install here (GpuDevicePlugin CRD lacks monitoringMode, operator webhook config renders without clientConfig). Re-enable after verifying an upgrade in a dry run.",
+      matchPackageNames: [
+        "ghcr.io/intel/helm-charts/intel-device-plugins-gpu",
+        "ghcr.io/intel/helm-charts/intel-device-plugins-operator",
+      ],
+      enabled: false,
+    },
   ],
 }
