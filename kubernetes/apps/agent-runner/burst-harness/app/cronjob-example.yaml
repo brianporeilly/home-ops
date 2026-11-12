@@ -19,7 +19,7 @@
 # 3 = waiting on a human answer, 1 = no terminal state.
 #
 # Image: the burst-harness driver, published by the images workflow in
-# github.com/brianporeilly/strands-harness (tagged sha-<commit> and main).
+# github.com/brianporeilly/burst-harness (tagged sha-<commit> and main).
 apiVersion: batch/v1
 kind: CronJob
 metadata:

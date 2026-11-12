@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/apps/deployment_v1.json
 #
-# burst-gateway, shared (github.com/brianporeilly/strands-harness, gateway/;
+# burst-gateway, shared (github.com/brianporeilly/burst-harness, gateway/;
 # ROADMAP phase 6): every sandbox in this namespace reaches the network
 # through it and nothing else (globalnetworkpolicy-agent-sandbox-workloads-
 # egress.yaml). It knows sandboxes by pod IP and refuses any it was not told

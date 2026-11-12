@@ -1,4 +1,4 @@
-# The cluster-watcher job from strands-harness (examples/jobs/cluster-watcher),
+# The cluster-watcher job from burst-harness (examples/jobs/cluster-watcher),
 # as this cluster runs it: burst-orchestrator mounts this directory and runs
 # `harness job run` on it, on the trigger below or from its Jobs tab.
 # prompt.md and cluster_state.py are the example's, with this cluster's API

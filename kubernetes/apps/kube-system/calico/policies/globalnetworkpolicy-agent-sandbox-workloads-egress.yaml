@@ -12,7 +12,7 @@
 #
 # Sandboxes reach burst-gateway's proxy port and nothing else
 # (kubernetes/apps/agent-sandbox/agent-sandbox/gateway/, ROADMAP phase 6 in
-# strands-harness). The gateway decides, per sandbox, what is let through,
+# burst-harness). The gateway decides, per sandbox, what is let through,
 # records every request, and adds credentials the sandbox never holds; this
 # policy is what makes it the only way out. No DNS either: software using
 # the proxy never resolves a name itself, and kube-dns forwarding outside

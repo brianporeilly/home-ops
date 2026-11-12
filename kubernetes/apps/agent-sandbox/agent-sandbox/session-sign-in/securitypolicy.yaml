@@ -5,7 +5,7 @@
 # by label since they come and go. Once signed in, Envoy adds each UI's own
 # login (opencode's password, the terminal's cookie) with the
 # HTTPRouteFilter the harness puts on each route (session_sign_in, see
-# strands-harness harness/cluster_session.py); the harness refuses to start
+# burst-harness harness/cluster_session.py); the harness refuses to start
 # a session unless this policy is here.
 #
 # As the authentik/protect component, with these differences:

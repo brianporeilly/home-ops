@@ -1,4 +1,4 @@
-# The daily-brief job from strands-harness (examples/jobs/daily-brief), as this
+# The daily-brief job from burst-harness (examples/jobs/daily-brief), as this
 # cluster runs it: today's calendar and the mail since yesterday that may need
 # you, posted as a DM from the Slack bot. prompt.md and brief_data.py are
 # the example's; keep them in step with it when it changes.

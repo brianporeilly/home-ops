@@ -1,6 +1,6 @@
 ---
 # The cluster-watcher job (examples/jobs/cluster-watcher in
-# github.com/brianporeilly/strands-harness): read what its cluster_state.py
+# github.com/brianporeilly/burst-harness): read what its cluster_state.py
 # reads, and nothing else - no secrets, no configmaps, no exec, no writes.
 #
 # Its token is added to requests by the burst-harness egress gateway, never
