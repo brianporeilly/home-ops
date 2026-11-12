@@ -157,6 +157,10 @@ spec:
               value: burst-harness-shared-state
             - name: ORCHESTRATOR_BURST_ACCOUNT
               value: burst-harness
+            # Two tasks at once, say a Claude Code one beside one on typhon.
+            # A llama.cpp server still has one run at a time, whatever this is.
+            - name: ORCHESTRATOR_TASK_LIMIT
+              value: "2"
             # Jobs run on their cron triggers, in this timezone. A job starts
             # paused until resumed in the Jobs tab: typhon's llama-server has
             # crashed with two model clients at once, so nothing calls it on a
