@@ -51,7 +51,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: harness
-              image: ghcr.io/brianporeilly/burst-harness:0.2.0@sha256:48ccadaec4c47e399902e9885101ec4f8fb13b9ba11599bbf6751a528acc69d1
+              image: ghcr.io/brianporeilly/burst-harness:0.24.0@sha256:9e2aec1094ef505b4612797d4225b2ff8987aaafcfab80ec51d9231000b0ce2b
               args: ["session", "reap"]
               env:
                 - name: HARNESS_TARGET
