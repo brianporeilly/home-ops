@@ -25,6 +25,11 @@
   ],
   "packageRules": [
     {
+      "description": "burst-harness: its images (orchestrator, sandbox, gateway) are released together from one repo, so they're bumped together in one PR, on one version. Patch releases automerge as a group (automerge.json5); minor ones, breaking below 1.0, wait for review.",
+      "matchPackageNames": ["/^ghcr\\.io\\/brianporeilly\\/burst-harness/"],
+      "groupName": "burst-harness"
+    },
+    {
       "description": "Group app-template chart updates",
       "matchPackageNames": ["ghcr.io/bjw-s-labs/helm/app-template"],
       "groupName": "app-template",
