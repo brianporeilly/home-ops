@@ -58,6 +58,19 @@ spec:
         nets:
           - 10.20.40.11/32
         ports: [8080]
+    # The internal Envoy gateway (10.21.0.2, envoy-internal's pods on 10443
+    # after the Service's DNAT): Forgejo, forgejo.internal.oreillys.io, for
+    # tasks' and jobs' repos. Every route on envoy-internal is reachable
+    # this way, not Forgejo alone: Calico sees an address and a port, not
+    # a host name. A sandbox's git goes through the gateway, which still
+    # holds it to its own allowlist of hosts. Must stay ABOVE the RFC1918
+    # Deny.
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+        ports: [10443]
     - action: Deny
       protocol: TCP
       destination:
