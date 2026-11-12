@@ -32,3 +32,15 @@ configMapGenerator:
       - jobs/mail-sorter/job.toml
       - jobs/mail-sorter/prompt.md
       - jobs/mail-sorter/sort_mail.py
+  # The price watch (jobs/price-watch/job.toml), mounted at /jobs/price-watch.
+  - name: burst-orchestrator-job-price-watch
+    files:
+      - jobs/price-watch/job.toml
+      - jobs/price-watch/prompt.md
+      - jobs/price-watch/prices.py
+      - jobs/price-watch/products.toml
+    # prices.py writes prices as f"${value:.2f}", which Flux would take for its
+    # own ${VAR} substitution and fail on: this ConfigMap is passed as is.
+    options:
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

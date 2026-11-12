@@ -1,0 +1,19 @@
+# TCGplayer prices for the products in products.toml, once a day, with a DM
+# only when the model judges one worth sending; quiet otherwise (the Jobs tab
+# keeps each run's report, saying why). From burst-harness's
+# examples/jobs/price-watch.
+
+provider = "llamacpp"
+base_url = "http://10.20.40.11:8080"
+model_id = "Qwen3.8-27B-PXQN6"
+model_timeout = 900
+
+# The sandbox reaches TCGplayer's product details, and only to read them.
+egress_allow = ["mp-search-api.tcgplayer.com"]
+
+[job]
+trigger = "22 13 * * *"  # burst-orchestrator's scheduler, in America/Anchorage; paused until resumed in its Jobs tab
+mode = "report"
+memory = true
+quiet = true
+output = ["stdout", "file:/state/reports/price-watch/%Y-%m-%d.md", "slack:U02SAAUU5B7"]

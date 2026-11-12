@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.17.0@sha256:71fef583008b6bafccf1397fcf900ad8fcd343feb4167cff58cb976067730f5f
+          image: ghcr.io/brianporeilly/burst-harness:0.18.0@sha256:7b01f81f5b06c7b544f84057491822b45b569921137896fb5d3a3888f6f8212e
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.17.0@sha256:71fef583008b6bafccf1397fcf900ad8fcd343feb4167cff58cb976067730f5f
+          image: ghcr.io/brianporeilly/burst-harness:0.18.0@sha256:7b01f81f5b06c7b544f84057491822b45b569921137896fb5d3a3888f6f8212e
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -232,6 +232,9 @@ spec:
             - name: job-mail-sorter
               mountPath: /jobs/mail-sorter
               readOnly: true
+            - name: job-price-watch
+              mountPath: /jobs/price-watch
+              readOnly: true
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -262,3 +265,11 @@ spec:
               - { key: job.toml, path: job.toml }
               - { key: prompt.md, path: prompt.md }
               - { key: sort_mail.py, path: scripts/sort_mail.py }
+        - name: job-price-watch
+          configMap:
+            name: burst-orchestrator-job-price-watch
+            items:
+              - { key: job.toml, path: job.toml }
+              - { key: prompt.md, path: prompt.md }
+              - { key: prices.py, path: scripts/prices.py }
+              - { key: products.toml, path: scripts/products.toml }
