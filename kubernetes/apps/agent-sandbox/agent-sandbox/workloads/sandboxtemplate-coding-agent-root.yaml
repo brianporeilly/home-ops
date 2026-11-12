@@ -40,7 +40,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: agent
-          image: ghcr.io/brianporeilly/burst-harness-sandbox:0.24.0@sha256:e38d2af7a529b8d51fd51951392a8835bec47ec4e2ad971272b9ebf99ce4612b
+          image: ghcr.io/brianporeilly/burst-harness-sandbox:0.25.0@sha256:d0862e786b67c7bd562a76eb360d865baf94b99d7cfa58a2f480651140bc8be8
           # `args`, NOT `command`: `command` replaces the image ENTRYPOINT
           # (burst-sandbox-init, which composes ~/.claude.json and
           # ~/.claude/settings.json at start), `args` only replaces its CMD.
