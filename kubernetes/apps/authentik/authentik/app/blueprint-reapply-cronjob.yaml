@@ -43,7 +43,7 @@ spec:
               # rancher/kubectl has no shell at all (confirmed live: "stat
               # /bin/sh: no such file or directory") - this one bundles
               # kubectl with a full alpine shell.
-              image: docker.io/alpine/k8s:1.37.2@sha256:bd844bea70da4fbca6e10062d0e282809874045a86aaf60e58ca5a296f04d99d
+              image: docker.io/alpine/k8s:1.37.2@sha256:a63d9b596606b79abe71446bcda63da1118f2b6c8fb32ead4e416ccf32b58dea
               command:
                 - /bin/sh
                 - -c
