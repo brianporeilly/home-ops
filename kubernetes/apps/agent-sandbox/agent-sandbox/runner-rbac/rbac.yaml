@@ -5,7 +5,9 @@
 # else:
 #   sandboxclaims  create (claim from the warm pool), get/watch (kubectl wait
 #                  for Ready, read .status.sandbox.name), list (`harness
-#                  list`), delete (release at a terminal state)
+#                  list`), delete (release at a terminal state), patch
+#                  (move the deadline on when a burst reattaches to a kept
+#                  sandbox)
 #   pods           get - kubectl exec looks the pod up first
 #   pods/exec      create, plus get: kubectl >=1.30 execs over WebSockets,
 #                  an HTTP GET upgrade, which older apiservers authorize as
@@ -20,7 +22,7 @@ metadata:
 rules:
   - apiGroups: ["extensions.agents.x-k8s.io"]
     resources: ["sandboxclaims"]
-    verbs: ["get", "list", "watch", "create", "delete"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get"]
