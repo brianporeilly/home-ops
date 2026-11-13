@@ -57,7 +57,7 @@ spec:
             fsGroupChangePolicy: OnRootMismatch
           containers:
             - name: harness
-              image: ghcr.io/brianporeilly/burst-harness:0.26.0@sha256:129a78c757aa3f8d0ac6939f15be5223bbf997aebc568a4dba5eb7127ee209ba
+              image: ghcr.io/brianporeilly/burst-harness:0.26.1@sha256:ae5eb2b6b72ba9dcdac0c76fd236ce59d9e8d4da0b7a6d43a3751cbe524f90d1
               args:
                 - run
                 - example
