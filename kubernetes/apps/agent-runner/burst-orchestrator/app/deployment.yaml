@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.25.0@sha256:e778f6e9dc0a8bfc2203e743a7c695d0b838d042b10f15c68fcafe06780a2034
+          image: ghcr.io/brianporeilly/burst-harness:0.26.0@sha256:129a78c757aa3f8d0ac6939f15be5223bbf997aebc568a4dba5eb7127ee209ba
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.25.0@sha256:e778f6e9dc0a8bfc2203e743a7c695d0b838d042b10f15c68fcafe06780a2034
+          image: ghcr.io/brianporeilly/burst-harness:0.26.0@sha256:129a78c757aa3f8d0ac6939f15be5223bbf997aebc568a4dba5eb7127ee209ba
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -151,6 +151,12 @@ spec:
             # envoy-internal (calico: allow-agent-runner-egress).
             - name: HARNESS_FORGES
               value: forgejo=https://forgejo.internal.oreillys.io
+            # A coding-agent sandbox's shared build cache (agent-sandbox's
+            # pvc-build-cache.yaml, at /cache): cargo keeps its downloads and
+            # each repo's build output there, so a burst doesn't build again
+            # what the last one built. A sandbox without it builds as before.
+            - name: HARNESS_BUILD_CACHE
+              value: /cache
             - name: HARNESS_STATE_DIR
               value: /state
             - name: ORCHESTRATOR_STATE_DIR
