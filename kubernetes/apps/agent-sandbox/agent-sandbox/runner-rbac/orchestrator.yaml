@@ -5,7 +5,11 @@
 #   sandboxclaims  create (claim from coding-agent or coding-agent-root), get,
 #                  list, watch (wait for Ready), delete (`rm`)
 #   sandboxes      get, list (which pod; stopped or running), patch
-#                  (operatingMode: Suspended / Running - stop and start)
+#                  (operatingMode: Suspended / Running - stop and start),
+#                  delete - a warm pool's idle sandbox out of date with its
+#                  template, after an image bump (harness/warm_pool.py; only
+#                  with preconditions, so never one a claim has taken)
+#   sandboxtemplates  get - what the warm pools' sandboxes should be
 #   pods           get, list, watch - the pod's address, and `kubectl wait
 #                  --for=delete` on a stop
 #   pods/exec      create, plus get (kubectl execs over a WebSocket, a GET):
@@ -23,7 +27,7 @@
 #                  them (credentialInjection), owned by the claim
 #   securitypolicies  list - a session is refused unless one signs people
 #                  in on its routes (session-sign-in/)
-# No reading Secrets, no SandboxTemplate/SandboxWarmPool, no other namespace.
+# No reading Secrets, no changing SandboxTemplate/SandboxWarmPool, no other namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -34,7 +38,10 @@ rules:
     verbs: ["get", "list", "watch", "create", "delete"]
   - apiGroups: ["agents.x-k8s.io"]
     resources: ["sandboxes"]
-    verbs: ["get", "list", "patch"]
+    verbs: ["get", "list", "patch", "delete"]
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxtemplates"]
+    verbs: ["get"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
