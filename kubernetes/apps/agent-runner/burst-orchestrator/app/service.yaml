@@ -11,3 +11,6 @@ spec:
     - name: http
       port: 8700
       targetPort: http
+    - name: hooks
+      port: 8701
+      targetPort: hooks

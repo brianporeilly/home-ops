@@ -81,6 +81,9 @@ spec:
               FORGEJO__mailer__SMTP_ADDR: maddy.misc.svc.cluster.local
               FORGEJO__mailer__SMTP_PORT: "25"
               FORGEJO__mailer__FROM: forgejo@oreillys.io
+              # Webhooks may go to the internet (Forgejo's default) and to the
+              # burst orchestrator's webhook port; no other cluster address.
+              FORGEJO__webhook__ALLOWED_HOST_LIST: external,burst-orchestrator.agent-runner.svc.cluster.local
             probes:
               liveness: &probes
                 enabled: true

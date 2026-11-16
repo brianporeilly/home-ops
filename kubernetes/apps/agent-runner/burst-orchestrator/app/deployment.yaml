@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.31.0@sha256:364577b8acf2437e46b992639a047f5fa2826031703e4f8ee6c54f066cc707dc
+          image: ghcr.io/brianporeilly/burst-harness:0.33.1@sha256:047869b5e255e0ebcae9e436de1b54234830d58019e912d9ac72167163278305
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.31.0@sha256:364577b8acf2437e46b992639a047f5fa2826031703e4f8ee6c54f066cc707dc
+          image: ghcr.io/brianporeilly/burst-harness:0.33.1@sha256:047869b5e255e0ebcae9e436de1b54234830d58019e912d9ac72167163278305
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -100,6 +100,8 @@ spec:
           ports:
             - name: http
               containerPort: 8700
+            - name: hooks
+              containerPort: 8701
           env:
             - name: HARNESS_TARGET
               value: agent-sandbox
@@ -194,6 +196,12 @@ spec:
             # on the PVC), and it connects out over Socket Mode: nothing comes in.
             - name: ORCHESTRATOR_SLACK_USERS
               value: U02SAAUU5B7
+            # Webhooks from Forgejo (a merged PR, a push to a repo of jobs),
+            # on a port of their own that answers /hooks/ and nothing else:
+            # Forgejo may reach it (networkpolicy.yaml), and each delivery is
+            # signed with FORGEJO_WEBHOOK_SECRET (the Settings tab).
+            - name: ORCHESTRATOR_HOOKS_PORT
+              value: "8701"
             # A job's sandbox claim is deleted after this, whatever happens to the run.
             - name: HARNESS_CLAIM_TTL
               value: "3600"
