@@ -1,6 +1,7 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_networkpolicies.yaml
-# envoy-internal, and nothing else, may reach the orchestrator. It trusts the
+# envoy-internal, and nothing else, may reach the orchestrator's page and API
+# (8700); Forgejo, its webhook port (8701) and nothing more. It trusts the
 # Remote-User header, which only Envoy verifies (the protect component's jwt
 # block), so anything else that could reach the pod could claim to be anyone.
 #
@@ -35,4 +36,13 @@ spec:
         selector: app.kubernetes.io/component == 'burst' && app.kubernetes.io/name == 'burst-harness'
       destination:
         ports: [8700]
+    # Forgejo's webhooks, on the port that answers /hooks/ only (and so never
+    # trusts Remote-User); each delivery is checked against its signature.
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == 'misc'
+        selector: app.kubernetes.io/name == 'forgejo' && app.kubernetes.io/controller == 'forgejo'
+      destination:
+        ports: [8701]
     - action: Deny
