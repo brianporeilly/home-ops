@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.38.0@sha256:44d75c6229ee3a485a5bf9d7a2daaff457804ece1858d96ab5c7a9a3bd004f30
+          image: ghcr.io/brianporeilly/burst-harness:0.38.0@sha256:f90fa0b0538aafa7469973c6be38f16dc10453e26e1db91ad07902c3aa0d1034
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.38.0@sha256:44d75c6229ee3a485a5bf9d7a2daaff457804ece1858d96ab5c7a9a3bd004f30
+          image: ghcr.io/brianporeilly/burst-harness:0.38.0@sha256:f90fa0b0538aafa7469973c6be38f16dc10453e26e1db91ad07902c3aa0d1034
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
