@@ -58,6 +58,11 @@ spec:
       fsGroupChangePolicy: OnRootMismatch
   maintenance:
     namespace: kopiur-system
+  # Hourly snapshots across ~40 apps pile up thousands of index blobs; the 24h
+  # default epoch only compacts them once a day, and every mover reads them all.
+  parameters:
+    epoch:
+      minDuration: 6h
   scheduleDefaults:
     timezone: UTC
   # Ad hoc browse/restore UI - "pick a snapshot, mount it, pull a file" per
