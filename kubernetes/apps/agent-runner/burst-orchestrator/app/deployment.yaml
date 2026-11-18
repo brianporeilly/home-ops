@@ -59,7 +59,7 @@ spec:
         # orchestrator's files (credentials, tokens, records) stay where they
         # are, now at /orchestrator; a task's output goes with the harness's.
         - name: migrate-state
-          image: ghcr.io/brianporeilly/burst-harness:0.42.0@sha256:0a097ace77923e3531c5179c28e35910ab2cde49320e302a88b0ed9dd8cfb90c
+          image: ghcr.io/brianporeilly/burst-harness:0.43.2@sha256:0a097ace77923e3531c5179c28e35910ab2cde49320e302a88b0ed9dd8cfb90c
           command:
             - sh
             - -c
@@ -88,7 +88,7 @@ spec:
               mountPath: /orchestrator
       containers:
         - name: orchestrator
-          image: ghcr.io/brianporeilly/burst-harness:0.42.0@sha256:0a097ace77923e3531c5179c28e35910ab2cde49320e302a88b0ed9dd8cfb90c
+          image: ghcr.io/brianporeilly/burst-harness:0.43.2@sha256:0a097ace77923e3531c5179c28e35910ab2cde49320e302a88b0ed9dd8cfb90c
           command: ["python", "-m", "orchestrator"]
           args:
             - --listen=0.0.0.0
@@ -143,6 +143,14 @@ spec:
             # with the server's.
             - name: HARNESS_CONTEXT_WINDOW_LIMIT
               value: "131072"
+            # A review before each task's PR (review_with), by typhon's model as a
+            # read-only profile. It runs once a burst, after the repo's
+            # check_command passes; findings go back to the lead once, then into
+            # the PR's body. Remove both to stop reviewing.
+            - name: HARNESS_AGENTS
+              value: '{"reviewer":{"provider":"llamacpp","base_url":"http://10.20.40.11:8080","context_window_limit":131072,"use_for":"Reviewing a change before its PR","read_only":true}}'
+            - name: HARNESS_REVIEW_WITH
+              value: reviewer
             # MCP servers sessions connect to, through the gateway (the form
             # can change them for each session).
             - name: HARNESS_MCP
