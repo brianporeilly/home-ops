@@ -20,20 +20,28 @@ spec:
   values:
     controllers:
       # ----------------------------------------------------------------------
-      # Main TubeArchivist app (Django + nginx + celery). Runs as root: the
-      # image sets nginx `user root`, pip-installs yt-dlp into /root/.local and
-      # never drops privileges (HOST_UID/HOST_GID only chown downloaded media).
+      # Main TubeArchivist app (Django + celery). v0.6.0 dropped nginx and the
+      # HOST_UID/HOST_GID chown, so it runs as the default 1000 user and the
+      # ceph cache PVC must be owned by it (NFS media is already 1000).
       # ----------------------------------------------------------------------
       tubearchivist:
         annotations:
           reloader.stakater.com/auto: "true"
-        pod:
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            runAsNonRoot: false
-            fsGroup: 1000
-            fsGroupChangePolicy: OnRootMismatch
+        initContainers:
+          chown-cache:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command:
+              - sh
+              - -c
+              - "chown -R 1000:1000 /cache"
+            securityContext:
+              runAsUser: 0
+              runAsNonRoot: false
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"], add: ["CHOWN"] }
         containers:
           app:
             image:
@@ -42,8 +50,6 @@ spec:
             env:
               ES_URL: "http://{{ .Release.Name }}-elasticsearch:9200"
               REDIS_CON: "redis://{{ .Release.Name }}-redis:6379"
-              HOST_UID: "1000"
-              HOST_GID: "1000"
               TA_HOST: "https://tubearchivist.internal.oreillys.io"
               TA_USERNAME: root
             envFrom:
@@ -236,6 +242,8 @@ spec:
         advancedMounts:
           tubearchivist:
             app:
+              - path: /cache
+            chown-cache:
               - path: /cache
       es-data:
         suffix: es-data
