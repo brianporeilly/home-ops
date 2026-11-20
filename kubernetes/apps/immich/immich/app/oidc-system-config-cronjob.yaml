@@ -9,6 +9,10 @@
 # oidc-admin-api-key-secret.yaml (that one genuinely can't be automated -
 # API keys can only be created through an authenticated admin session).
 #
+# The sync also owns non-OAuth settings (integrityChecks.checksumFiles:
+# weekly, 10% per run, instead of daily 1%) - add further managed settings
+# to the same jq filter.
+#
 # PUT replaces the *entire* SystemConfigDto, not just the oauth section -
 # GET the current full config first and only mutate .oauth in place
 # (via jq) so every other setting (storage template, ML, notifications,
@@ -67,8 +71,11 @@ spec:
                      | .oauth.clientId = $clientId
                      | .oauth.clientSecret = $clientSecret
                      | .oauth.autoRegister = true
-                     | .oauth.scope = "openid email profile"
-                     | .oauth.buttonText = "Login with Authentik"')
+                     | .oauth.scope = "openid email profile immich_role"
+                     | .oauth.roleClaim = "immich_role"
+                     | .oauth.buttonText = "Login with Authentik"
+                     | .integrityChecks.checksumFiles.cronExpression = "0 3 * * 0"
+                     | .integrityChecks.checksumFiles.percentageLimit = 10')
                   curl -sf -X PUT -H "x-api-key: $IMMICH_API_KEY" -H "Content-Type: application/json" \
                     -d "$UPDATED" "$BASE/system-config" -o /dev/null
                   echo "system-config oauth section synced"
