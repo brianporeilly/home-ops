@@ -50,7 +50,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gateway
-          image: ghcr.io/brianporeilly/burst-harness-gateway:0.45.0@sha256:3d68a63de0b5080703d062abe6c7a09fdba3eedd793c9ded87f50050783fdd6c
+          image: ghcr.io/brianporeilly/burst-harness-gateway:0.49.0@sha256:33f952a3732f38af583c89b6ed0c9a5dd4b6797077437e5bf243f7458058f4ce
           env:
             - name: EGRESS_CONTROL
               value: "8081"
