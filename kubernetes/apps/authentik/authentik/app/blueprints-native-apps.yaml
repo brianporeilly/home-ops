@@ -256,6 +256,18 @@ data:
       name: OIDC Provider - immich
     version: 1
     entries:
+      # Immich's roleClaim wants a plain string ("admin"/"user"), not the
+      # groups list, and re-applies it on every OIDC login.
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: immich-role
+        id: immich-role-mapping
+        attrs:
+          scope_name: immich_role
+          expression: |
+            if ak_is_group_member(request.user, name="immich-admins"):
+                return {"immich_role": "admin"}
+            return {"immich_role": "user"}
       - model: authentik_providers_oauth2.oauth2provider
         identifiers:
           name: immich
@@ -293,6 +305,7 @@ data:
             - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
             - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
             - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+            - !KeyOf immich-role-mapping
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
       - model: authentik_core.application
         identifiers:
@@ -301,6 +314,9 @@ data:
         attrs:
           name: Immich
           provider: !KeyOf immich-provider
+      - model: authentik_core.group
+        identifiers:
+          name: immich-admins
       # media-users, not a dedicated immich-users group - first real
       # tier group, meant to be reused by other media apps as they get
       # wired up (see blueprints-groups.yaml).
