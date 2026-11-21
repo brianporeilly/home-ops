@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/haveagitgat/tdarr
-              tag: 3.07.00@sha256:79636db4caba4abf1190aa636202f2f05ffc4b2c7a476c6e26b9427c08f3cf9b
+              tag: 3.08.00@sha256:56044f91fbbc4f04830509612e29963f488afe0721a0405464f9b8743da289ce
             env:
               PUID: 1000
               PGID: 1000
