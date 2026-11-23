@@ -1,0 +1,82 @@
+---
+# Registers the instance-wide runner with its shared secret; the runner
+# presents the same secret from the forgejo-runner namespace. `register` is
+# idempotent, so the hourly recreate is harmless. Same shape as job.yaml
+# (args not command, throwaway work dir, DB-only config).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: forgejo-runner-register
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: "true"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forgejo-runner-register
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: register
+          image: codeberg.org/forgejo/forgejo:16.0.7-rootless@sha256:85c09de612c60347d3d44582ca8cb32e7ac46309a544e35b2cb27dad2e5ad5bd
+          args:
+            - sh
+            - -c
+            - >-
+              forgejo forgejo-cli actions register
+              --secret "$RUNNER_SECRET" --name k8s-runner
+          env:
+            - name: FORGEJO__security__INSTALL_LOCK
+              value: "true"
+            - name: FORGEJO__database__DB_TYPE
+              value: postgres
+            - name: FORGEJO__database__HOST
+              value: forgejo-postgres-rw:5432
+            - name: FORGEJO__database__NAME
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-postgres-app
+                  key: dbname
+            - name: FORGEJO__database__USER
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-postgres-app
+                  key: username
+            - name: FORGEJO__database__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-postgres-app
+                  key: password
+            - name: RUNNER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-runner-secret
+                  key: secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: work-dir
+              mountPath: /var/lib/gitea
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: work-dir
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

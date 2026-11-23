@@ -1,0 +1,55 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Enforcing from day one, like the agent-runner policies: new namespace, no
+# legacy traffic, and a pod that runs arbitrary workflow code. Job containers
+# live in the pod's nested dockerd and leave through the pod's address, so
+# this one policy bounds the jobs too.
+#
+# Allowed: DNS, the internal Envoy gateway (Forgejo, for the runner's own API
+# calls and for checkouts), and HTTP(S) to public addresses (image pulls,
+# package registries). RFC1918 is denied between those, so a job cannot reach
+# cluster services, the apiserver, or the LAN.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-forgejo-runner-egress
+spec:
+  selector: app.kubernetes.io/name == 'forgejo-runner'
+  namespaceSelector: kubernetes.io/metadata.name == 'forgejo-runner'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    # envoy-internal's pods listen on 10443 after the Service's DNAT. Every
+    # route on that gateway is reachable this way, not Forgejo alone. Must
+    # stay ABOVE the RFC1918 Deny.
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+        ports: [10443]
+    - action: Deny
+      protocol: TCP
+      destination:
+        nets:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 0.0.0.0/0
+        ports: [80, 443]

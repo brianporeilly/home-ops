@@ -1,0 +1,128 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo-runner
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: forgejo-runner
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      forgejo-runner:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: data.forgejo.org/forgejo/runner
+              tag: 13.2.2@sha256:083f957e066f0b2dc3286a248048afa24ec407084d25788ebe14834715c9055e
+            command: ["/bin/sh", "-c"]
+            args:
+              - >-
+                forgejo-runner create-runner-file
+                --instance "$FORGEJO_INSTANCE"
+                --secret "$RUNNER_SECRET"
+                --name k8s-runner
+                --connect &&
+                exec forgejo-runner daemon --config /config/config.yaml
+            env:
+              FORGEJO_INSTANCE: https://forgejo.internal.oreillys.io
+              DOCKER_HOST: tcp://127.0.0.1:2375
+              RUNNER_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-runner-secret
+                    key: secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 512Mi
+          # Jobs run as containers inside this daemon, not on the node.
+          # Privileged is what a nested dockerd needs.
+          dind:
+            image:
+              repository: docker.io/library/docker
+              tag: 29.10.0-dind@sha256:4eea5f48923988bc80515bf582ffec1eece35f5c13bceae1b2074dc80ead1e3d
+            args:
+              - --host=tcp://127.0.0.1:2375
+            env:
+              DOCKER_TLS_CERTDIR: ""
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+              runAsUser: 0
+              runAsGroup: 0
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 8Gi
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+    configMaps:
+      config:
+        data:
+          config.yaml: |
+            runner:
+              file: /data/.runner
+              capacity: 2
+              labels:
+                - docker:docker://node:22-bookworm
+                - ubuntu-latest:docker://node:22-bookworm
+            container:
+              docker_host: "-"
+            cache:
+              enabled: false
+    persistence:
+      config:
+        type: configMap
+        identifier: config
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /config
+      data:
+        type: emptyDir
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /data
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /tmp
+      docker:
+        suffix: docker
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        advancedMounts:
+          forgejo-runner:
+            dind:
+              - path: /var/lib/docker

@@ -70,6 +70,7 @@ spec:
               FORGEJO__repository__ROOT: /data/git/repositories
               FORGEJO__lfs__STORAGE_TYPE: local
               FORGEJO__lfs__PATH: /data/git/lfs
+              FORGEJO__actions__ENABLED: "true"
               # Single-user instance - no public signup.
               FORGEJO__service__DISABLE_REGISTRATION: "true"
               # Outbound mail via the in-cluster maddy relay - no local SMTP
