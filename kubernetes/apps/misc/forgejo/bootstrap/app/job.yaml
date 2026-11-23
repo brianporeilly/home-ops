@@ -14,7 +14,7 @@ metadata:
     # Job's pod template is immutable - without this, a future edit to this
     # spec (e.g. changing the admin username) would fail to apply instead of
     # recreating the Job. Lets Flux delete+recreate on conflict instead.
-    kustomize.toolkit.fluxcd.io/force: "true"
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   backoffLimit: 3
   ttlSecondsAfterFinished: 3600
