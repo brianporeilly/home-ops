@@ -11,3 +11,4 @@ resources:
   - ./obc.yaml
   - ./objectstore.yaml
   - ./scheduledbackup.yaml
+  - ./runner-secret.yaml

@@ -23,6 +23,8 @@ spec:
       namespace: kube-system
     - name: kopiur-repository
       namespace: kopiur-system
+    - name: external-secrets
+      namespace: external-secrets
   interval: 1h
   path: ./kubernetes/apps/misc/forgejo/app
   postBuild:
