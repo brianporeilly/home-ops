@@ -158,7 +158,7 @@ spec:
           app:
             image:
               repository: docker.io/library/redis
-              tag: 8@sha256:1f88291b4c57bdf249f02eb085a8669889b2d2954e91d4de5118a5da6b78dd53
+              tag: 8@sha256:fdbe24d5cbe960326359fdde3fbcd98691ac74523dc9fe647c8a715b22630f7e
             args:
               - redis-server
               - --appendonly
