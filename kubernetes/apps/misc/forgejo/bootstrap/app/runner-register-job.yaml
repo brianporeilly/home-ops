@@ -9,7 +9,7 @@ kind: Job
 metadata:
   name: forgejo-runner-register
   annotations:
-    kustomize.toolkit.fluxcd.io/force: "true"
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   backoffLimit: 3
   ttlSecondsAfterFinished: 3600
