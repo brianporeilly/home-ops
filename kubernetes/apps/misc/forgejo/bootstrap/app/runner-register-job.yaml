@@ -1,7 +1,8 @@
 ---
 # Registers the instance-wide runner with its shared secret; the runner
 # presents the same secret from the forgejo-runner namespace. `register` is
-# idempotent, so the hourly recreate is harmless. Same shape as job.yaml
+# idempotent, so the hourly recreate is harmless, but it overwrites the
+# runner's labels unless given: keep --labels in step with the runner's config. Same shape as job.yaml
 # (args not command, throwaway work dir, DB-only config).
 apiVersion: batch/v1
 kind: Job
@@ -32,6 +33,7 @@ spec:
             - >-
               forgejo forgejo-cli actions register
               --secret "$RUNNER_SECRET" --name k8s-runner
+              --labels docker,ubuntu-latest
           env:
             - name: FORGEJO__security__INSTALL_LOCK
               value: "true"
