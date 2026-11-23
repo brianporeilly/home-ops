@@ -26,7 +26,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-server
-              tag: v3.4.1@sha256:4351dd621899ecc8ed317ae87cdcaeb968ec8ba4f9d8053d913a73eb6f6dd7c2
+              tag: v3.4.2@sha256:17eee2e51be12fe7c2d0bc0b5a851c5ffbdf62fca97b975373df7c5d62a13b4b
             env:
               DB_HOSTNAME: immich-postgres-rw
               DB_PORT: "5432"
@@ -81,7 +81,7 @@ spec:
           app:
             image:
               repository: ghcr.io/immich-app/immich-machine-learning
-              tag: v3.4.1@sha256:0fd58356ac250e2fc306f89a56a431181d708677d63ba2867c8b205484856652
+              tag: v3.4.2@sha256:72db2089878746176c1a5083272cd2d73e4270f839596b42bdf6b12887bbbb89
             env:
               TRANSFORMERS_CACHE: /cache
               MACHINE_LEARNING_CACHE_FOLDER: /cache
