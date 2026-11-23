@@ -64,7 +64,11 @@ spec:
             image:
               repository: docker.io/library/docker
               tag: 29.10.0-dind@sha256:4eea5f48923988bc80515bf582ffec1eece35f5c13bceae1b2074dc80ead1e3d
+            # Not the image entrypoint: it always adds a 0.0.0.0:2375 listener,
+            # which job containers could reach via the bridge gateway.
+            command: ["dind"]
             args:
+              - dockerd
               - --host=tcp://127.0.0.1:2375
             env:
               DOCKER_TLS_CERTDIR: ""
