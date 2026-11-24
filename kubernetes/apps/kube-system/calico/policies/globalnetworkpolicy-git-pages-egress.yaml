@@ -1,0 +1,40 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/projectcalico/calico/master/libcalico-go/config/crd/crd.projectcalico.org_globalnetworkpolicies.yaml
+# Enforcing from day one: only this pod's egress is affected, and its needs
+# are fixed - DNS, the RGW bucket (hostNetwork, so the servers VLAN as in
+# stagedglobalnetworkpolicy-cnpg-egress-rgw.yaml), and Forgejo's API through
+# envoy-internal's pods on 10443 for the push-permission check.
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-git-pages-egress
+spec:
+  selector: app.kubernetes.io/name == 'git-pages'
+  namespaceSelector: kubernetes.io/metadata.name == 'misc'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: k8s-app == 'kube-dns'
+        namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - 10.20.0.0/16
+        ports: [80]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: gateway.envoyproxy.io/owning-gateway-name == 'envoy-internal'
+        namespaceSelector: kubernetes.io/metadata.name == 'network'
+        ports: [10443]
