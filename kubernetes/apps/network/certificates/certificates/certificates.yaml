@@ -13,6 +13,7 @@ spec:
     - oreillys.io
     - "*.oreillys.io"
     - "*.internal.oreillys.io"
+    - "*.pages.internal.oreillys.io"
     - brianporeilly.com
     - "*.brianporeilly.com"
     - bricriu.dev

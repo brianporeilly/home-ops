@@ -36,6 +36,7 @@ resources:
   - ./globalnetworkpolicy-agent-runner-to-llama-cpp.yaml
   # ROADMAP phase 6 in burst-harness - the shared egress gateway sandboxes go through
   - ./globalnetworkpolicy-forgejo-runner-egress.yaml
+  - ./globalnetworkpolicy-git-pages-egress.yaml
   - ./globalnetworkpolicy-burst-gateway-egress.yaml
   - ./globalnetworkpolicy-agent-runner-to-burst-gateway.yaml
   # docs/egress-policy-plan.md - staged only, none of these enforce yet
