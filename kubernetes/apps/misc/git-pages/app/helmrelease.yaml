@@ -88,6 +88,13 @@ spec:
             port: *port
     route:
       app:
+        # Gatus can't probe a wildcard host; an unpublished host answering
+        # 404 proves route, TLS and pod are all up.
+        annotations:
+          gatus.home-operations.com/endpoint: |-
+            url: https://gatus.pages.internal.oreillys.io/
+            conditions:
+              - "[STATUS] == 404"
         hostnames:
           - "*.pages.internal.oreillys.io"
         parentRefs:
