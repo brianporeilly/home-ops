@@ -75,7 +75,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: agent
-          image: ghcr.io/brianporeilly/burst-harness-sandbox:0.64.0@sha256:47bfc465b55553b028db307bde1d92512ec49bc871d0c17961c9895bde5351cb
+          image: ghcr.io/brianporeilly/burst-harness-sandbox:0.65.0@sha256:058986a3defbf1b274683549c9238adccd734d2235ca6ec861170424520ac423
           # `args`, NOT `command`: `command` replaces the image ENTRYPOINT
           # (burst-sandbox-init, which composes ~/.claude.json and
           # ~/.claude/settings.json at start), `args` only replaces its CMD.
