@@ -63,7 +63,7 @@ spec:
           dind:
             image:
               repository: docker.io/library/docker
-              tag: 29.10.0-dind@sha256:4eea5f48923988bc80515bf582ffec1eece35f5c13bceae1b2074dc80ead1e3d
+              tag: 29.10.1-dind@sha256:d367ae4192b30dd0559d1d21cfe7a9465c5b03344960eb51cdfcb5479e765d79
             # Not the image entrypoint: it always adds a 0.0.0.0:2375 listener,
             # which job containers could reach via the bridge gateway.
             command: ["dind"]
