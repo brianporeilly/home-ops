@@ -128,7 +128,7 @@ spec:
           app:
             image:
               repository: docker.io/valkey/valkey
-              tag: 9.2-alpine@sha256:e99efc1c5573be5e444c9ddeef424ad65f15b5e948206159274a2ca1c01f5541
+              tag: 9.2-alpine@sha256:ca8d8948b0cba1138480c813db24b6bdcad15d6e72a506c09905028d200a1ad0
             args:
               - valkey-server
               - --appendonly
