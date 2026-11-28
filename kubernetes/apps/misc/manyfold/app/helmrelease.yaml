@@ -1,0 +1,191 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: manyfold
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: manyfold
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      manyfold:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/manyfold3d/manyfold
+              tag: 0.154.4@sha256:f5fd40e90e21cbc91d5b0fe18f1e0d856edcbf06e14b328327806ebb854da0c2
+            env:
+              PUID: "1000"
+              PGID: "1000"
+              MULTIUSER: enabled
+              # Without this, a fresh instance auto-signs the first visitor in as
+              # admin. With it the first OIDC login becomes admin instead, so
+              # authentik's manyfold-users binding decides who that can be.
+              FORCE_OIDC: enabled
+              OIDC_NAME: Authentik
+              OIDC_ISSUER: https://auth.oreillys.io/application/o/manyfold/
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: manyfold-oidc-secret
+                    key: client-id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: manyfold-oidc-secret
+                    key: client-secret
+              PUBLIC_HOSTNAME: models.oreillys.io
+              HTTPS_ONLY: enabled
+              SECRET_KEY_BASE:
+                valueFrom:
+                  secretKeyRef:
+                    name: manyfold-secret
+                    key: SECRET_KEY_BASE
+              REDIS_URL: redis://manyfold-valkey:6379/1
+              DATABASE_ADAPTER: postgresql
+              DATABASE_HOST: manyfold-postgres-rw
+              DATABASE_NAME: manyfold
+              DATABASE_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: manyfold-postgres-app
+                    key: username
+              DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: manyfold-postgres-app
+                    key: password
+              # Default 4 workers x 16 threads can open ~69 DB connections.
+              WEB_CONCURRENCY: "2"
+              MAX_FILE_UPLOAD_SIZE: "1073741824"
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 3214
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  failureThreshold: 60
+                  periodSeconds: 10
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+                add:
+                  - CHOWN
+                  - DAC_OVERRIDE
+                  - SETUID
+                  - SETGID
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 3Gi
+
+    # The container starts as root and drops to PUID/PGID itself, so the pod
+    # must not pin runAsUser.
+    defaultPodOptions:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      app:
+        primary: true
+        controller: manyfold
+        ports:
+          http:
+            port: *port
+
+    # External only: the OIDC redirect URI is built from PUBLIC_HOSTNAME, so a
+    # second hostname would bounce internal logins to this one anyway.
+    route:
+      app:
+        annotations:
+          # gatus-sidecar's PathPrefix auto-discovery would otherwise pick a
+          # named rule below.
+          gatus.home-operations.com/endpoint: |-
+            path: /
+        hostnames:
+          - models.oreillys.io
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+          - name: login-rate-limited
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /users/
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+          - name: signup-blocked
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /users/sign_up
+            backendRefs:
+              - name: "{{ .Release.Name }}"
+                port: *port
+
+    persistence:
+      models:
+        suffix: models
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "100Gi"
+        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
+        dataSourceRef:
+          apiGroup: kopiur.home-operations.com
+          kind: Restore
+          name: manyfold
+        globalMounts:
+          - path: /models
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      app-tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /usr/src/app/tmp
+      log:
+        type: emptyDir
+        globalMounts:
+          - path: /usr/src/app/log
+      run:
+        type: emptyDir
+        globalMounts:
+          - path: /run

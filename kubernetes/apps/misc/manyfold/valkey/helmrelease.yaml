@@ -1,0 +1,61 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: manyfold-valkey
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: manyfold-valkey
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      valkey:
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+        containers:
+          app:
+            image:
+              repository: docker.io/valkey/valkey
+              tag: 9.2-alpine@sha256:e99efc1c5573be5e444c9ddeef424ad65f15b5e948206159274a2ca1c01f5541
+            args:
+              - valkey-server
+              - --appendonly
+              - "yes"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: [ "ALL" ] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 50Mi
+              limits:
+                memory: 256Mi
+
+    service:
+      app:
+        primary: true
+        controller: valkey
+        ports:
+          http:
+            port: 6379
+
+    persistence:
+      # appendonlydir needs a writable path under readOnlyRootFilesystem.
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /data

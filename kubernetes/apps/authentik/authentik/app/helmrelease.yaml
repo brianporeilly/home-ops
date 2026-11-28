@@ -313,6 +313,17 @@ spec:
             secretKeyRef:
               name: linkwarden-oidc-credentials
               key: client-secret
+        # Consumed by the provider-manyfold.yaml key in blueprints-native-apps.yaml.
+        - name: MANYFOLD_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: manyfold-oidc-credentials
+              key: client-id
+        - name: MANYFOLD_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: manyfold-oidc-credentials
+              key: client-secret
         # Consumed by the provider-forgejo.yaml key in blueprints-native-apps.yaml.
         - name: FORGEJO_OAUTH_CLIENT_ID
           valueFrom:
