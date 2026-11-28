@@ -40,6 +40,10 @@ data:
         id: linkwarden-users-group
       - model: authentik_core.group
         identifiers:
+          name: manyfold-users
+        id: manyfold-users-group
+      - model: authentik_core.group
+        identifiers:
           name: forgejo-users
         id: forgejo-users-group
       - model: authentik_core.group

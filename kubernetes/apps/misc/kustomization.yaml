@@ -25,6 +25,7 @@ resources:
   - ./forgejo/bootstrap/ks.yaml
   - ./git-pages/ks.yaml
   - ./linkwarden/ks.yaml
+  - ./manyfold/ks.yaml
   - ./maddy/ks.yaml
   - ./nebraska/ks.yaml
   - ./thelounge/ks.yaml
