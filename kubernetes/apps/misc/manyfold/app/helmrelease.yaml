@@ -90,9 +90,14 @@ spec:
                 enabled: true
                 custom: true
                 spec:
+                  # HTTPS_ONLY redirects plain-http probes to https, which Puma
+                  # can't serve.
                   httpGet:
-                    path: /
+                    path: /users/sign_in
                     port: &port 3214
+                    httpHeaders:
+                      - name: X-Forwarded-Proto
+                        value: https
                   periodSeconds: 30
                   timeoutSeconds: 5
                   failureThreshold: 3
@@ -101,8 +106,11 @@ spec:
                 enabled: true
                 spec:
                   httpGet:
-                    path: /
+                    path: /users/sign_in
                     port: *port
+                    httpHeaders:
+                      - name: X-Forwarded-Proto
+                        value: https
                   failureThreshold: 60
                   periodSeconds: 10
             securityContext:
