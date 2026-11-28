@@ -1,0 +1,128 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/main/charts/other/app-template/schemas/helmrelease-helm-v2.schema.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: thingport
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: thingport
+  install:
+    timeout: 15m
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      thingport:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        strategy: Recreate
+        containers:
+          backend:
+            image:
+              repository: ghcr.io/tautvydasderzinskas/thingport-backend
+              tag: latest@sha256:473e7d2bfa691db14624160cbb9e10bc1b6d0b2dc06c9bea3ef528306176b8e3
+            env:
+              PUID: "1000"
+              PGID: "1000"
+              FILE_STORAGE: /app/storage
+              PUBLIC_URL: https://thingport.internal.oreillys.io
+              AUTH_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: thingport-secret
+                    key: AUTH_SECRET
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: thingport-postgres-app
+                    key: uri
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 8000
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+              startup:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: 8000
+                  failureThreshold: 60
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+          frontend:
+            image:
+              repository: ghcr.io/tautvydasderzinskas/thingport-frontend
+              tag: latest@sha256:7220534438b55a0cebf453e79891861f02ece96ba5362e3d99d83b3ae7004287
+            probes:
+              liveness: &frontend-probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 80
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *frontend-probes
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+    defaultPodOptions:
+      # The frontend's nginx.conf proxies /api to http://backend:8000.
+      hostAliases:
+        - ip: 127.0.0.1
+          hostnames:
+            - backend
+
+    service:
+      app:
+        primary: true
+        controller: thingport
+        ports:
+          http:
+            port: *port
+
+    route:
+      app:
+        hostnames:
+          - thingport.internal.oreillys.io
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+
+    persistence:
+      storage:
+        suffix: storage
+        storageClass: "ceph-block"
+        accessMode: ReadWriteOnce
+        size: "50Gi"
+        advancedMounts:
+          thingport:
+            backend:
+              - path: /app/storage
