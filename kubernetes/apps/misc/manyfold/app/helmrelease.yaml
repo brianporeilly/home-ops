@@ -166,11 +166,8 @@ spec:
         storageClass: "ceph-block"
         accessMode: ReadWriteOnce
         size: "100Gi"
-        # CSI volume populator - see kubernetes/apps/home/esphome/app/helmrelease.yaml
-        dataSourceRef:
-          apiGroup: kopiur.home-operations.com
-          kind: Restore
-          name: manyfold
+        # No dataSourceRef: the empty-volume populate takes ~9m, which eats the
+        # Deployment's 10m progressDeadline and Helm reverts the install in a loop.
         globalMounts:
           - path: /models
       tmp:
