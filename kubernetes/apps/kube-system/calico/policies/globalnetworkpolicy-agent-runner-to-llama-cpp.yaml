@@ -20,4 +20,4 @@ spec:
         selector: app.kubernetes.io/name == 'burst-harness'
         namespaceSelector: kubernetes.io/metadata.name == 'agent-runner'
       destination:
-        ports: [8080]
+        ports: [8080,8000]

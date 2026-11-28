@@ -84,7 +84,7 @@ spec:
       destination:
         nets:
           - 10.20.40.11/32
-        ports: [8080]
+        ports: [8080,8000]
     # The internal Envoy gateway (10.21.0.2, envoy-internal's pods on 10443
     # after the Service's DNAT): Forgejo, forgejo.internal.oreillys.io, for
     # tasks' and jobs' repos. Every route on envoy-internal is reachable
