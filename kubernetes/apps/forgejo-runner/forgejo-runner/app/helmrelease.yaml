@@ -100,7 +100,9 @@ spec:
             container:
               docker_host: "-"
             cache:
-              enabled: false
+              enabled: true
+              port: 8088
+              dir: /cache
     persistence:
       config:
         type: configMap
@@ -121,6 +123,13 @@ spec:
           forgejo-runner:
             app:
               - path: /tmp
+      cache:
+        type: emptyDir
+        sizeLimit: 10Gi
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /cache
       docker:
         suffix: docker
         storageClass: "ceph-block"
