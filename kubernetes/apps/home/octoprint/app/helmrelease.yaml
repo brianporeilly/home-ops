@@ -30,7 +30,7 @@ spec:
           app:
             image:
               repository: octoprint/octoprint
-              tag: 1.11.8@sha256:392bcadf7e5719fe9cbeae607c917a3ebd8915579d593ee9e91809defc15dd6a
+              tag: 2.0.2@sha256:b549285205c66248884487114d2494401c5fc9a0ba24d5a07d76f41978f5dcc7
             probes:
               liveness: &probes
                 enabled: true
