@@ -7,7 +7,7 @@ metadata:
 spec:
   instances: 1
   # Upstream's compose runs Postgres 16.
-  imageName: ghcr.io/cloudnative-pg/postgresql:16.16-202611230809-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:19.0-202611230809-standard-trixie
   storage:
     size: 5Gi
     storageClass: ceph-block-ssd
