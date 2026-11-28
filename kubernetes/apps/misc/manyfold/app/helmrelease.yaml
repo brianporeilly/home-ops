@@ -22,11 +22,25 @@ spec:
       manyfold:
         annotations:
           reloader.stakater.com/auto: "true"
-        containers:
-          app:
-            image:
+        initContainers:
+          # Ruby's Dir.tmpdir rejects a world-writable dir without the sticky
+          # bit, and emptyDirs are 0777.
+          tmp-perms:
+            image: &image
               repository: ghcr.io/manyfold3d/manyfold
               tag: 0.154.4@sha256:f5fd40e90e21cbc91d5b0fe18f1e0d856edcbf06e14b328327806ebb854da0c2
+            command:
+              - chmod
+              - "1777"
+              - /tmp
+              - /usr/src/app/tmp
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
             env:
               PUID: "1000"
               PGID: "1000"
