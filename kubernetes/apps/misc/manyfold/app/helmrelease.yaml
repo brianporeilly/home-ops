@@ -200,3 +200,9 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /run
+      plugins:
+        type: emptyDir
+        advancedMounts:
+          manyfold:
+            app:
+              - path: /usr/src/app/plugins
